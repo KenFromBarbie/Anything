@@ -14,13 +14,14 @@ Munder Difflin (`v0.5.5`, `../munder-difflin`, branch `sidecar`) hosted as an
 | M3 Office in Buzz | Done. The Agents page is the Office: its floor fills the page (one sidebar entry, one agents row); it stays mounted after first open; host bridge verified; sidecar stops with Buzz. |
 | M4 Hive on Buzz | Done and verified live: the owner's @mention in #general reached Michael, who answered in the thread. Also DMs and thread follow-ups; non-owner messages ignored. |
 | Studio (ArtCraft) | Built into Buzz's process and building; see "The Studio" below for what is verified. |
-| M5 Package | Not started. Disk is tight (~7.5 GB free; Rust targets use ~18 GB). |
+| M5 Package | Installers for Windows, macOS and Linux are built by `.github/workflows/build-installers.yml`; the Office runtime is staged by `scripts/stage-office-runtime.mjs` and bundled as `resources/office`. |
 
 ## Local services without Docker (dev)
 
-In `C:\Users\ken04\Projects\buzz-services` (outside the repo). Start everything
-(detached, skipping what's already up) with
-`powershell -ExecutionPolicy Bypass -File start-services.ps1`.
+Portable installs in a services folder outside the repo (`KH_SERVICES_DIR`,
+default `../kenns-harness-services`). Start everything (detached, skipping
+what's already up) with
+`powershell -ExecutionPolicy Bypass -File scripts\dev-services.ps1`.
 
 - **Postgres 17.6** (EDB Windows binaries), data in `pgdata`, user `buzz` / db `buzz`, localhost only.
   Start: `pgsql\bin\pg_ctl -D pgdata -l postgres.log start`
@@ -77,16 +78,6 @@ launch, so Michael starts only when the user opens the Office and confirms.
 Messages sent meanwhile are delivered once the bridge starts.
 
 Known limits: a community switch needs an office restart to move the bridge.
-
-Stale identity retired (2026-10-09): `cce3f142c827…`, a first-start identity
-named "Michael" whose key was lost, showed up as a second Michael in member
-search and in #general. It has no owner attestation, so the relay won't archive
-it. It was removed from #general by the owner through Buzz
-(`remove_channel_member`) and its `users` row was deleted from the local relay
-DB; its kind:0 events remain. The deleted rows are backed up in
-`buzz-services/backups/orphan-michael-cce3.*.csv` (restore with `\copy ... from`).
-Two other stale test keys (`3b851b07…`, `895e3991…`) have kind:0 events but no
-directory entry in the community, so they don't appear anywhere.
 
 ## Michael as a Buzz agent (as built)
 
@@ -214,8 +205,8 @@ Tests in `test/auto-mode-sandbox.test.cjs`.
 
 [ArtCraft](https://github.com/storytold/artcraft) (AI image, video and 3D
 creation; Tauri 2, MIT/Apache-2.0) is compiled into Buzz's own process and
-shown as the **Studio** sidebar page. Checkout: `C:\Users\ken04\Projects\artcraft`
-(shallow clone of `main` at 8abde75, with the changes below, not committed).
+shown as the **Studio** sidebar page. Source: `studio/` (imported from
+`main` at 8abde75, with the changes below).
 
 How it fits:
 - **Rust**: `buzz-desktop` depends on ArtCraft's desktop crate

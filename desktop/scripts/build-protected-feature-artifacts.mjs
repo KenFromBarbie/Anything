@@ -54,6 +54,9 @@ function emittedText(root) {
   const visit = (candidate) => {
     const stat = statSync(candidate);
     if (stat.isDirectory()) {
+      // The Office and Studio UIs are separate apps copied in from public/;
+      // their own text (e.g. the Office's voice prompt) isn't this check's.
+      if (/^(?:office|studio)-app$/u.test(path.basename(candidate))) return;
       for (const child of readdirSync(candidate)) {
         visit(path.join(candidate, child));
       }

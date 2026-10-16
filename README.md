@@ -1,0 +1,66 @@
+<p align="center">
+  <img src="desktop/src-tauri/icons/128x128@2x.png" width="128" height="128" alt="Kenn's Harness icon">
+</p>
+
+<h1 align="center">Kenn's Harness</h1>
+
+<p align="center">One desktop app for running a team of AI agents: chat, tasks, research and a studio, with your own Claude, ChatGPT and Gemini accounts.</p>
+
+## What's inside
+
+- **Office**: Michael, the orchestrator, runs a floor of agents (Claude Code,
+  Codex, Gemini). His live terminal is always on screen; every other agent opens
+  to a chat with them and their controls.
+- **Tasks**: the agents' board and your own task sheet, synced both ways with
+  Notion (sign in with Notion; use a new sheet or one you already have).
+- **Ask Me**: the decisions the agents are waiting on you for.
+- **Research**: projects as folders. Describe a project (and attach files) and
+  Michael researches it in its own chat, saving what he finds into the folder.
+  Pin projects and give them covers.
+- **Studio**: local creative tools (image editor, 3D stage, video editor,
+  frame extractor, storyboard, moodboard), with nothing that spends AI credits.
+- **AI accounts** (Settings): several Claude, ChatGPT and Gemini sign-ins or
+  API keys, their usage, and which one the agents run on.
+- Channels, direct messages and agents from Buzz, which this is built on.
+
+## Download
+
+Installers for Windows, macOS (Apple silicon) and Linux (.deb and AppImage)
+are on the [Releases](../../releases) page, and every build of `main` attaches
+them to its run under [Actions](../../actions/workflows/build-installers.yml).
+
+They aren't code-signed yet:
+
+- **Windows**: SmartScreen may warn; choose *More info → Run anyway*.
+- **macOS**: right-click the app and choose *Open* the first time (or run
+  `xattr -dr com.apple.quarantine "/Applications/Kenn's Harness.app"`).
+- **Linux**: `sudo apt install ./kenns-harness_*.deb`, or make the AppImage
+  executable and run it.
+
+The agents need their CLIs installed and signed in on your machine: Claude
+Code, Codex and/or Gemini CLI.
+
+## Repository layout
+
+| Path | What |
+| --- | --- |
+| `desktop/` | The app (Tauri 2: Rust in `src-tauri/`, React in `src/`) |
+| `crates/` | Relay, agent runtime, CLI and shared Rust crates |
+| `office/` | The Office (agents, floor, hive), run as a sidecar |
+| `studio/` | The Studio (ArtCraft), built into the app |
+| `docs/KENNS_HARNESS.md` | How the pieces fit together, and dev notes |
+
+## Building
+
+See `docs/KENNS_HARNESS.md` for development (local services, running the
+app) and `.github/workflows/build-installers.yml` for the full release build
+on each platform.
+
+## Credits and licenses
+
+Built from [Buzz](https://github.com/block/buzz) (Block, Apache-2.0),
+[Munder Difflin](https://github.com/HarnessMD/munder-difflin) (MIT) and
+[ArtCraft](https://github.com/storytold/artcraft) (MIT OR Apache-2.0). Each
+part keeps its license: `LICENSE` (Apache-2.0) at the root, `office/LICENSE`,
+and `studio/LICENSE-MIT` / `studio/LICENSE-APACHE`. Artwork credits are in
+[CREDITS.md](CREDITS.md).
