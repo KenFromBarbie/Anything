@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { UserRoundPlus, X } from "lucide-react";
+import { Bot, UserRoundPlus, X } from "lucide-react";
 import {
   invalidateChannelState,
   useAddChannelMembersMutation,
@@ -34,6 +34,7 @@ import { formatOwnerLabel } from "@/features/profile/lib/identity";
 import { rankUserCandidatesBySearch } from "@/features/profile/lib/userCandidateSearch";
 import { useAgentAvailabilityLookup } from "@/features/agents/lib/useAgentAvailability";
 import { VirtualizedList } from "@/shared/ui/VirtualizedList";
+import { startNewAgentForChannel } from "@/features/office/lib/officeChannelHire";
 import { useIdentityQuery } from "@/shared/api/hooks";
 import { changeChannelMemberRole } from "@/shared/api/tauri";
 import type {
@@ -745,6 +746,22 @@ export function MembersSidebar({
                 value={searchQuery}
               />
             </label>
+            {canAddMembers && !isArchived && channelId ? (
+              // Office agents already show up in the search above; this hires
+              // a new one and adds it here once Buzz has its identity.
+              <button
+                className="mt-2 inline-flex items-center gap-1.5 self-start rounded-md px-1 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                data-testid="members-sidebar-new-office-agent"
+                onClick={() => {
+                  onOpenChange(false);
+                  void startNewAgentForChannel(channelId);
+                }}
+                type="button"
+              >
+                <Bot className="h-4 w-4" />
+                New Office agent for this channel
+              </button>
+            ) : null}
             {showPrivateAddDeniedNotice ? (
               <p
                 className="pt-2 text-sm text-muted-foreground"

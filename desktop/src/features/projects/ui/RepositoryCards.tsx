@@ -67,7 +67,7 @@ function RepositoryHostIcon({
   const host = projectRepoHostForRepository(repository, useRelayOrigin());
   const label =
     host.kind === "buzz"
-      ? "Buzz-hosted repository"
+      ? "Kenn’s Harness-hosted repository"
       : host.kind === "external"
         ? `Git data hosted on ${host.host}`
         : "Repository host";

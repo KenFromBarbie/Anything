@@ -806,7 +806,7 @@ export function TerminalSubstrate({
         />
       </div>
       <div aria-live="polite" className="sr-only">
-        {owner === "terminal" ? "Buzz Term mode" : "Buzz mode"}
+        {owner === "terminal" ? "Buzz Term mode" : "Kenn’s Harness mode"}
       </div>
     </section>
   );

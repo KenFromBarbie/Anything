@@ -22,9 +22,11 @@ import { useHistorySearchState } from "@/shared/hooks/useHistorySearchState";
 import { useThreadPanelWidth } from "@/shared/hooks/useThreadPanelWidth";
 import { ViewLoadingFallback } from "@/shared/ui/ViewLoadingFallback";
 
+// The Agents page is the Office (Buzz's own agent grid is replaced: agents
+// live on Michael's floor). The profile panel around it is unchanged.
 const AgentsView = React.lazy(async () => {
-  const module = await import("@/features/agents/ui/AgentsView");
-  return { default: module.AgentsView };
+  const module = await import("@/features/office/ui/OfficeAgentsPage");
+  return { default: module.OfficeAgentsPage };
 });
 
 type ProfilePanelTarget =

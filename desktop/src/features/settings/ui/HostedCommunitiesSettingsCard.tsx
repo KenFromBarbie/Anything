@@ -444,7 +444,7 @@ export function HostedCommunitiesSettingsCard() {
     <section className="space-y-6" data-testid="hosted-communities-settings">
       <SettingsSectionHeader
         title="Hosted communities"
-        description="Buzz works with any relay. This page is only for relay hosting provided by Block — sign in with a Builderlab account to create and manage Block-hosted communities. Builderlab sign-in is used on this page alone."
+        description="Kenn’s Harness works with any relay. This page is only for relay hosting provided by Block — sign in with a Builderlab account to create and manage Block-hosted communities. Builderlab sign-in is used on this page alone."
       />
 
       {error ? (
@@ -465,8 +465,8 @@ export function HostedCommunitiesSettingsCard() {
             className="mt-2 max-w-2xl text-sm text-muted-foreground/70"
             data-settings-subcopy
           >
-            Authentication opens in your browser and returns securely to Buzz.
-            You can use every other part of the app without signing in.
+            Authentication opens in your browser and returns securely to Kenn’s
+            Harness. You can use every other part of the app without signing in.
           </p>
           <Button
             className="mt-4"
@@ -513,8 +513,8 @@ export function HostedCommunitiesSettingsCard() {
               >
                 This Builderlab account isn&apos;t linked to a Buzz identity
                 yet. Connect this device&apos;s key to create and own
-                communities under it — Buzz signs a one-time challenge locally,
-                so your private key never leaves Desktop.
+                communities under it — Kenn’s Harness signs a one-time challenge
+                locally, so your private key never leaves Desktop.
               </p>
               <Button
                 className="mt-4"
@@ -539,10 +539,10 @@ export function HostedCommunitiesSettingsCard() {
                     className="mt-2 text-sm text-muted-foreground/70"
                     data-settings-subcopy
                   >
-                    Your Builderlab account owns communities under another Buzz
-                    key, so connecting them here would join a relay this device
-                    isn&apos;t a member of. Creating and connecting are paused
-                    until the identities match.
+                    Your Builderlab account owns communities under another
+                    Kenn’s Harness key, so connecting them here would join a
+                    relay this device isn&apos;t a member of. Creating and
+                    connecting are paused until the identities match.
                   </p>
                   <dl className="mt-3 space-y-1 text-xs">
                     <div className="flex flex-wrap gap-x-2">
@@ -574,8 +574,8 @@ export function HostedCommunitiesSettingsCard() {
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 p-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Buzz
-                identity connected
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Kenn’s
+                Harness identity connected
                 {boundNpub ? (
                   <span className="font-mono text-xs">{boundNpub}</span>
                 ) : null}
@@ -759,9 +759,9 @@ function UnpairIdentityButton({
         <AlertDialogHeader>
           <AlertDialogTitle>Unpair this Buzz identity?</AlertDialogTitle>
           <AlertDialogDescription>
-            Your Builderlab account will no longer be connected to this Buzz
-            key. You can reconnect any key later, but community actions stay
-            unavailable until you do.
+            Your Builderlab account will no longer be connected to this Kenn’s
+            Harness key. You can reconnect any key later, but community actions
+            stay unavailable until you do.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

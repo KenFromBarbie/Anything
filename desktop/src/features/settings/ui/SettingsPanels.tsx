@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
+  Gauge,
   Archive,
   BellRing,
   Bot,
@@ -80,6 +81,7 @@ import { ProfileSettingsCard } from "./ProfileSettingsCard";
 import { UpdateChecker } from "../UpdateChecker";
 import { SettingsSectionHeader } from "./SettingsSectionHeader";
 import { VoiceSettingsCard } from "./VoiceSettingsCard";
+import { AiAccountsSettingsCard } from "./AiAccountsSettingsCard";
 
 export type SettingsSection =
   | "profile"
@@ -87,6 +89,7 @@ export type SettingsSection =
   | "voice"
   | "experimental"
   | "agents"
+  | "ai-accounts"
   | "channel-templates"
   | "compute"
   | "appearance"
@@ -107,6 +110,7 @@ const SETTINGS_SECTION_VALUES: readonly SettingsSection[] = [
   "voice",
   "experimental",
   "agents",
+  "ai-accounts",
   "channel-templates",
   "compute",
   "appearance",
@@ -181,6 +185,11 @@ export const settingsSections: SettingsSectionDescriptor[] = [
     label: "Agents",
     icon: Bot,
     featureGate: "managed-agents",
+  },
+  {
+    value: "ai-accounts",
+    label: "AI accounts",
+    icon: Gauge,
   },
   {
     value: "channel-templates",
@@ -576,7 +585,7 @@ function ThemeSettingsCard() {
           }}
         />
         {/* Bottom fade — hidden while the accent picker is visible so its
-            near-white gradient (Buzz light) can't mask the swatches below it
+            near-white gradient (Kenn’s Harness light) can't mask the swatches below it
             (the "white bar"). Kept only when the picker is hidden. */}
         {accentPickerHidden ? (
           <div
@@ -638,7 +647,7 @@ function ThemeSettingsCard() {
     >
       <SettingsSectionHeader
         title="Appearance"
-        description="Choose how Buzz looks and feels."
+        description="Choose how Kenn’s Harness looks and feels."
       />
 
       <SettingsOptionGroupList>
@@ -698,7 +707,7 @@ function ThemeSettingsCard() {
                 className="text-sm font-normal text-muted-foreground/70"
                 data-settings-subcopy
               >
-                Choose the colors used throughout Buzz.
+                Choose the colors used throughout Kenn’s Harness.
               </p>
             </div>
             <button
@@ -749,7 +758,7 @@ function ThemeSettingsCard() {
             </AnimatePresence>
           )}
 
-          {/* Accent color picker — hidden for Buzz themes (pinned neutral accent).
+          {/* Accent color picker — hidden for Kenn’s Harness themes (pinned neutral accent).
               Reveal/hide with the translate-up + opacity fade defined by
               ACCENT_PICKER_TRANSITION above. Reduced motion skips the transition
               and just renders/unrenders. */}
@@ -834,6 +843,8 @@ export function renderSettingsSection(
       return <ExperimentalFeaturesCard />;
     case "agents":
       return <AgentsSettingsPanel />;
+    case "ai-accounts":
+      return <AiAccountsSettingsCard />;
     case "channel-templates":
       return <ChannelTemplatesSettingsCard />;
     case "compute":

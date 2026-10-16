@@ -1,0 +1,28 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "studio",
+  "description": "ArtCraft's view inside the main window (the Studio page)",
+  "webviews": [
+    "artcraft"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "http:allow-fetch",
+    "log:default",
+    "upload:allow-download",
+    "upload:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://*"
+        },
+        {
+          "url": "http://localhost:12345"
+        }
+      ]
+    },
+    "opener:default"
+  ]
+}

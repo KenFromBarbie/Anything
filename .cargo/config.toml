@@ -9,3 +9,6 @@ debug = "line-tables-only"
 # cmake_minimum_required < 3.5; audiopus_sys's vendored opus declares 3.1.
 # Same workaround CI uses. A value already set in the environment wins.
 CMAKE_POLICY_VERSION_MINIMUM = "3.5"
+# The Studio (ArtCraft) brings BoringSSL: on Windows build it without assembly
+# (no NASM needed) and with the static CRT Buzz links (sherpa-onnx is /MT).
+CMAKE_TOOLCHAIN_FILE_x86_64_pc_windows_msvc = { value = "desktop/src-tauri/boringssl-no-asm.cmake", relative = true }

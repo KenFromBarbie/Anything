@@ -516,7 +516,7 @@ export function HostedCommunityOnboarding({
               <DialogDescription className="mt-2 text-sm leading-6 text-foreground">
                 Sign in to connect a community you already own or create a new
                 one. We’ll open Builderlab in your browser, then bring you back
-                to Buzz.
+                to Kenn’s Harness.
               </DialogDescription>
               {errorBox ? <div className="mt-5 w-full">{errorBox}</div> : null}
               {action === "Signing in…" ? (
@@ -535,17 +535,17 @@ export function HostedCommunityOnboarding({
                   Sign in to continue
                 </Button>
               )}
-              {/* Quiet breadcrumb: Buzz itself is open source; this hosted
+              {/* Quiet breadcrumb: Kenn’s Harness itself is open source; this hosted
                     relay is the one account-backed piece of the flow. */}
               <p className="mt-6 w-full border-t border-foreground/10 pt-4 text-xs leading-5 text-foreground/45">
-                Buzz is open source. Builderlab hosts the relay for this
-                account.
+                Kenn’s Harness is open source. Builderlab hosts the relay for
+                this account.
               </p>
             </>
           ) : !identity ? (
             <>
               <DialogTitle className="text-xl font-medium text-foreground">
-                Finish connecting Buzz
+                Finish connecting Kenn’s Harness
               </DialogTitle>
               <DialogDescription className="mt-2 text-sm leading-6 text-foreground">
                 Your Builderlab account

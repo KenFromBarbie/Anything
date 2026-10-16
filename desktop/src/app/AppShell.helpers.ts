@@ -9,7 +9,12 @@ export type AppView =
   | "agents"
   | "workflows"
   | "pulse"
-  | "projects";
+  | "projects"
+  | "office"
+  | "research"
+  | "studio"
+  | "tasks"
+  | "askme";
 
 const WINDOW_DRAG_HANDLE_HEIGHT = 44;
 const TAURI_DRAG_REGION_ATTR = "data-tauri-drag-region";
@@ -258,6 +263,41 @@ export function deriveShellRoute(pathname: string): {
     return {
       selectedChannelId: null,
       selectedView: "pulse",
+    };
+  }
+
+  if (pathname === "/office") {
+    return {
+      selectedChannelId: null,
+      selectedView: "office",
+    };
+  }
+
+  if (pathname === "/tasks") {
+    return {
+      selectedChannelId: null,
+      selectedView: "tasks",
+    };
+  }
+
+  if (pathname === "/ask-me") {
+    return {
+      selectedChannelId: null,
+      selectedView: "askme",
+    };
+  }
+
+  if (pathname === "/research") {
+    return {
+      selectedChannelId: null,
+      selectedView: "research",
+    };
+  }
+
+  if (pathname === "/studio") {
+    return {
+      selectedChannelId: null,
+      selectedView: "studio",
     };
   }
 

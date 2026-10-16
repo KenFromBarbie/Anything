@@ -353,7 +353,10 @@ pub fn load_personas<R: tauri::Runtime>(
         .filter_map(|record| record.to_definition_view())
         .collect();
 
-    let (records, changed) = merge_personas(records, &now);
+    let (mut records, mut changed) = merge_personas(records, &now);
+    if super::starter_agents::starter_agents_removed(app) {
+        changed |= super::starter_agents::strip_starter_personas(&mut records);
+    }
     if changed {
         save_personas(app, &records)?;
     }

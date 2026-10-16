@@ -34,8 +34,13 @@ mod native_relay_client;
 mod native_websocket;
 mod native_websocket_batch;
 mod nostr_bind;
+mod notion;
+mod notion_mcp;
+mod ai_accounts;
+mod research;
 pub mod nostr_convert;
 mod observed_unread;
+mod office;
 mod persona_catalog;
 mod prevent_sleep;
 mod ptt_shortcut;
@@ -44,6 +49,7 @@ mod relay_admission;
 mod reset;
 mod secret_store;
 mod shutdown;
+mod studio;
 mod team_catalog;
 mod templates;
 mod terminal_runtime;
@@ -208,6 +214,9 @@ pub fn run() {
     // builds; see that module for why.
     let builder = ptt_shortcut::install(builder);
 
+    // The Studio: ArtCraft's plugins and state (see `studio`).
+    let (builder, artcraft_startup) = studio::install(builder);
+
     // Register the updater only in configured release builds; omit it locally.
     #[cfg(buzz_updater_enabled)]
     let builder = if cfg!(debug_assertions) {
@@ -233,11 +242,18 @@ pub fn run() {
         .manage(commands::pairing::PairingHandle::new())
         .manage(terminal_runtime::TerminalSessions::default())
         .manage(archive::sync::ArchiveSyncState::default())
+        .manage(office::OfficeState::default())
         .manage(native_relay_client::NativeRelayClient::default())
         .manage(observed_unread::ObservedUnreadStore::default())
         .manage(channel_head_cache::ChannelHeadCacheStore::default())
         .setup(move |app| {
             let app_handle = app.handle().clone();
+            // The office never outlives Buzz; clear a stale "deployed" left by
+            // an unclean exit.
+            commands::set_office_agent_deployed(&app_handle, false);
+            // ArtCraft's background work, without a window of its own; its UI
+            // opens with the Studio page (`studio::studio_place`).
+            artcraft_startup.start_embedded(&app_handle);
             #[cfg(target_os = "macos")]
             {
                 tray_menu::init(&app_handle)?;
@@ -526,7 +542,48 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(studio::with_artcraft_commands(tauri::generate_handler![
+            studio::studio_place,
+            notion::notion_status,
+            notion::notion_connect,
+            notion::notion_disconnect,
+            notion::notion_save_config,
+            notion::notion_request,
+            notion::notion_sync_state_load,
+            notion::notion_sync_state_save,
+            notion_mcp::notion_mcp_status,
+            notion_mcp::notion_mcp_sign_in,
+            notion_mcp::notion_mcp_cancel_sign_in,
+            notion_mcp::notion_mcp_sign_out,
+            notion_mcp::notion_mcp_tools,
+            notion_mcp::notion_mcp_call,
+            ai_accounts::ai_accounts_list,
+            ai_accounts::ai_accounts_add,
+            ai_accounts::ai_accounts_sign_in,
+            ai_accounts::ai_accounts_set_active,
+            ai_accounts::ai_accounts_rename,
+            ai_accounts::ai_accounts_remove,
+            ai_accounts::ai_accounts_usage,
+            ai_accounts::ai_accounts_add_api_key,
+            ai_accounts::ai_accounts_set_api_key,
+            research::research_list,
+            research::research_create,
+            research::research_add_folder,
+            research::research_update,
+            research::research_set_image,
+            research::research_clear_image,
+            research::research_image,
+            research::research_remove,
+            research::research_set_root,
+            research::research_files,
+            research::research_open,
+            research::research_pick_image,
+            research::research_pick_folder,
+            research::research_pick_root,
+            research::research_save_file,
+            office::office_connect,
+            office::office_status,
+            office::office_stop,
             terminal_runtime::terminal_attach,
             terminal_runtime::terminal_detach,
             terminal_runtime::terminal_close,
@@ -718,6 +775,8 @@ pub fn run() {
             set_managed_agent_start_on_app_launch,
             set_managed_agent_auto_restart,
             delete_managed_agent,
+            remove_starter_agents,
+            restore_starter_agents,
             get_managed_agent_log,
             get_agent_models,
             discover_agent_models,
@@ -901,7 +960,7 @@ pub fn run() {
             get_admin_origin,
             set_admin_origin,
             admin_discover_origin,
-        ])
+        ]))
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
     let shutdown_done = Arc::new(AtomicBool::new(false));

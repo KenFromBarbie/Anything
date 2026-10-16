@@ -1,6 +1,20 @@
-import { Activity, Bot, Folders, Inbox, Zap } from "lucide-react";
+import {
+  Microscope,
+  Activity,
+  Bot,
+  Building2,
+  Folders,
+  Inbox,
+  ListChecks,
+  MessageCircleQuestion,
+  Palette,
+  Zap,
+} from "lucide-react";
+
+import { useAppNavigation } from "@/app/navigation/useAppNavigation";
 
 import { TopbarSearch } from "@/features/search/ui/TopbarSearch";
+import { PinnedResearchProjects } from "@/features/research/ui/PinnedResearchProjects";
 import { SidebarProjectsSection } from "@/features/sidebar/ui/SidebarProjectsSection";
 import { FeatureGate } from "@/shared/features";
 import type { Channel, SearchHit } from "@/shared/api/types";
@@ -21,7 +35,12 @@ type SidebarSelectedView =
   | "agents"
   | "workflows"
   | "pulse"
-  | "projects";
+  | "projects"
+  | "office"
+  | "research"
+  | "studio"
+  | "tasks"
+  | "askme";
 
 type AppSidebarPinnedHeaderProps = {
   channelLabels: Record<string, string>;
@@ -99,6 +118,8 @@ export function AppSidebarPrimaryMenu({
   projectsOverviewActive,
   selectedView,
 }: AppSidebarPrimaryMenuProps) {
+  const { goAskMe, goOffice, goResearch, goStudio, goTasks } =
+    useAppNavigation();
   return (
     <>
       <SidebarHeader
@@ -158,6 +179,32 @@ export function AppSidebarPrimaryMenu({
           <SidebarMenuItem>
             <SidebarMenuButton
               className="data-[active=true]:font-normal"
+              data-testid="open-tasks-view"
+              isActive={selectedView === "tasks"}
+              onClick={() => void goTasks()}
+              tooltip="Tasks"
+              type="button"
+            >
+              <ListChecks className="h-4 w-4" />
+              <SidebarMenuLabel>Tasks</SidebarMenuLabel>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="data-[active=true]:font-normal"
+              data-testid="open-ask-me-view"
+              isActive={selectedView === "askme"}
+              onClick={() => void goAskMe()}
+              tooltip="Ask Me"
+              type="button"
+            >
+              <MessageCircleQuestion className="h-4 w-4" />
+              <SidebarMenuLabel>Ask Me</SidebarMenuLabel>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="data-[active=true]:font-normal"
               data-testid="open-agents-view"
               isActive={selectedView === "agents"}
               onClick={onSelectAgents}
@@ -166,6 +213,46 @@ export function AppSidebarPrimaryMenu({
             >
               <Bot className="h-4 w-4" />
               <SidebarMenuLabel>Agents</SidebarMenuLabel>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="data-[active=true]:font-normal"
+              data-testid="open-office-view"
+              isActive={selectedView === "office"}
+              onClick={() => void goOffice()}
+              tooltip="Office"
+              type="button"
+            >
+              <Building2 className="h-4 w-4" />
+              <SidebarMenuLabel>Office</SidebarMenuLabel>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="data-[active=true]:font-normal"
+              data-testid="open-research-view"
+              isActive={selectedView === "research"}
+              onClick={() => void goResearch()}
+              tooltip="Research"
+              type="button"
+            >
+              <Microscope className="h-4 w-4" />
+              <SidebarMenuLabel>Research</SidebarMenuLabel>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <PinnedResearchProjects />
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="data-[active=true]:font-normal"
+              data-testid="open-studio-view"
+              isActive={selectedView === "studio"}
+              onClick={() => void goStudio()}
+              tooltip="Studio"
+              type="button"
+            >
+              <Palette className="h-4 w-4" />
+              <SidebarMenuLabel>Studio</SidebarMenuLabel>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <ProtectedBestieSidebarEntry />

@@ -75,6 +75,8 @@ import {
   type SettingsSection,
   isSettingsSection,
 } from "@/features/settings/ui/SettingsPanels";
+import { OfficeHost } from "@/features/office/ui/OfficeHost";
+import { NotionSyncRunner } from "@/features/tasks/ui/NotionSyncRunner";
 import { useDueReminderBadgeCount } from "@/features/reminders/hooks";
 import { useReminderNotifications } from "@/features/reminders/useReminderNotifications";
 import { AppSidebar } from "@/features/sidebar/ui/AppSidebar";
@@ -963,6 +965,18 @@ export function AppShell() {
                       ) : null}
                     </div>
                   )}
+                  {!isHuddleRoom ? (
+                    <OfficeHost
+                      active={
+                        (selectedView === "agents" ||
+                          selectedView === "office" ||
+                          selectedView === "tasks" ||
+                          selectedView === "askme") &&
+                        !settingsOpen
+                      }
+                    />
+                  ) : null}
+                  <NotionSyncRunner />
                   <RequestedAgentCreateDialogs />
                   <AgentManagementDialogs />
                   <AppShellOverlays

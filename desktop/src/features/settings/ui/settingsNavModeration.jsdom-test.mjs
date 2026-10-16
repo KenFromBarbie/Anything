@@ -165,60 +165,23 @@ function stubNoOrigin() {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-test("relay-admin-nav-visible-no-origin: nav renders when no origin saved and discovery returns null", async () => {
-  // With the old predicate: hook resolves to {originSource:"none"} → hidden → RED.
-  // With the current fix: nav is always present regardless of discovery state.
+test("relay-admin-nav-hidden: Kenn's Harness leaves relay admin out of the Settings menu", async () => {
   stubNoOrigin();
   const { container, doRender, unmount } = mountSettingsView();
   try {
     await doRender();
     await settle();
-    assert.ok(
+    assert.equal(
       container.querySelector("[data-testid='settings-nav-relay-admin']"),
-      "Relay admin nav must render when no origin and discovery returns null",
+      null,
+      "Relay admin must not be in the Settings menu",
     );
-  } finally {
-    await unmount();
-  }
-});
-
-test("relay-admin-nav-visible-discovery-error: nav renders when discovery IPCs throw", async () => {
-  // Both origin lookup and discovery fail. Old code: "none" → hidden → RED.
-  setIpcHandler("get_admin_origin", () =>
-    Promise.reject(new Error("storage error")),
-  );
-  setIpcHandler("admin_discover_origin", () =>
-    Promise.reject(new Error("network error")),
-  );
-  setIpcHandler("get_relay_origin", () => Promise.resolve(null));
-  setIpcHandler("get_relay_members_info", () => Promise.resolve(null));
-  const { container, doRender, unmount } = mountSettingsView();
-  try {
-    await doRender();
-    await settle();
-    assert.ok(
-      container.querySelector("[data-testid='settings-nav-relay-admin']"),
-      "Relay admin nav must render even when discovery errors",
-    );
-  } finally {
-    await unmount();
-  }
-});
-
-test("relay-admin-nav-visible-pending: nav renders while discovery IPC never resolves", async () => {
-  // Hook stays undefined (disabled or pending). Old code: `moderationNav === undefined`
-  // → false → nav hidden → RED. New code: nav is unconditional.
-  setIpcHandler("get_admin_origin", () => new Promise(() => {}));
-  setIpcHandler("admin_discover_origin", () => new Promise(() => {}));
-  setIpcHandler("get_relay_origin", () => Promise.resolve(null));
-  setIpcHandler("get_relay_members_info", () => Promise.resolve(null));
-  const { container, doRender, unmount } = mountSettingsView();
-  try {
-    await doRender();
-    await settle();
-    assert.ok(
-      container.querySelector("[data-testid='settings-nav-relay-admin']"),
-      "Relay admin nav must render while discovery is pending",
+    assert.equal(
+      container.querySelector(
+        "[data-testid='settings-nav-hosted-communities']",
+      ),
+      null,
+      "Hosted communities must not be in the Settings menu",
     );
   } finally {
     await unmount();
@@ -230,7 +193,7 @@ test("relay-admin-section-not-redirected: section=relay-admin is not normalized 
   // redirected to appearance when origin was none.
   stubNoOrigin();
   const redirectedTo = [];
-  const { container, doRender, unmount } = mountSettingsView({
+  const { doRender, unmount } = mountSettingsView({
     section: "relay-admin",
     onSectionChange: (s) => {
       if (s !== "relay-admin") redirectedTo.push(s);
@@ -243,10 +206,6 @@ test("relay-admin-section-not-redirected: section=relay-admin is not normalized 
       redirectedTo,
       [],
       `section=relay-admin must not be redirected; got redirects to: ${JSON.stringify(redirectedTo)}`,
-    );
-    assert.ok(
-      container.querySelector("[data-testid='settings-nav-relay-admin']"),
-      "Relay admin nav must still be present after settling",
     );
   } finally {
     await unmount();
@@ -278,11 +237,9 @@ test("no-probe-before-save: admin_probe not called while rendering nav with no s
   }
 });
 
-test("settings-nav-groups-contains-relay-admin: relay-admin is wired into Communities nav group", () => {
-  const communities = settingsNavGroups.find((g) => g.label === "Communities");
-  assert.ok(communities, "Communities group must exist");
-  assert.ok(
-    communities.sections.includes("relay-admin"),
-    `relay-admin must be in Communities; got: ${JSON.stringify(communities.sections)}`,
+test("settings-nav-groups-omit-communities: no Communities group in the Settings menu", () => {
+  assert.equal(
+    settingsNavGroups.find((g) => g.label === "Communities"),
+    undefined,
   );
 });

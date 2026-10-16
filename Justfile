@@ -843,6 +843,28 @@ desktop-dev:
     echo "Starting frontend dev server on Vite port ${BUZZ_VITE_PORT}, relay ${BUZZ_RELAY_URL}"
     pnpm exec vite --port "${BUZZ_VITE_PORT}" --strictPort
 
+# Build the Office UI (Munder Difflin, from BUZZ_OFFICE_DIR) into desktop/public/office-app
+office-web:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    office_dir="${BUZZ_OFFICE_DIR:-../munder-difflin}"
+    out="$(pwd)/{{desktop_dir}}/public/office-app"
+    cd "$office_dir"
+    npx vite build --config sidecar.web.vite.config.ts --outDir "$out" --emptyOutDir
+
+# Build ArtCraft's UI (the Studio) into the desktop app's public dir, served
+# from Buzz's own origin under /studio-app/ (an artcraft checkout next to this
+# repo, or BUZZ_ARTCRAFT_DIR; run `npm ci` in its frontend/ first).
+studio-web:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    artcraft_dir="${BUZZ_ARTCRAFT_DIR:-../artcraft}"
+    out="$(pwd)/{{desktop_dir}}/public/studio-app"
+    cd "$artcraft_dir/frontend/apps/artcraft"
+    # MSYS2_ENV_CONV_EXCL: Git Bash would otherwise rewrite /studio-app/ into a
+    # Windows path before node sees it.
+    ARTCRAFT_BASE=/studio-app/ MSYS2_ENV_CONV_EXCL=ARTCRAFT_BASE npx vite build --outDir "$out" --emptyOutDir
+
 # ─── Web ─────────────────────────────────────────────────────────────────────
 
 # Run the web frontend dev server (port derived from worktree to avoid collisions)

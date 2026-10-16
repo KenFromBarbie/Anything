@@ -380,7 +380,7 @@ export function AnimatedAvatarCapture({
       } catch {
         releaseCamera();
         setErrorMessage(
-          "Could not access the camera. Check Buzz's camera permission and try again.",
+          "Could not access the camera. Check Kenn’s Harness’s camera permission and try again.",
         );
         setPhase("idle");
       }

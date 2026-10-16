@@ -172,6 +172,9 @@ pub(crate) fn load_teams_readonly(path: &std::path::Path) -> Result<Vec<TeamReco
     };
 
     let (mut records, _changed) = merge_teams(records, &now);
+    if super::starter_agents::starter_agents_removed_beside(path) {
+        super::starter_agents::strip_starter_team(&mut records);
+    }
     sort_teams(&mut records);
     Ok(records)
 }
@@ -189,7 +192,10 @@ pub fn load_teams<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<Vec<TeamRecor
         Vec::new()
     };
 
-    let (mut records, changed) = merge_teams(records, &now);
+    let (mut records, mut changed) = merge_teams(records, &now);
+    if super::starter_agents::starter_agents_removed(app) {
+        changed |= super::starter_agents::strip_starter_team(&mut records);
+    }
     sort_teams(&mut records);
 
     if changed || !path.exists() {

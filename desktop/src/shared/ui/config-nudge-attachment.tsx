@@ -75,7 +75,7 @@ export function shouldOpenDoctor(
 }
 
 export function missingBinaryRecoveryMessage(): string {
-  return "not found in PATH — install it or update PATH, then restart Buzz";
+  return "not found in PATH — install it or update PATH, then restart Kenn’s Harness";
 }
 
 /**

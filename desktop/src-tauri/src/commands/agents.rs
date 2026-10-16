@@ -26,6 +26,17 @@ pub(super) fn workspace_owner_hex(state: &AppState) -> Result<String, String> {
     Ok(keys.public_key().to_hex())
 }
 
+#[path = "agents_office.rs"]
+mod office_agent;
+pub(crate) use office_agent::{
+    ensure_office_agent, ensure_office_workers, is_office_agent, is_office_michael,
+    set_office_agent_deployed, OfficeAgentIdentity,
+};
+
+#[path = "agents_starter.rs"]
+mod starter;
+pub use starter::{remove_starter_agents, restore_starter_agents};
+
 #[path = "agents_pending.rs"]
 mod pending;
 #[cfg(test)]
@@ -831,6 +842,11 @@ pub async fn start_managed_agent(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<ManagedAgentSummary, String> {
+    // Office agents run in the Office, never on a provider binary: the Office's
+    // own UI starts them (it asks which harness config to open first).
+    if is_office_agent(&app, &pubkey) {
+        return Err("This agent runs in the Office. Open the Office to start it.".to_string());
+    }
     // Snapshot the workspace owner pubkey for the legacy auth_tag fallback.
     // Read outside the records lock to keep lock ordering simple.
     let owner_hex = workspace_owner_hex(&state)?;
@@ -1013,6 +1029,17 @@ pub async fn stop_managed_agent(
     app: AppHandle,
 ) -> Result<ManagedAgentSummary, String> {
     use tauri::Manager;
+    // Stopping Michael stops the Office he runs (and its agents with him). A
+    // floor agent is stopped in the Office, never by stopping everyone's Office.
+    if is_office_agent(&app, &pubkey) && !is_office_michael(&app, &pubkey) {
+        return Err("This agent runs on the Office floor. Stop it in the Office.".to_string());
+    }
+    if is_office_michael(&app, &pubkey) {
+        let handle = app.clone();
+        tokio::task::spawn_blocking(move || crate::office::shutdown(&handle))
+            .await
+            .map_err(|e| format!("office stop failed: {e}"))?;
+    }
     tokio::task::spawn_blocking(move || {
         let state = app.state::<AppState>();
         let _store_guard = state
@@ -1036,16 +1063,21 @@ pub async fn stop_managed_agent(
 
         {
             let record = find_managed_agent_mut(&mut records, &pubkey)?;
+            // The Office agent was stopped with its office above; it has no
+            // local process here.
+            let is_office = office_agent::is_office_backend(&record.backend);
             // Remote agents are stopped via !shutdown @mention from the frontend,
             // not via this backend command. Reject the call.
-            if record.backend != BackendKind::Local {
+            if record.backend != BackendKind::Local && !is_office {
                 return Err(
                     "remote agents are stopped via !shutdown message, not this command".to_string(),
                 );
             }
             // Pair-scoped: stops only the active workspace's pair; delete and
             // the config-restart flows still drain every pair.
-            stop_managed_agent_workspace_pair(&app, record, &mut runtimes)?;
+            if !is_office {
+                stop_managed_agent_workspace_pair(&app, record, &mut runtimes)?;
+            }
         }
         save_managed_agents(&app, &records)?;
         let record = records

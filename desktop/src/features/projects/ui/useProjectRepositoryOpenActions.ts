@@ -41,7 +41,8 @@ export function useProjectRepositoryOpenActions({
     const cloneUrl = repository?.cloneUrls[0];
     if (!localRepositoryPath || !repository || !cloneUrl) {
       toast.error("Couldn’t open repository folder", {
-        description: "Buzz could not find this repository’s local checkout.",
+        description:
+          "Kenn’s Harness could not find this repository’s local checkout.",
       });
       return;
     }
@@ -53,7 +54,8 @@ export function useProjectRepositoryOpenActions({
       });
     } catch {
       toast.error("Couldn’t open repository folder", {
-        description: "Buzz could not open this checkout in your file browser.",
+        description:
+          "Kenn’s Harness could not open this checkout in your file browser.",
       });
     }
   }, [localRepositoryPath, repository, reposDir]);

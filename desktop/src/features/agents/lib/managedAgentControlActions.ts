@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+
 import { sendChannelMessage } from "@/shared/api/tauri";
 import type { Channel, ManagedAgent, RelayAgent } from "@/shared/api/types";
 import type { AgentAvailabilityReader } from "./useAgentAvailability";
@@ -32,7 +34,40 @@ export function isManagedAgentActive(agent: Pick<ManagedAgent, "status">) {
   return agent.status === "running" || agent.status === "deployed";
 }
 
+/**
+ * Michael, the Office's orchestrator. He runs in the Office (its UI starts
+ * him), so his card opens or stops the Office rather than deploying to a
+ * provider or sending `!shutdown`, which would reach him as a chat request.
+ */
+export function isOfficeAgent(agent: Pick<ManagedAgent, "backend">) {
+  return agent.backend.type === "provider" && agent.backend.id === "office";
+}
+
+/**
+ * One of the agents hired on the Office floor (not Michael). Buzz holds its
+ * identity so it can work in channels, but the Office runs and stops it, so
+ * its controls lead to the Office and never stop the Office for everyone.
+ */
+export function isOfficeWorker(agent: Pick<ManagedAgent, "backend">) {
+  return (
+    agent.backend.type === "provider" &&
+    agent.backend.id === "office" &&
+    typeof agent.backend.config?.officeAgentId === "string"
+  );
+}
+
+async function openOffice() {
+  await invoke("office_connect");
+  window.location.hash = "#/office";
+}
+
 export function getManagedAgentPrimaryActionLabel(agent: ManagedAgent) {
+  if (isOfficeWorker(agent)) {
+    return "Open Office";
+  }
+  if (isOfficeAgent(agent)) {
+    return isManagedAgentActive(agent) ? "Stop Office" : "Open Office";
+  }
   if (agent.backend.type === "provider") {
     return isManagedAgentActive(agent) ? "Shutdown" : "Deploy";
   }
@@ -79,6 +114,10 @@ export async function startManagedAgentWithRules({
   agent: ManagedAgent;
   startManagedAgent: StartManagedAgent;
 }) {
+  if (isOfficeAgent(agent)) {
+    await openOffice();
+    return;
+  }
   // Relay-mesh agents are no longer blocked here: the backend start preflight
   // (ensure_relay_mesh_for_record) re-resolves a live serve target and dials
   // it, failing with an actionable error when no peer serves the model.
@@ -98,6 +137,10 @@ export async function respawnManagedAgentWithRules({
    * clear stale working badges at the right boundary. */
   onStopped?: () => void;
 }) {
+  if (isOfficeAgent(agent)) {
+    await openOffice();
+    return;
+  }
   if (agent.backend.type === "local" && isManagedAgentActive(agent)) {
     await stopManagedAgent(agent.pubkey);
     onStopped?.();
@@ -116,6 +159,19 @@ export async function stopManagedAgentWithRules({
   agent: ManagedAgent;
   stopManagedAgent: StopManagedAgent;
 } & ManagedAgentChannelContext): Promise<ManagedAgentActionResult> {
+  if (isOfficeWorker(agent)) {
+    await openOffice();
+    return {
+      noticeMessage: `${agent.name} runs on the Office floor. Stop it there.`,
+    };
+  }
+  if (isOfficeAgent(agent)) {
+    // The backend stops the whole Office for Michael's record.
+    await stopManagedAgent(agent.pubkey);
+    return {
+      noticeMessage: "The Office stopped. Michael and its agents are stopped.",
+    };
+  }
   if (agent.backend.type === "provider") {
     const channelId = resolveManagedAgentChannelId(agent, {
       channels,
@@ -152,6 +208,20 @@ export async function deleteManagedAgentWithRules({
   deleteManagedAgent: DeleteManagedAgent;
   skipRemoteDeleteConfirm?: boolean;
 } & ManagedAgentActionContext): Promise<ManagedAgentActionResult> {
+  if (isOfficeWorker(agent)) {
+    // Only its Buzz identity goes; the agent stays on the floor, and gets a
+    // new identity while it's there. Removing it in the Office retires it.
+    await deleteManagedAgent({ pubkey: agent.pubkey });
+    return {
+      noticeMessage: `${agent.name} was removed from Kenn’s Harness. To retire it, remove it in the Office too.`,
+    };
+  }
+  if (isOfficeAgent(agent)) {
+    // No provider deployment to orphan and no !shutdown to send. The record
+    // is recreated from the same key the next time the Office starts.
+    await deleteManagedAgent({ pubkey: agent.pubkey });
+    return {};
+  }
   if (agent.backend.type === "provider" && agent.backendAgentId) {
     const availability = getAvailability(agent.pubkey);
     const channelId = resolveManagedAgentChannelId(agent, {

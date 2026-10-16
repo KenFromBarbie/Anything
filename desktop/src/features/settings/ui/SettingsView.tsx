@@ -65,13 +65,18 @@ export const settingsNavGroups: Array<{
       "channel-templates",
     ],
   },
-  {
-    label: "Communities",
-    sections: ["hosted-communities", "community-members", "relay-admin"],
-  },
+  // Kenn's Harness runs one local community, so the hosted-community and
+  // relay-admin sections are left out of the menu.
   {
     label: "App",
-    sections: ["agents", "compute", "experimental", "mobile", "updates"],
+    sections: [
+      "agents",
+      "ai-accounts",
+      "compute",
+      "experimental",
+      "mobile",
+      "updates",
+    ],
   },
 ];
 

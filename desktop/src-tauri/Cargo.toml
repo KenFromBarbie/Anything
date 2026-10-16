@@ -77,12 +77,19 @@ user-idle = { version = "0.6", default-features = false }
 atomic-write-file = "0.3"
 anyhow = "1"
 dirs = "6"
-tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
+tauri = { version = "2", features = ["macos-private-api", "tray-icon", "unstable"] }
 tauri-plugin-deep-link = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-window-state = "2"
 tauri-plugin-dialog = "2"
+# The Studio: ArtCraft, built in from the artcraft checkout next to this repo.
+artcraft = { path = "../../../artcraft/crates/desktop/artcraft" }
+# ArtCraft's own plugins, listed here so tauri-build sees their permission
+# manifests for the Studio capability (capabilities/studio.json).
+tauri-plugin-http = { path = "../../../artcraft/crates/vendor/tauri-plugin-http" }
+tauri-plugin-upload = "2.4.0"
+tauri-plugin-log = "2.8.0"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 infer = "0.19"
@@ -104,6 +111,9 @@ nostr = { version = "0.44", features = ["nip44", "nip49"] }
 # transitive dependency; pinned here for direct use).
 getrandom = "0.2"
 zeroize = "1"
+# Office: reads the key the office sidecar minted for Michael before Buzz held
+# it (AES-256-GCM, already a transitive dependency).
+aes-gcm = "0.10"
 percent-encoding = "2"
 reqwest = { version = "0.13", features = ["json", "query", "stream", "blocking"] }
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std"] }

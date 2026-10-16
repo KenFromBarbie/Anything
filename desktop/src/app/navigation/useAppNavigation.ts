@@ -93,6 +93,61 @@ export function useAppNavigation() {
     [commitNavigation],
   );
 
+  const goTasks = React.useCallback(
+    (behavior?: NavigationBehavior) =>
+      commitNavigation(
+        {
+          to: "/tasks",
+        },
+        behavior,
+      ),
+    [commitNavigation],
+  );
+
+  const goAskMe = React.useCallback(
+    (behavior?: NavigationBehavior) =>
+      commitNavigation(
+        {
+          to: "/ask-me",
+        },
+        behavior,
+      ),
+    [commitNavigation],
+  );
+
+  const goOffice = React.useCallback(
+    (behavior?: NavigationBehavior) =>
+      commitNavigation(
+        {
+          to: "/office",
+        },
+        behavior,
+      ),
+    [commitNavigation],
+  );
+
+  const goResearch = React.useCallback(
+    (projectId?: string, behavior?: NavigationBehavior) =>
+      commitNavigation(
+        projectId
+          ? { to: "/research", search: { project: projectId } }
+          : { to: "/research" },
+        behavior,
+      ),
+    [commitNavigation],
+  );
+
+  const goStudio = React.useCallback(
+    (behavior?: NavigationBehavior) =>
+      commitNavigation(
+        {
+          to: "/studio",
+        },
+        behavior,
+      ),
+    [commitNavigation],
+  );
+
   const goPulse = React.useCallback(
     (behavior?: NavigationBehavior) =>
       commitNavigation(
@@ -459,6 +514,11 @@ export function useAppNavigation() {
     closeSettings,
     closeWorkflowDetail,
     goAgents,
+    goAskMe,
+    goOffice,
+    goTasks,
+    goResearch,
+    goStudio,
     goChannel,
     goDuplicateWorkflow,
     goEditWorkflow,
