@@ -1,0 +1,70 @@
+'use strict';
+/**
+ * Post to Buzz as the calling office agent, via the office's buzz bridge.
+ * Agents call it through the generated `buzz-reply` / `buzz-post` wrappers:
+ *
+ *   buzz-reply --reply-to <event id> --text-file reply.md
+ *   buzz-reply --reply-to <event id> --text "short reply"
+ *   echo "reply" | buzz-reply --reply-to <event id>
+ *   buzz-post --channel general --text-file message.md     (new conversation)
+ *
+ * The agent is identified by the AGENT_ID the hive gives every agent terminal;
+ * agents without a Buzz identity of their own reply as the agent the thread was
+ * delivered to. Mention other office agents with @Name in the text.
+ *
+ * Prints {"ok":true,...} or {"ok":false,"error":...}; exits non-zero on failure.
+ */
+const fs = require('node:fs');
+const http = require('node:http');
+
+function arg(name) {
+  const i = process.argv.indexOf(name);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+}
+
+function fail(error) {
+  process.stdout.write(JSON.stringify({ ok: false, error }) + '\n');
+  process.exit(1);
+}
+
+async function readText() {
+  if (arg('--text') !== undefined) return arg('--text');
+  if (arg('--text-file')) return fs.readFileSync(arg('--text-file'), 'utf8');
+  if (process.stdin.isTTY) return '';
+  const chunks = [];
+  for await (const c of process.stdin) chunks.push(c);
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+(async () => {
+  const replyTo = arg('--reply-to');
+  const channel = arg('--channel');
+  const configPath = arg('--config');
+  if (!replyTo && !channel) fail('--reply-to <event id> (reply in a thread) or --channel <name> (new message) is required');
+  if (!configPath) fail('--config is required (use the buzz-reply / buzz-post wrapper)');
+  let config;
+  try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch { fail('buzz bridge is not running'); }
+  const text = (await readText()).trim();
+  if (!text) fail('message text is empty');
+
+  const as = process.env.AGENT_ID || undefined;
+  const path = replyTo ? '/reply' : '/post';
+  const body = JSON.stringify(replyTo ? { replyTo, text, as } : { channel, text, as });
+  const req = http.request({
+    host: '127.0.0.1',
+    port: config.port,
+    path,
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body), 'x-md-buzz-token': config.token }
+  }, (res) => {
+    const chunks = [];
+    res.on('data', (c) => chunks.push(c));
+    res.on('end', () => {
+      const out = Buffer.concat(chunks).toString('utf8');
+      process.stdout.write(out + '\n');
+      process.exit(res.statusCode === 200 ? 0 : 1);
+    });
+  });
+  req.on('error', (e) => fail(`buzz bridge unreachable: ${e.message}`));
+  req.end(body);
+})();

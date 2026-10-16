@@ -28,6 +28,9 @@ import { Icon } from '@/components/Icon';
 import { SidebarSplitter } from '@/components/SidebarSplitter';
 import { acquireTerminal, notifyThemeChangeAll } from '@/components/terminalPool';
 import { FullscreenTerminal } from '@/components/FullscreenTerminal';
+import { hostedInBuzz, useHostView } from '@/host/buzzHost';
+import { TasksKanban } from '@/components/TasksKanban';
+import { AskMeTab } from '@/components/AskMeTab';
 import { TaskDetailOverlay } from '@/components/TaskDetailOverlay';
 import { IdePanel } from '@/ide/IdePanel';
 import { useHoldOptionToTalk } from '@/freeflow/holdOption';
@@ -37,6 +40,13 @@ import brandLogo from '@brand/logo.png?url';
 declare const __APP_VERSION__: string;
 
 export function App() {
+  // Hosted in Buzz, each Buzz page shows one part: the agents (detail panel +
+  // strip), the floor, the task board or Ask Me. The hidden parts stay mounted
+  // (see host/buzzHost).
+  const hostView = useHostView();
+  const showFloor = hostView === 'all' || hostView === 'office';
+  const showAgents = hostView === 'all' || hostView === 'agents';
+  const showPage = hostView === 'tasks' || hostView === 'askme';
   // Point every {{godName}} string at the orchestrator's real, renameable name.
   useGodNameSync();
   // Mirror the document only for a user who has picked an RTL app language.
@@ -187,11 +197,15 @@ export function App() {
     setClosing(null);
   };
 
+  // Inside Buzz the Office runs in the background (Michael's delivery loop, the
+  // Tasks and Agents pages), so it opens the current hive without the picker.
+  const hiveEntered = hiveOpened || (hostedInBuzz && !!config?.harnessHome);
+
   // The hive: god-agent bootstrap, hook-driven avatars, idle-agent waking. Held
   // off until the user opens a hive in the launch picker (passing null no-ops the
   // hook) so Michael doesn't boot against the current home while the user may be
   // about to switch to a different one.
-  useHive(hiveOpened ? config : null);
+  useHive(hiveEntered ? config : null);
 
   // Pre-warm a persistent terminal for every live agent so its output is
   // buffered from spawn. Switching agents then re-attaches an already-rendered
@@ -263,8 +277,9 @@ export function App() {
 
   // Launch-time hive picker: on reopen, let the user open their current hive,
   // switch to a recent one, or open/create another. Skipped right after onboarding
-  // and right after a switch-relaunch (see hiveOpened init).
-  if (!hiveOpened) {
+  // and right after a switch-relaunch (see hiveOpened init), and inside Buzz
+  // (see hiveEntered).
+  if (!hiveEntered) {
     return <HivePicker config={config} onOpenCurrent={() => setHiveOpened(true)} />;
   }
 
@@ -287,9 +302,10 @@ export function App() {
           height: 36, minHeight: 36,
           background: 'linear-gradient(180deg, var(--cth-cream-100) 0%, var(--cth-cream-200) 100%)',
           borderBottom: '1px solid var(--cth-ink-300)',
-          display: 'flex',
+          display: showFloor ? 'flex' : 'none',
           alignItems: 'center',
-          paddingLeft: 96,
+          // Room for the macOS traffic lights; Buzz draws its own window chrome.
+          paddingLeft: hostedInBuzz ? 12 : 96,
           paddingRight: 12,
           gap: 12,
           userSelect: 'none'
@@ -339,7 +355,10 @@ export function App() {
             background: 'var(--cth-paper-100)',
             boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             border: 'none', borderRadius: 2, cursor: 'pointer',
-            color: 'var(--cth-ink-900)', fontSize: 13, lineHeight: 1
+            color: 'var(--cth-ink-900)', fontSize: 13, lineHeight: 1,
+            // In Buzz, Buzz's theme drives the Office (host/buzzHost); the
+            // button keeps its place (its auto margin right-aligns the rest).
+            ...(hostedInBuzz ? { visibility: 'hidden' as const, width: 0, boxShadow: 'none' } : {})
           }}
         >
           {appThemeNow === 'dark' ? '☀' : '☾'}
@@ -392,13 +411,20 @@ export function App() {
 
       </div>
 
+      {showPage && (
+        // Buzz's Tasks and Ask Me pages: the board or the questions, full size.
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: 16 }}>
+          {hostView === 'tasks' ? <TasksKanban /> : <AskMeTab />}
+        </div>
+      )}
+
       <div style={{
         flex: 1, minHeight: 0,
-        display: 'flex',
+        display: showPage ? 'none' : 'flex',
         padding: 16,
         gap: 0
       }}>
-        <div style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative' }}>
+        <div style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative', display: showFloor ? 'block' : 'none' }}>
           <OfficeFloor />
           <MemoryPanel />
           {agentCount === 0 && godStatus === 'booting' && <MichaelBooting />}
@@ -426,15 +452,18 @@ export function App() {
           )}
         </div>
 
-        <SidebarSplitter
-          width={sidebarWidth}
-          onChange={setSidebarWidth}
-          viewportWidth={vpWidth}
-        />
+        {hostView === 'all' && (
+          <SidebarSplitter
+            width={sidebarWidth}
+            onChange={setSidebarWidth}
+            viewportWidth={vpWidth}
+          />
+        )}
 
         <div style={{
-          width: sidebarWidth, flexShrink: 0,
-          minHeight: 0, display: 'flex', flexDirection: 'column'
+          // In Buzz's Agents tab the panel has the whole width to itself.
+          ...(hostView === 'agents' ? { flex: 1, minWidth: 0 } : { width: sidebarWidth, flexShrink: 0 }),
+          minHeight: 0, display: showAgents ? 'flex' : 'none', flexDirection: 'column'
         }}>
           {agent ? (
             <AgentDetailPanel agent={agent} />
@@ -477,7 +506,10 @@ export function App() {
         </div>
       </div>
 
-      <AgentStrip config={config} />
+      {/* Inside Buzz, Buzz renders the agent cards (see host/buzzApi). */}
+      <div style={{ display: showAgents && !hostedInBuzz ? 'contents' : 'none' }}>
+        <AgentStrip config={config} />
+      </div>
 
       {addAgentOpen && (
         <AddAgentModal

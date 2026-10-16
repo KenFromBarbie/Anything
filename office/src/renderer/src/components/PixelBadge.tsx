@@ -55,6 +55,7 @@ export function PixelBadge({ status, label, style }: PixelBadgeProps) {
   const text = label ?? (key ? t(key) : status);
   return (
     <span
+      data-cth-badge=""
       style={{
         display: 'inline-flex',
         alignItems: 'center',

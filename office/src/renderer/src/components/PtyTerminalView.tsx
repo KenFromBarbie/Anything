@@ -110,6 +110,16 @@ const darkTheme = {
 
 const THEMES: Record<PtyTheme, typeof lightTheme> = { light: lightTheme, dark: darkTheme };
 
+const TERMINAL_THEME_EVENT = 'cth:terminal-theme';
+
+/** Inside a host app (Buzz) terminals sit on the host's surface color rather
+ *  than the Office's paper. Live terminals pick it up at once. */
+export function setTerminalBackground(mode: PtyTheme, color: string): void {
+  if (THEMES[mode].background === color) return;
+  THEMES[mode] = { ...THEMES[mode], background: color };
+  window.dispatchEvent(new Event(TERMINAL_THEME_EVENT));
+}
+
 export interface PtyTerminalViewProps {
   ptyId: string;
   /** Forwarded to the renderer-side onData hook so the parent can also tap
@@ -135,6 +145,15 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
   const ptyTheme: PtyTheme = useAppTheme();
   const ptyThemeRef = useRef(ptyTheme);
   ptyThemeRef.current = ptyTheme;
+
+  useEffect(() => {
+    const reapply = () => {
+      acquireTerminal(ptyId, THEMES[ptyThemeRef.current], fontSizeRef.current).term.options.theme =
+        THEMES[ptyThemeRef.current];
+    };
+    window.addEventListener(TERMINAL_THEME_EVENT, reapply);
+    return () => window.removeEventListener(TERMINAL_THEME_EVENT, reapply);
+  }, [ptyId]);
 
   // Attach this view to the pty's persistent terminal. The terminal and its
   // buffer live in the pool across mounts, so re-parenting its host element

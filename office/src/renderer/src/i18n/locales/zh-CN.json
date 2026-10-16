@@ -389,6 +389,7 @@
     "tabs": {
       "terminal": "终端",
       "floor": "监控",
+      "floorControls": "模型与预算",
       "tasks": "任务",
       "human": "问我",
       "triggers": "触发器",

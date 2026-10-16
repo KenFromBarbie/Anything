@@ -9,7 +9,7 @@ import { terminalInstanceKey } from './terminalRecovery';
 import { MessageQueueComposer } from './MessageQueueComposer';
 import { CommandCenterPanel } from './CommandCenterPanel';
 import { disposeTerminal } from './terminalPool';
-import { SidebarTabs } from './SidebarTabs';
+import { SIDEBAR_TABS, SidebarTabs } from './SidebarTabs';
 import { ThreadsPanel } from './ThreadsPanel';
 import { ToolWaterfall } from './ToolWaterfall';
 import { AgentControlStrip } from './AgentControlStrip';
@@ -19,6 +19,7 @@ import { Icon } from './Icon';
 import { AgentNameEditor } from './AgentNameEditor';
 import { useStore, type Agent } from '@/store/store';
 import { usePtyParser } from '@/hooks/usePtyParser';
+import { EDIT_AGENT_EVENT, hostedInBuzz, reportPanelState } from '@/host/buzzHost';
 
 export interface AgentDetailPanelProps {
   agent: Agent;
@@ -82,7 +83,31 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
   const fullscreenAgentId = useStore(s => s.fullscreenAgentId);
   const sidebarTab = useStore(s => s.sidebarTab);
   const setSidebarTab = useStore(s => s.setSidebarTab);
+  // Inside Buzz a worker's tabs are Buzz's own sections, like the Command
+  // Center's (see host/buzzHost); Michael's panel reports its own.
+  const workerSectionsInHost = hostedInBuzz && !agent.isGod;
+  useEffect(() => {
+    if (!workerSectionsInHost) return;
+    reportPanelState({
+      agentId: agent.id,
+      agentName: agent.name,
+      tabs: SIDEBAR_TABS.map((d) => ({ key: d.key, label: t(d.labelKey) })),
+      tab: sidebarTab
+    });
+  }, [workerSectionsInHost, agent.id, agent.name, sidebarTab, t]);
+  useEffect(() => {
+    if (!workerSectionsInHost) return;
+    return () => reportPanelState({ agentId: null, agentName: null, tabs: [], tab: null });
+  }, [workerSectionsInHost]);
   const isReal = !!agent.ptyId;
+  useEffect(() => {
+    if (!hostedInBuzz) return;
+    const onEdit = (e: Event) => {
+      if ((e as CustomEvent<string>).detail === agent.id) setEditOpen(true);
+    };
+    window.addEventListener(EDIT_AGENT_EVENT, onEdit);
+    return () => window.removeEventListener(EDIT_AGENT_EVENT, onEdit);
+  }, [agent.id]);
   // While this agent is shown in the fullscreen overlay, the fullscreen view
   // owns the pty (it sizes it to fill the screen). Keeping the embedded terminal
   // mounted too means two xterms fight over the pty's cols/rows — which corrupts
@@ -135,9 +160,9 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
       }}
       noPadding
     >
-      {/* Thin header strip */}
+      {/* Thin header strip (inside Buzz, Buzz renders it) */}
       <div ref={headerRef} style={{
-        display: 'flex', alignItems: 'center', gap: 8,
+        display: hostedInBuzz ? 'none' : 'flex', alignItems: 'center', gap: 8,
         padding: '6px 8px',
         background: 'var(--cth-cream-100)',
         borderBottom: '1px solid var(--cth-ink-700)',
@@ -231,10 +256,10 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
       )}
 
       {/* #7C — operator control (pause / halt / steer) for live agents */}
-      {isReal && <AgentControlStrip agentId={agent.id} />}
+      {isReal && !hostedInBuzz && <AgentControlStrip agentId={agent.id} />}
 
       {/* Tabs */}
-      <SidebarTabs current={sidebarTab} accent={agent.accent} onChange={setSidebarTab} />
+      {!hostedInBuzz && <SidebarTabs current={sidebarTab} accent={agent.accent} onChange={setSidebarTab} />}
 
       {/* Active tab body — fills remaining space */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
@@ -263,7 +288,7 @@ export function AgentDetailPanel({ agent }: AgentDetailPanelProps) {
                   embedded
                 />
               </div>
-              <MessageQueueComposer agent={agent} />
+              {!hostedInBuzz && <MessageQueueComposer agent={agent} />}
             </div>
             )
           ) : (

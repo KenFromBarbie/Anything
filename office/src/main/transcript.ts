@@ -2,6 +2,7 @@ import { closeSync, cpSync, existsSync, fstatSync, mkdirSync, openSync, readSync
 import os from 'node:os';
 import path from 'node:path';
 import { estimateCostUsd, normalizeModel } from './pricing';
+import { claudeConfigRoot, claudeConfigRoots } from './aiAccounts';
 
 /** Claude Code's project key: the absolute cwd with EVERY non-alphanumeric
  *  character turned into a dash — the leading slash and any dots included.
@@ -41,7 +42,7 @@ function legacyProjectKey(cwd: string): string {
  *  spelling, because callers that go on to create the directory must create the
  *  one Claude Code will actually read. */
 export function projectDir(cwd: string): string {
-  const root = path.join(os.homedir(), '.claude/projects');
+  const root = path.join(claudeConfigRoot(), 'projects');
   const current = path.join(root, projectKey(cwd));
   if (existsSync(current)) return current;
   // For cwd '/' the legacy key is the empty string, and path.join(root, '')
@@ -77,14 +78,18 @@ export function seedSessionTranscript(cwd: string, sessionId: string): boolean {
     if (!sessionId || !VALID_SESSION_ID.test(sessionId)) return false;
     const target = path.join(projectDir(cwd), `${sessionId}.jsonl`);
     if (existsSync(target)) return true;
-    const projectsRoot = path.join(os.homedir(), '.claude/projects');
-    if (!existsSync(projectsRoot)) return false;
-    for (const dir of readdirSync(projectsRoot)) {
-      const candidate = path.join(projectsRoot, dir, `${sessionId}.jsonl`);
-      if (existsSync(candidate)) {
-        mkdirSync(path.dirname(target), { recursive: true });
-        cpSync(candidate, target);
-        return true;
+    // The active account's transcripts first, then the computer's own (a
+    // session started before switching accounts).
+    for (const root of claudeConfigRoots()) {
+      const projectsRoot = path.join(root, 'projects');
+      if (!existsSync(projectsRoot)) continue;
+      for (const dir of readdirSync(projectsRoot)) {
+        const candidate = path.join(projectsRoot, dir, `${sessionId}.jsonl`);
+        if (existsSync(candidate)) {
+          mkdirSync(path.dirname(target), { recursive: true });
+          cpSync(candidate, target);
+          return true;
+        }
       }
     }
     return false;
@@ -103,15 +108,17 @@ export function seedSessionTranscript(cwd: string, sessionId: string): boolean {
 export function resolveSessionCwd(sessionId: string): string | null {
   try {
     if (!sessionId || !VALID_SESSION_ID.test(sessionId)) return null;
-    const projectsRoot = path.join(os.homedir(), '.claude/projects');
-    if (!existsSync(projectsRoot)) return null;
     let best: { file: string; mtime: number } | null = null;
-    for (const dir of readdirSync(projectsRoot)) {
-      const candidate = path.join(projectsRoot, dir, `${sessionId}.jsonl`);
-      try {
-        const st = statSync(candidate);
-        if (!best || st.mtimeMs > best.mtime) best = { file: candidate, mtime: st.mtimeMs };
-      } catch { /* not present in this project dir */ }
+    for (const root of claudeConfigRoots()) {
+      const projectsRoot = path.join(root, 'projects');
+      if (!existsSync(projectsRoot)) continue;
+      for (const dir of readdirSync(projectsRoot)) {
+        const candidate = path.join(projectsRoot, dir, `${sessionId}.jsonl`);
+        try {
+          const st = statSync(candidate);
+          if (!best || st.mtimeMs > best.mtime) best = { file: candidate, mtime: st.mtimeMs };
+        } catch { /* not present in this project dir */ }
+      }
     }
     if (!best) return null;
     const text = readFileSync(best.file, 'utf8');

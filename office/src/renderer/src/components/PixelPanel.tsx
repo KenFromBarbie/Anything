@@ -55,9 +55,10 @@ export function PixelPanel({
   }
 
   return (
-    <div className={className} style={baseStyle}>
+    <div className={className} style={baseStyle} data-cth-panel="">
       {title && (
         <div
+          data-cth-panel-title=""
           style={{
             margin: noPadding ? 0 : '-12px -12px 12px',
             padding: '6px 12px 4px',

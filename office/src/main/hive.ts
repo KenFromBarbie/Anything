@@ -35,6 +35,7 @@ import {
   canReceiveInbox,
   providerPreset,
   bridgeOf,
+  codexSandboxFromArgs,
   type AgentProvider
 } from '../shared/agentProvider';
 import { MCP_CATALOG } from '../shared/mcpCatalog';
@@ -43,6 +44,7 @@ import { preferredAgentRole } from '../shared/agentRole';
 import { mergeTaskLedger } from '../shared/taskLedger';
 import { expandTilde } from './fs';
 import { resolveGodName } from '../shared/godIdentity';
+import { activeAccountHome, applyAccountEnv } from './aiAccounts';
 
 /** The subset of HarnessConfig the hive consumes for the default-MCP merge.
  *  Kept as a local shape so hive.ts never imports the foundation-owned config
@@ -695,6 +697,9 @@ export class HiveManager {
        *  MemPalace dir, which `mempalace` mutates). Absolute paths; ignored
        *  for providers without a sandbox. */
       extraWritableDirs?: string[];
+      /** The spawn's own argv after the executable (model, posture flags), so
+       *  provider steps can tell which stance the command already takes. */
+      launchArgs?: string[];
     } = {}
   ): Promise<SpawnInjection> {
     const root = this.root();
@@ -768,6 +773,9 @@ export class HiveManager {
       HIVE_ROOT: root,
       AGENT_DIR: dir
     };
+    // The AI account Buzz's Settings picked for this engine (CLAUDE_CONFIG_DIR /
+    // GEMINI_CLI_HOME); unset means this computer's own sign-in.
+    applyAccountEnv(meta.provider ?? 'claude', env);
     // The bundled-node launcher, so an agent can run the hive's .cjs helpers (KG
     // CLI, Slack reply helper) even when `node` is not on its PATH. Invoking the
     // Electron binary directly would open a second app window, so this must stay
@@ -846,8 +854,15 @@ export class HiveManager {
               // agentProvider.ts). workspace-write only covers cwd, so the agent
               // folder (inbox/.done, memory.md, outbox) and the shared hive root
               // (research deliverables, the board for god) are added as extra
-              // writable roots. Harmless outside auto mode.
-              for (const d of this.sandboxWritableDirs(meta, dir, root, opts.extraWritableDirs)) preArgs.push('--add-dir', d);
+              // writable roots. Only when the command line itself asks for
+              // workspace-write: with no stance (auto mode off) codex runs
+              // read-only in an untrusted folder, and since 0.148 it refuses to
+              // start at all when given --add-dir there ("Error adding
+              // directories", exit 1). Without the dirs it asks before writing
+              // outside its workspace, like a Claude worker outside auto mode.
+              if (codexSandboxFromArgs(opts.launchArgs ?? []) === 'workspace-write') {
+                for (const d of this.sandboxWritableDirs(meta, dir, root, opts.extraWritableDirs)) preArgs.push('--add-dir', d);
+              }
             }
             else if (desc.shim === 'pi') {
               // Pi (earendil-works) has a rich pi.on(event) lifecycle. We drop a
@@ -2066,11 +2081,22 @@ export class HiveManager {
       // (config.toml is NOT symlinked — we write our own below, seeded from theirs,
       // because it must carry our [hooks] tables.) Fall back to copy where symlinks
       // need privilege (Windows). Idempotent — skip if already linked.
-      const authSrc = join(userHome, 'auth.json');
+      // The login comes from the account Buzz's Settings picked for Codex, else
+      // from the user's own ~/.codex. A marker records which one this agent's
+      // auth.json came from, so switching accounts relinks it on the next start.
+      const authHome = activeAccountHome('codex') ?? userHome;
+      const authSrc = join(authHome, 'auth.json');
       const authDest = join(home, 'auth.json');
+      const marker = join(home, '.buzz-auth-source');
+      let linkedFrom = '';
+      try { linkedFrom = readFileSync(marker, 'utf8').trim(); } catch { /* first link */ }
+      if (existsSync(authDest) && linkedFrom !== authHome && (linkedFrom || authHome !== userHome)) {
+        try { rmSync(authDest, { force: true }); } catch { /* replaced below if possible */ }
+      }
       if (existsSync(authSrc) && !existsSync(authDest)) {
         try { symlinkSync(authSrc, authDest); }
         catch { try { copyFileSync(authSrc, authDest); } catch { /* best-effort */ } }
+        try { writeFileSync(marker, authHome, 'utf8'); } catch { /* best-effort */ }
       }
       // The managed app-server daemon used by Codex Remote Control is launched
       // from the standalone install rooted at $CODEX_HOME/packages. Share the

@@ -389,6 +389,7 @@
     "tabs": {
       "terminal": "terminal",
       "floor": "monitor",
+      "floorControls": "models & budgets",
       "tasks": "tasks",
       "human": "ask me",
       "triggers": "triggers",

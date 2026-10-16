@@ -12,6 +12,7 @@ import {
 import { defaultMcpDefaults } from '../shared/mcpCatalog';
 import { MAX_AGENT_TOKEN_CAP } from '../shared/tokenCaps';
 import { expandTilde, normalizeHiveHome } from './fs';
+import { activeAccountHome } from './aiAccounts';
 import type { IntegrationRecord } from '../shared/integrations';
 import {
   DEFAULT_CONTEXT_TRIGGER,
@@ -795,8 +796,8 @@ export function ensureHarnessHome(path: string): { ok: boolean; error?: string }
   }
 }
 
-function ensureClaudeGlobalPermissions(home: string): void {
-  const dir = join(home, '.claude');
+function ensureClaudeGlobalPermissions(home: string, configDir = join(home, '.claude')): void {
+  const dir = configDir;
   const p = join(dir, 'settings.json');
   try {
     let s: Record<string, unknown> = {};
@@ -822,8 +823,8 @@ function ensureClaudeGlobalPermissions(home: string): void {
 type ClaudeProjectConfig = Record<string, unknown> & { hasTrustDialogAccepted?: boolean };
 type ClaudeConfig = Record<string, unknown> & { projects?: Record<string, ClaudeProjectConfig> };
 
-function ensureClaudeProjectTrust(home: string, cwd: string): void {
-  const p = join(home, '.claude.json');
+function ensureClaudeProjectTrust(home: string, cwd: string, stateFile = join(home, '.claude.json')): void {
+  const p = stateFile;
   try {
     let c: ClaudeConfig = {};
     if (existsSync(p)) {
@@ -881,5 +882,12 @@ export function ensureClaudePermissionsAccepted(cwd?: string): void {
   ensureClaudeGlobalPermissions(home);
   if (cwd) {
     ensureClaudeProjectTrust(home, cwd);
+  }
+  // An account picked in Buzz's Settings has its own config dir (settings.json
+  // and .claude.json inside it), which needs the same answers.
+  const account = activeAccountHome('claude');
+  if (account) {
+    ensureClaudeGlobalPermissions(home, account);
+    if (cwd) ensureClaudeProjectTrust(home, cwd, join(account, '.claude.json'));
   }
 }

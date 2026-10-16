@@ -12,6 +12,9 @@ const TABS: { key: SidebarTab; labelKey: string; icon: IconName }[] = [
   { key: 'traces',   labelKey: 'sidebar.traces',   icon: 'web' }
 ];
 
+/** A worker panel's tabs, in order (Buzz renders them as its sections). */
+export const SIDEBAR_TABS = TABS;
+
 export interface SidebarTabsProps {
   current: SidebarTab;
   accent: AccentColorName;

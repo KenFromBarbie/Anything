@@ -12,7 +12,7 @@ import { TriggersTab } from './triggers/TriggersTab';
 import { TriggerHistoryTab } from './triggers/TriggerHistoryTab';
 import { WorkersTab } from './WorkersTab';
 import { SkillsTab } from './SkillsTab';
-import { acquireTerminal, disposeTerminal, resetTerminal } from './terminalPool';
+import { restartAgent, type RestartOpts } from './agentRestart';
 import { terminalInstanceKey } from './terminalRecovery';
 import { Icon } from './Icon';
 import { MemoryGraphPanel } from './MemoryGraphPanel';
@@ -37,6 +37,7 @@ import {
 import { canReceiveInbox } from '@shared/agentProvider';
 import { isComposingKey } from '@shared/imeGuard';
 import { useRtl } from '@/i18n/useDirection';
+import { hostedInBuzz, reportPanelState } from '@/host/buzzHost';
 
 /** Michael's control surface. Shown instead of the plain terminal/files panel
  *  when the god agent is selected: terminal + queue, the floor roster (with
@@ -98,6 +99,36 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
     if (!showHistory && tab === 'trigger-history') setTab('terminal');
   }, [showHistory, tab]);
   const visibleTabs = TABS.filter((t) => t.key !== 'trigger-history' || showHistory);
+  // Inside Buzz the docked panel's sections are Buzz's own navigation (see
+  // host/buzzHost): report them and the open one, and drop the tab bar here.
+  // The focus-mode overlay keeps its bar.
+  const sectionsInHost = hostedInBuzz && !fullscreen;
+  useEffect(() => {
+    if (!sectionsInHost) return;
+    reportPanelState({
+      agentId: agent.id,
+      agentName: agent.name,
+      // Buzz renders the monitor under the terminal; the Office's monitor stays
+      // a section for what Buzz doesn't show (models, token budgets, restarts).
+      tabs: visibleTabs
+        .filter((d) => d.key !== 'tasks' && d.key !== 'human')
+        .map((d) => ({
+          key: d.key,
+          label: d.key === 'terminal'
+            ? `${t('commandCenter.tabs.terminal')} & ${t('commandCenter.tabs.floor')}`
+            : d.key === 'floor'
+              ? t('commandCenter.tabs.floorControls')
+              : t(d.labelKey)
+        })),
+      tab: tab === 'tasks' || tab === 'human' ? 'terminal' : tab
+    });
+    // visibleTabs follows showHistory; labels follow the language.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionsInHost, agent.id, agent.name, tab, showHistory, t]);
+  useEffect(() => {
+    if (!sectionsInHost) return;
+    return () => reportPanelState({ agentId: null, agentName: null, tabs: [], tab: null });
+  }, [sectionsInHost]);
 
   // External tab requests (the office task board → 'tasks', the boss-room
   // calendar → 'triggers'). seq-keyed so clicking again re-opens the tab even
@@ -148,15 +179,49 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
     await Promise.all(all.map((a) => window.cth.controlAutoDelivery(a.id, next).catch(() => null)));
   };
 
+
+  // Tasks and Ask Me are Buzz pages of their own; here they show the terminal.
+  const shownTab: CCTab = sectionsInHost && (tab === 'tasks' || tab === 'human')
+    ? 'terminal'
+    : tab;
+  const terminalBody = (
+    isFullscreenedHere ? (
+      <Centered>{t('commandCenter.terminalFullscreen')}</Centered>
+    ) : agent.ptyId ? (
+      <>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+          <PtyTerminalView
+            key={terminalInstanceKey(agent.ptyId, agent.terminalGeneration)}
+            ptyId={agent.ptyId}
+            onStreamData={onPtyStream}
+            onUserPrompt={(t) => {
+              updateAgent(agent.id, { lastPrompt: t });
+              if (t.trim().toLowerCase() === '/clear') {
+                updateAgent(agent.id, { contextTokens: 0, contextLimit: undefined, progress: 0 });
+              }
+              void window.cth.historyAdd({ agentId: agent.id, cwd: agent.cwd, text: t });
+            }}
+            onToggleFullscreen={() => setFullscreen(fullscreen ? null : agent.id)}
+            fullscreen={fullscreen}
+            embedded={!fullscreen}
+          />
+        </div>
+        {/* Inside Buzz the queue is Buzz's own composer. */}
+        {!sectionsInHost && <MessageQueueComposer agent={agent} />}
+      </>
+    ) : (
+      <Centered>{t('commandCenter.noTerminal', { name: agent.name })}</Centered>
+    )
+  );
   return (
     <PixelPanel
       variant="default"
       noPadding
       style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 0, overflow: 'hidden' }}
     >
-      {/* Header */}
+      {/* Header (inside Buzz, Buzz renders it) */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
+        display: sectionsInHost ? 'none' : 'flex', alignItems: 'center', gap: 8,
         padding: '6px 8px', background: 'var(--cth-cream-100)',
         borderBottom: '1px solid var(--cth-ink-700)', flexShrink: 0
       }}>
@@ -248,7 +313,7 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
           and the grid's own reason for existing (keeping wrapped rows aligned)
           stops applying the moment there is only ever one row. */}
       <div className="cth-tabbar" style={{
-        display: 'flex', gap: 4,
+        display: sectionsInHost ? 'none' : 'flex', gap: 4,
         // Docked in the sidebar the panel is narrow, so tabs WRAP: a second row
         // costs a few pixels of a tall column, while a horizontal scroll there
         // would hide half the tabs behind a gesture with no affordance.
@@ -291,37 +356,12 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
 
       {/* Body */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {tab === 'terminal' && (
-          isFullscreenedHere ? (
-            <Centered>{t('commandCenter.terminalFullscreen')}</Centered>
-          ) : agent.ptyId ? (
-            <>
-              <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-                <PtyTerminalView
-                  key={terminalInstanceKey(agent.ptyId, agent.terminalGeneration)}
-                  ptyId={agent.ptyId}
-                  onStreamData={onPtyStream}
-                  onUserPrompt={(t) => {
-                    updateAgent(agent.id, { lastPrompt: t });
-                    if (t.trim().toLowerCase() === '/clear') {
-                      updateAgent(agent.id, { contextTokens: 0, contextLimit: undefined, progress: 0 });
-                    }
-                    void window.cth.historyAdd({ agentId: agent.id, cwd: agent.cwd, text: t });
-                  }}
-                  onToggleFullscreen={() => setFullscreen(fullscreen ? null : agent.id)}
-                  fullscreen={fullscreen}
-                  embedded={!fullscreen}
-                />
-              </div>
-              <MessageQueueComposer agent={agent} />
-            </>
-          ) : (
-            <Centered>{t('commandCenter.noTerminal', { name: agent.name })}</Centered>
-          )
-        )}
-        {tab === 'floor' && <FloorTab seed={dispatchSeed} />}
-        {tab === 'tasks' && <TasksKanban />}
-        {tab === 'human' && <AskMeTab />}
+        {/* Inside Buzz the section shows the terminal alone: Buzz renders the
+            queue and the monitor under it. */}
+        {shownTab === 'terminal' && terminalBody}
+        {shownTab === 'floor' && <FloorTab seed={dispatchSeed} />}
+        {shownTab === 'tasks' && <TasksKanban />}
+        {shownTab === 'human' && <AskMeTab />}
         {tab === 'triggers' && <TriggersTab />}
         {tab === 'trigger-history' && <TriggerHistoryTab />}
         {tab === 'memory' && (
@@ -401,149 +441,12 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
   // hatch for a corrupted/garbled terminal (e.g. xterm reflow after dragging the
   // window between displays of different sizes). With `resume` unset it's the
   // old behavior: a model change that starts a fresh session.
-  const restartWithModel = async (
-    a: Agent,
-    model: string | undefined,
-    opts: {
-      resume?: boolean;
-      provider?: AgentProvider;
-      /** Resume if we can, start fresh if we can't, instead of refusing.
-       *  "Restart & Continue" wants the hard failure — continuing is the entire
-       *  point, so silently starting a blank session would be worse than an
-       *  error. A model change wants the soft one: the user asked to change
-       *  model, and an agent with no recorded session still has to get one. */
-      resumeOptional?: boolean;
-    } = {}
-  ) => {
+  const restartWithModel = async (a: Agent, model: string | undefined, opts: RestartOpts = {}) => {
     if (!a.ptyId) return;
     setRestarting(a.id);
     setRestartErrors((errors) => ({ ...errors, [a.id]: '' }));
     try {
-      const cfg = await window.cth.getConfig();
-      // Respawn on the same CLI this agent already runs on (inferred from its
-      // command if not explicitly tagged) so an Antigravity/Codex worker stays
-      // on its own binary. tokenizeCommand keeps quoted model labels one arg.
-      // opts.provider overrides the inferred provider — used when changing GOD's engine.
-      const previousProvider = inferAgentProvider(a.command, a.provider);
-      const provider = opts.provider ?? previousProvider;
-      let resume = opts.resume === true && provider === previousProvider;
-      if (opts.resume && !resume && !opts.resumeOptional) {
-        throw new Error('Cannot resume a session through a different provider.');
-      }
-      let resumeSessionId: string | undefined;
-      if (resume) {
-        // A precondition miss is fatal for an explicit "continue", and merely
-        // means "start fresh" for an opportunistic one (see resumeOptional).
-        const giveUpOnResume = (reason: string) => {
-          if (!opts.resumeOptional) throw new Error(reason);
-          resume = false;
-          resumeSessionId = undefined;
-        };
-        const registry = await window.cth.hiveRegistry();
-        resumeSessionId = registry.agents[a.id]?.sessionId;
-        if (!resumeSessionId) {
-          giveUpOnResume('No recorded session ID; current process was left running.');
-        } else if (provider === 'claude' && !(await window.cth.resolveSessionCwd(resumeSessionId))) {
-          giveUpOnResume('Session transcript not found; current process was left running.');
-        }
-      }
-      // Capture the live grid before replacing anything. Restart & Continue
-      // recreates only this agent's xterm; model changes retain the old
-      // in-place reset behavior.
-      const oldEntry = acquireTerminal(a.ptyId);
-      let cols = oldEntry.term.cols || 100;
-      let rows = oldEntry.term.rows || 30;
-      try {
-        oldEntry.fit.fit();
-        cols = oldEntry.term.cols;
-        rows = oldEntry.term.rows;
-      } catch { /* host not sized yet */ }
-
-      const killed = await window.cth.killPty(a.ptyId);
-      // A pty that is ALREADY gone is the state this kill was trying to reach, so
-      // it is not a failure. This is the single most common way to arrive at
-      // "Restart & Continue": the session died on its own — a crash, or Ctrl-C
-      // twice — main dropped it from the session map, and kill then answers
-      // `no pty: <id>`. Treating that as fatal aborted before the respawn and
-      // turned the one situation the button exists for into a dead end.
-      if (!killed.ok && !/^no pty:/.test(killed.error ?? '')) {
-        throw new Error(killed.error ?? 'Could not stop the current process.');
-      }
-      if (!resume) {
-        resetTerminal(a.ptyId);
-      }
-      const command = buildSpawnCommand(cfg, model, provider);
-      const [exe, ...args] = tokenizeCommand(command.trim());
-      const hive = {
-        id: a.id,
-        name: a.name,
-        cwd: a.cwd,
-        provider,
-        isGod: a.isGod,
-        isAssistant: a.isAssistant,
-        role: roleForHiveSpawn(a)
-      };
-      const res = await window.cth.spawnPty({
-        id: a.ptyId,
-        cwd: a.cwd,
-        command: exe,
-        args,
-        provider,
-        cols,
-        rows,
-        hive,
-        resume,
-        resumeSessionId,
-        requireResume: resume
-      });
-      if (!res.ok) throw new Error(res.error ?? 'Restart failed.');
-      if (resume && res.resumed !== true) {
-        throw new Error('Resume was refused; no replacement session was accepted.');
-      }
-      if (resume) {
-        // The replacement is accepted, so NOW it is safe to throw the old
-        // terminal away. (It used to run BEFORE spawnPty, so one of the throws
-        // above left a fresh blank xterm in the pool with the scrollback gone
-        // forever — node-pty keeps none — and the label stuck at
-        // 'recreating terminal…'.) A blank xterm can retain corrupt
-        // renderer/DOM/subscription state even after its PTY is healthy, which
-        // is why the resume path replaces it at all; the spawn answer beat the
-        // CLI's first frame, so no startup output can be missed.
-        disposeTerminal(a.ptyId);
-        acquireTerminal(a.ptyId);
-        // Bump the key so React remounts only this agent's terminal card; the
-        // remount's attach re-requests a PTY redraw for anything it raced.
-        updateAgent(a.id, {
-          terminalGeneration: (a.terminalGeneration ?? 0) + 1,
-          status: 'idle',
-          action: 'recreating terminal…'
-        });
-      }
-      if (res.ok) {
-        // Record the model even on a resume. A same-provider model change now
-        // RESUMES the session (that is the point — you keep the conversation and
-        // just swap the model), so "resume ⇒ the model is unchanged" stopped
-        // being true. Skipping the patch left the live process on the new model
-        // while the selector and the persisted agent kept the old one, and the
-        // next restore relaunched the old command. `command` is rebuilt from the
-        // selected model above, so on a genuine no-change restart this is a no-op.
-        const patch = resume
-          ? {
-              command: command.trim(),
-              provider,
-              model,
-              status: 'idle' as const,
-              action: 'continuing…'
-            }
-          : {
-              command: command.trim(),
-              provider,
-              model,
-              status: 'idle' as const,
-              action: provider === previousProvider ? 'restarting…' : `switching to ${providerPreset(provider).label}…`
-            };
-        updateAgent(a.id, patch);
-      }
+      await restartAgent(a, model, opts);
     } catch (error) {
       setRestartErrors((errors) => ({
         ...errors,
@@ -645,6 +548,8 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
 
   return (
     <Scroll>
+      {/* Inside Buzz, dispatch lives on Buzz's Tasks page. */}
+      {!hostedInBuzz && (
       <Section title={t('commandCenter.dispatchViaMichael', { godName: godName.toUpperCase() })}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
           <span style={{ fontFamily: 'var(--cth-font-display)', fontSize: 8, color: 'var(--cth-ink-500)', flexShrink: 0 }}>
@@ -672,6 +577,7 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
           {dispatchMsg && <span style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>{dispatchMsg}</span>}
         </div>
       </Section>
+      )}
 
       <Section title={t('commandCenter.agents')}>
         {agents.map((a) => {

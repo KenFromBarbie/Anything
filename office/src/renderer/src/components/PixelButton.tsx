@@ -80,6 +80,7 @@ export function PixelButton({
 
   return (
     <button
+      data-cth-button=""
       title={title}
       onClick={disabled ? undefined : onClick}
       onMouseDown={() => setPressed(true)}

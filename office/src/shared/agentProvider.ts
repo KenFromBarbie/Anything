@@ -699,6 +699,31 @@ export function hasAutoModeStance(args: string[], provider: AgentProvider): bool
   return args.some((a) => stance.has(a));
 }
 
+export type CodexSandbox = 'read-only' | 'workspace-write' | 'danger-full-access';
+
+/**
+ * The sandbox a codex command line asks for, or undefined when it takes no stance
+ * (codex then picks its own default: workspace-write in a trusted folder,
+ * read-only otherwise).
+ */
+export function codexSandboxFromArgs(args: string[]): CodexSandbox | undefined {
+  const normalize = (v: string | undefined): CodexSandbox | undefined => {
+    const s = (v ?? '').trim().replace(/^["']|["']$/g, '');
+    return s === 'read-only' || s === 'workspace-write' || s === 'danger-full-access' ? s : undefined;
+  };
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--dangerously-bypass-approvals-and-sandbox' || a === '--yolo') return 'danger-full-access';
+    if (a === '--full-auto') return 'workspace-write';
+    if (a === '-s' || a === '--sandbox') return normalize(args[i + 1]);
+    if (a.startsWith('--sandbox=')) return normalize(a.slice('--sandbox='.length));
+    if ((a === '-c' || a === '--config') && args[i + 1]?.startsWith('sandbox_mode=')) {
+      return normalize(args[i + 1].slice('sandbox_mode='.length));
+    }
+  }
+  return undefined;
+}
+
 /** Returns any env vars the provider needs for non-interactive / first-run suppression. */
 export function nonInteractiveEnvForProvider(provider: AgentProvider): Record<string, string> {
   return providerPreset(provider).nonInteractiveEnv ?? {};
