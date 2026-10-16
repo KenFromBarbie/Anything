@@ -12,40 +12,37 @@ pub struct UpdateTaskWithRichFailureArgs<'a> {
   pub maybe_failure_message: Option<&'a str>,
 }
 
+const MAX_FAILURE_MESSAGE_BYTES: usize = 255;
+
 /// Returns true if rows were updated.
 pub async fn update_task_status_with_rich_failure(
   args: UpdateTaskWithRichFailureArgs<'_>,
 ) -> Result<bool, SqliteTasksError> {
 
-  // TODO(bt,2025-07-12): Fix this. The sqlx mysql queries never required temporaries
-  let task_id_temp = args.task_id.as_str();
-  let status_temp = args.status.to_str();
-  let maybe_failure_type_temp = args.maybe_failure_type.map(|val| val.to_str());
+  // Trim the message so it doesn't overflow the database column (on a
+  // character boundary, so multi-byte text can't panic the slice).
+  let maybe_failure_message = args.maybe_failure_message.map(|s| {
+    let mut end = s.len().min(MAX_FAILURE_MESSAGE_BYTES);
+    while !s.is_char_boundary(end) {
+      end -= 1;
+    }
+    &s[..end]
+  });
 
-  // Trim the message so it doesn't overflow the database column
-  let maybe_failure_message_temp = args.maybe_failure_message
-      .map(|s| if s.len() > 255 { &s[..255] } else { s });
-
-  // info!("Update task id: {}, status: {}", task_id_temp, status_temp);
-
-  // TODO(bt,2025-07-15): We can't set a LIMIT without a certain compiler flag for SQLite ?
-  let query = sqlx::query!(r#"
+  let rows = args.db.lock().execute(r#"
     UPDATE tasks
     SET task_status = ?,
     on_failure_type = ?,
     on_failure_message = ?
     WHERE id = ?
   "#,
-      status_temp,
-      maybe_failure_type_temp,
-      maybe_failure_message_temp,
-      task_id_temp,
-  );
+    rusqlite::params![
+      args.status.to_str(),
+      args.maybe_failure_type.map(|val| val.to_str()),
+      maybe_failure_message,
+      args.task_id.as_str(),
+    ],
+  )?;
 
-  // info!("query: {:?}", query.sql());
-
-  let res = query.execute(args.db.get_pool()).await?;
-  let rows_updated = res.rows_affected() > 0;
-
-  Ok(rows_updated)
+  Ok(rows > 0)
 }

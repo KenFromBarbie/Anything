@@ -1,6 +1,6 @@
 //! sqlite_tasks
 //!
-//! sqlx is happier with different compilation units? So be it!
+//! The desktop task database (SQLite, through rusqlite).
 //!
 
 // Never allow these

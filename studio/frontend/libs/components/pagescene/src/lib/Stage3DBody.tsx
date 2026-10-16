@@ -569,7 +569,7 @@ export const Stage3DBody = ({
               message={editorLoader.message}
             />
 
-            {modelSelectorPlacement === "bottom-left" && (
+            {modelSelectorPlacement === "bottom-left" && !localOnlyStudio() && (
               <div className="absolute bottom-6 left-6 z-20 flex items-center gap-3">
                 <ClassyModelSelector
                   items={stage3dModelList}
@@ -584,7 +584,7 @@ export const Stage3DBody = ({
             )}
             {(showCostCalculator || showHelpMenu) && (
               <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
-                {showCostCalculator && (
+                {showCostCalculator && !localOnlyStudio() && (
                   <CostCalculatorButton modelPage={PAGE_ID} />
                 )}
                 {showHelpMenu && <HelpMenuButton />}
@@ -596,3 +596,11 @@ export const Stage3DBody = ({
     </div>
   );
 };
+
+/** Kenn's Harness's Studio offers no credit-spending generation. */
+function localOnlyStudio(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    (window as { __ARTCRAFT_EMBEDDED__?: boolean }).__ARTCRAFT_EMBEDDED__ === true
+  );
+}

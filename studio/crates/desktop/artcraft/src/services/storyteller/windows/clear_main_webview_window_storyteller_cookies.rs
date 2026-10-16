@@ -5,17 +5,26 @@ use tauri::webview::Cookie;
 use tauri::{AppHandle, Manager};
 
 pub fn clear_main_webview_window_storyteller_cookies(app: &AppHandle) -> AnyhowResult<()> {
-  let main_webview_window = app.get_webview_window(MAIN_WINDOW_NAME)
-      .ok_or_else(|| anyhow::anyhow!("Main window not found"))?;
+  // Embedded in a host app, the cookies live in ArtCraft's child webview
+  // rather than in a window of its own.
+  let main_webview = if crate::core::embedding::is_embedded() {
+    app.get_webview(crate::core::embedding::EMBEDDED_WEBVIEW_LABEL)
+        .ok_or_else(|| anyhow::anyhow!("ArtCraft webview not found"))?
+  } else {
+    app.get_webview_window(MAIN_WINDOW_NAME)
+        .ok_or_else(|| anyhow::anyhow!("Main window not found"))?
+        .as_ref()
+        .clone()
+  };
   
-  let cookies = main_webview_window.cookies()?;
+  let cookies = main_webview.cookies()?;
   
   let cookies_to_delete = get_cookies_to_delete(cookies);
   
   let mut maybe_error = None;
   
   for cookie in cookies_to_delete {
-    if let Err(err) = main_webview_window.delete_cookie(cookie) {
+    if let Err(err) = main_webview.delete_cookie(cookie) {
       warn!("Failed to delete cookie: {:?}", err);
       maybe_error = Some(err);
     }

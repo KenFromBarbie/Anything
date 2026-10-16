@@ -41,9 +41,9 @@ pub struct TaskItem {
 pub async fn list_tasks_for_frontend(
   db: & TaskDbConnection
 ) -> Result<TaskList, SqliteTasksError> {
-  let query = sqlx::query_as!(
-    TaskItemRaw,
-    r#"
+  let result = {
+    let connection = db.lock();
+    let mut statement = connection.prepare(r#"
     SELECT
       id,
       task_status,
@@ -61,15 +61,15 @@ pub async fn list_tasks_for_frontend(
       on_complete_primary_media_file_thumbnail_url_template,
       on_failure_type,
       on_failure_message,
-      created_at as "created_at: DateTime<Utc>",
-      updated_at as "updated_at: DateTime<Utc>",
-      completed_at as "completed_at: DateTime<Utc>"
+      created_at,
+      updated_at,
+      completed_at
     FROM tasks
     WHERE is_dismissed_by_user == 0
-  "#);
-
-  let result = query.fetch_all(db.get_pool())
-      .await?;
+  "#)?;
+    let rows = statement.query_map([], TaskItemRaw::from_row)?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()?
+  };
 
   let mut tasks = Vec::with_capacity(result.len());
 
@@ -132,4 +132,35 @@ struct TaskItemRaw {
   created_at: DateTime<Utc>,
   updated_at: DateTime<Utc>,
   completed_at: Option<DateTime<Utc>>,
+}
+
+impl TaskItemRaw {
+  fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Self> {
+    Ok(Self {
+      id: row.get("id")?,
+      task_status: row.get("task_status")?,
+      task_type: row.get("task_type")?,
+      model_type: row.get("model_type")?,
+      provider: row.get("provider")?,
+      provider_job_id: row.get("provider_job_id")?,
+      frontend_caller: row.get("frontend_caller")?,
+      frontend_subscriber_id: row.get("frontend_subscriber_id")?,
+      frontend_subscriber_payload: row.get("frontend_subscriber_payload")?,
+      on_complete_primary_media_file_token: row.get("on_complete_primary_media_file_token")?,
+      on_complete_primary_media_file_class: row.get("on_complete_primary_media_file_class")?,
+      on_complete_batch_token: row.get("on_complete_batch_token")?,
+      on_complete_primary_media_file_cdn_url: row.get("on_complete_primary_media_file_cdn_url")?,
+      on_complete_primary_media_file_thumbnail_url_template: row.get("on_complete_primary_media_file_thumbnail_url_template")?,
+      on_failure_type: row.get("on_failure_type")?,
+      on_failure_message: row.get("on_failure_message")?,
+      created_at: unix_seconds(row.get("created_at")?),
+      updated_at: unix_seconds(row.get("updated_at")?),
+      completed_at: row.get::<_, Option<i64>>("completed_at")?.map(unix_seconds),
+    })
+  }
+}
+
+/// The table stores times as unix seconds (`unixepoch('now')`).
+fn unix_seconds(seconds: i64) -> DateTime<Utc> {
+  DateTime::from_timestamp(seconds, 0).unwrap_or_default()
 }

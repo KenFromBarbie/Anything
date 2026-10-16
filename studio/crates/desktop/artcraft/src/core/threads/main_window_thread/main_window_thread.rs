@@ -33,6 +33,13 @@ pub async fn main_window_thread(
   
   // debug_try_clear_all_webview_data(&app);
 
+  if crate::core::embedding::is_embedded() {
+    loop {
+      log_errors(persist_storyteller_cookies_task(&app, &storyteller_creds_manager, &app_startup_time).await);
+      tokio::time::sleep(std::time::Duration::from_millis(1_000)).await;
+    }
+  }
+
   loop {
     for (window_name, window) in app.windows() {
       if window_name == MAIN_WINDOW_NAME {

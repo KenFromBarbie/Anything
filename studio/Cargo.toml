@@ -124,5 +124,7 @@ walkdir = "2.4.0"
 # wreq native prerequisites:
 # macOS: brew install cmake pkg-config llvm
 # Windows: choco install cmake strawberryperl pkgconfiglite llvm nasm
-wreq-util = "3.0.0-rc.10"
-wreq = { version = "6.0.0-rc.28", features = ["json", "query", "form", "multipart", "cookies", "ws", "stream", "gzip", "brotli", "zstd", "deflate"] }
+# Exact pins: wreq's pre-releases change APIs between rcs (rc.31 broke the
+# cookie provider), and a host workspace (Buzz) would otherwise pick newer ones.
+wreq-util = "=3.0.0-rc.10"
+wreq = { version = "=6.0.0-rc.28", features = ["json", "query", "form", "multipart", "cookies", "ws", "stream", "gzip", "brotli", "zstd", "deflate"] }

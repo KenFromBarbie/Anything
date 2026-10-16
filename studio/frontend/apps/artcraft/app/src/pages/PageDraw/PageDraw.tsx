@@ -1,3 +1,4 @@
+import { IsLocalOnlyStudio, LOCAL_ONLY_MESSAGE } from "@storyteller/tauri-utils";
 import { useMemo } from "react";
 import {
   PageDraw as PageDrawLib,
@@ -95,6 +96,7 @@ const useTauriAdapter = (): PageDrawAdapter => {
   return useMemo<PageDrawAdapter>(
     () => ({
       enqueueEditImage: async (req) => {
+        if (IsLocalOnlyStudio()) throw new Error(LOCAL_ONLY_MESSAGE);
         const request: GenerateImageRequest = {
           model: req.model,
           canvas_image_media_token: req.canvasImageMediaToken,
@@ -129,6 +131,7 @@ const useTauriAdapter = (): PageDrawAdapter => {
       },
 
       enqueueBgRemoval: async (base64Image, nodeId) => {
+        if (IsLocalOnlyStudio()) throw new Error(LOCAL_ONLY_MESSAGE);
         await EnqueueImageBgRemoval({
           base64_image: base64Image,
           frontend_caller: "image_editor",

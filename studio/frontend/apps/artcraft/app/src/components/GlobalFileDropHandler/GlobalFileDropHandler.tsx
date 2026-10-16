@@ -7,6 +7,7 @@ import {
   UploadModalSplat,
 } from "@storyteller/ui-upload-modal";
 import { isPromptBoxDropZoneActive } from "@storyteller/ui-promptbox";
+import { IsEmbeddedInHost } from "@storyteller/tauri-utils";
 import { FilterEngineCategories } from "../../enums";
 
 type ModalType = "3d" | "image" | "splat" | null;
@@ -52,8 +53,11 @@ export function GlobalFileDropHandler() {
       const setup = async () => {
         try {
           const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+          const { getCurrentWebview } = await import("@tauri-apps/api/webview");
           const { convertFileSrc } = await import("@tauri-apps/api/core");
-          const appWindow = getCurrentWebviewWindow();
+          // Inside Buzz's Studio, ArtCraft is a view in Buzz's window, not a
+          // window of its own: drops are delivered to the view.
+          const appWindow = IsEmbeddedInHost() ? getCurrentWebview() : getCurrentWebviewWindow();
 
           const unlisten = await appWindow.onDragDropEvent(async (event) => {
             const payload = event.payload;

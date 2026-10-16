@@ -23,14 +23,7 @@ pub async fn update_successful_task_status_with_metadata(
   args: UpdateSuccessfulTaskArgs<'_>,
 ) -> Result<bool, SqliteTasksError> {
 
-  // TODO(bt,2025-07-12): Fix this. The sqlx mysql queries never required temporaries
-  let task_id_temp = args.task_id.as_str();
-  let maybe_batch_token_temp = args.maybe_batch_token.map(|t| t.as_str());
-  let maybe_primary_media_token_temp = args.maybe_primary_media_file_token.map(|t| t.as_str());
-  let maybe_primary_media_class = args.maybe_primary_media_file_class.map(|c| c.to_str());
-
-  // TODO(bt,2025-07-15): We can't set a LIMIT without a certain compiler flag for SQLite ?
-  let query = sqlx::query!(r#"
+  let rows = args.db.lock().execute(r#"
     UPDATE tasks
     SET
       task_status = ?,
@@ -41,19 +34,16 @@ pub async fn update_successful_task_status_with_metadata(
       on_complete_primary_media_file_thumbnail_url_template = ?
     WHERE id = ?
   "#,
+    rusqlite::params![
       SUCCESSFUL_STATUS,
-      maybe_batch_token_temp,
-      maybe_primary_media_token_temp,
-      maybe_primary_media_class,
+      args.maybe_batch_token.map(|t| t.as_str()),
+      args.maybe_primary_media_file_token.map(|t| t.as_str()),
+      args.maybe_primary_media_file_class.map(|c| c.to_str()),
       args.maybe_primary_media_file_cdn_url,
       args.maybe_primary_media_file_thumbnail_url_template,
-      task_id_temp,
-  );
+      args.task_id.as_str(),
+    ],
+  )?;
 
-  // info!("query: {:?}", query.sql());
-
-  let res = query.execute(args.db.get_pool()).await?;
-  let rows_updated = res.rows_affected() > 0;
-
-  Ok(rows_updated)
+  Ok(rows > 0)
 }

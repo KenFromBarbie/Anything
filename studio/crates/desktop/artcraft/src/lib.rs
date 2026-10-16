@@ -94,8 +94,148 @@ use tauri_plugin_http;
 use tauri_plugin_log::Target;
 use tauri_plugin_log::TargetKind;
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+/// ArtCraft's commands, listed once for both the handler and `COMMANDS`.
+macro_rules! artcraft_commands {
+  ($($emit:tt)+) => {
+    $($emit)+![
+      check_sora_session_command,
+      download_directory_reveal_command,
+      download_media_file_command,
+      download_url_command,
+      get_download_path_command,
+      enqueue_image_bg_removal_command,
+      enqueue_image_to_3d_object_command,
+      enqueue_image_to_gaussian_command,
+      estimate_image_cost_command,
+      estimate_splat_cost_command,
+      estimate_video_cost_command,
+      estimate_audio_cost_command,
+      estimate_mesh_cost_command,
+      list_image_models_command,
+      list_video_models_command,
+      flip_image,
+      generate_image_command,
+      generate_video_command,
+      generate_splat_command,
+      generate_audio_command,
+      generate_mesh_command,
+      get_app_info_command,
+      get_app_preferences_command,
+      get_provider_order_command,
+      get_task_queue_command,
+      provider_clear_command,
+      provider_list_command,
+      provider_set_api_key_command,
+      grok_clear_credentials_command,
+      grok_get_credential_info_command,
+      grok_open_login_command,
+      load_without_cors_command,
+      mark_task_as_dismissed_command,
+      media_file_delete_command,
+      midjourney_clear_credentials_command,
+      midjourney_get_credential_info_command,
+      midjourney_open_login_command,
+      open_sora_login_command,
+      platform_info_command,
+      set_provider_order_command,
+      sora_get_credential_info_command,
+      sora_logout_command,
+      storyteller_get_login_session_command,
+      storyteller_password_login_command,
+      storyteller_password_signup_command,
+      storyteller_create_login_challenge_command,
+      storyteller_poll_login_challenge_command,
+      storyteller_cancel_login_challenge_command,
+      storyteller_get_credits_command,
+      storyteller_get_subscription_command,
+      storyteller_open_credits_purchase_command,
+      storyteller_open_customer_portal_cancel_plan_command,
+      storyteller_open_customer_portal_manage_plan_command,
+      storyteller_open_customer_portal_switch_plan_command,
+      storyteller_open_customer_portal_update_payment_method_command,
+      storyteller_open_subscription_purchase_command,
+      storyteller_purge_credentials_command,
+      tasks_nuke_all_command,
+      update_app_preferences_command,
+      worldlabs_clear_credentials_command,
+      worldlabs_get_credential_info_command,
+      worldlabs_open_login_command,
+      worldlabs_receive_bearer_command,
+    ]
+  };
+}
+
+macro_rules! command_names {
+  ($($command:ident),* $(,)?) => {
+    &[$(stringify!($command)),*]
+  };
+}
+
+/// Names of ArtCraft's commands. A host app with commands of its own routes
+/// invokes of these names to `invoke_handler`.
+pub const COMMANDS: &[&str] = artcraft_commands!(command_names);
+
+/// ArtCraft's command handler.
+pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
+  // TODO: Break this out into another module, because RustRover/IntelliJ lags with these macros.
+  //  My first attempt at naively doing this didn't work because the macros can't find their codegen'd targets.
+  artcraft_commands!(tauri::generate_handler)
+}
+
+/// What ArtCraft's startup needs, captured while `install` builds its state.
+pub struct Startup {
+  app_data_root: AppDataRoot,
+  app_env_configs: AppEnvConfigs,
+  artcraft_platform_info: ArtcraftPlatformInfo,
+  artcraft_usage_tracker: ArtcraftUsageTracker,
+  storyteller_creds_manager: StorytellerCredentialManager,
+  sora_creds_manager: SoraCredentialManager,
+  sora_task_queue: SoraTaskQueue,
+  midjourney_creds_manager: MidjourneyCredentialManager,
+  grok_creds_manager: GrokCredentialManager,
+  grok_prompt_queue: GrokImagePromptQueue,
+  worldlabs_bearer_bridge: WorldlabsBearerBridge,
+  worldlabs_creds_manager: WorldlabsCredentialManager,
+  provider_credential_cache: crate::core::providers::credentials::provider_credential_loading_cache::ProviderCredentialLoadingCache,
+}
+
+impl Startup {
+  async fn start(self, app: tauri::AppHandle) -> errors::AnyhowResult<()> {
+    handle_tauri_startup(
+      app,
+      self.app_data_root,
+      self.app_env_configs,
+      self.artcraft_platform_info,
+      self.artcraft_usage_tracker,
+      self.storyteller_creds_manager,
+      self.sora_creds_manager,
+      self.sora_task_queue,
+      self.midjourney_creds_manager,
+      self.grok_creds_manager,
+      self.grok_prompt_queue,
+      self.worldlabs_bearer_bridge,
+      self.worldlabs_creds_manager,
+      self.provider_credential_cache,
+    ).await
+  }
+
+  /// Start ArtCraft inside a host app (see `core::embedding`): its background
+  /// work, without a window of its own. Call from the host's setup. A failure
+  /// is logged rather than taking the host down.
+  pub fn start_embedded(self, app: &tauri::AppHandle) {
+    crate::core::embedding::set_embedded();
+    let app = app.clone();
+    tauri::async_runtime::block_on(async move {
+      if let Err(err) = self.start(app).await {
+        error!("Failed to start embedded ArtCraft: {:?}", err);
+      }
+    });
+  }
+}
+
+/// ArtCraft's plugins and state, added to `builder`. The dialog and opener
+/// plugins are left to the caller, since a host app usually registers its own.
+pub fn install(builder: tauri::Builder<tauri::Wry>) -> (tauri::Builder<tauri::Wry>, Startup) {
   // NB: Tauri wants to install the logger itself, so we can't rely on the logger crate
   // until the tauri runtime begins.
   println!("Loading config...");
@@ -154,58 +294,25 @@ pub fn run() {
 
   println!("Initializing backend runtime...");
 
-  let builder = tauri::Builder::default()
-    .plugin(tauri_plugin_dialog::init())
+  let startup = Startup {
+    app_data_root: app_data_root_2,
+    app_env_configs: app_env_configs_2,
+    artcraft_platform_info: artcraft_platform_info_2,
+    artcraft_usage_tracker: artcraft_usage_tracker_2,
+    storyteller_creds_manager: storyteller_creds_manager_2,
+    sora_creds_manager: sora_creds_manager_2,
+    sora_task_queue: sora_task_queue_2,
+    midjourney_creds_manager: midjourney_creds_manager_2,
+    grok_creds_manager: grok_creds_manager_2,
+    grok_prompt_queue: grok_prompt_queue_2,
+    worldlabs_bearer_bridge: worldlabs_bearer_bridge_2,
+    worldlabs_creds_manager: worldlabs_creds_manager_2,
+    provider_credential_cache: provider_credential_cache_2,
+  };
+
+  let builder = builder
     .plugin(tauri_plugin_http::init())
-    .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_upload::init())
-    .setup(move |app| {
-      // TODO(bt): This is broken on windows
-      // log_environment_details();
-
-      //if cfg!(debug_assertions) {
-      //  app.handle().plugin(
-      //    tauri_plugin_log::Builder::default()
-      //      .level(log::LevelFilter::Info)
-      //      .build(),
-      //  )?;
-      //}
-      let app = app.handle().clone();
-      let handle = app.clone();
-      let root = app_data_root_2.clone();
-      let env_config = app_env_configs_2.clone();
-      let storyteller_creds = storyteller_creds_manager_2.clone();
-      let sora_creds = sora_creds_manager_2.clone();
-      let sora_tasks = sora_task_queue_2.clone();
-
-      tauri::async_runtime::block_on(async move {
-        let result = setup_main_window(&app).await;
-
-        let result = handle_tauri_startup(
-          handle,
-          root,
-          env_config,
-          artcraft_platform_info_2,
-          artcraft_usage_tracker_2,
-          storyteller_creds,
-          sora_creds,
-          sora_tasks,
-          midjourney_creds_manager_2,
-          grok_creds_manager_2,
-          grok_prompt_queue_2,
-          worldlabs_bearer_bridge_2,
-          worldlabs_creds_manager_2,
-          provider_credential_cache_2,
-        ).await;
-
-        if let Err(err) = result {
-          error!("Failed to handle Tauri startup: {:?}", err);
-          panic!("Failed to handle Tauri startup: {:?}", err);
-        }
-      });
-
-      Ok(())
-    })
     .manage(app_data_root)
     .manage(app_env_configs)
     .manage(DesktopLoginBridgeState::default())
@@ -222,74 +329,36 @@ pub fn run() {
     .manage(provider_credential_cache)
     .manage(worldlabs_creds_manager);
 
-  // TODO: Break this out into another module, because RustRover/IntelliJ lags with these macros.
-  //  My first attempt at naively doing this didn't work because the macros can't find their codegen'd targets.
-  let builder = builder.invoke_handler(tauri::generate_handler![
-    check_sora_session_command,
-    download_directory_reveal_command,
-    download_media_file_command,
-    download_url_command,
-    get_download_path_command,
-    enqueue_image_bg_removal_command,
-    enqueue_image_to_3d_object_command,
-    enqueue_image_to_gaussian_command,
-    estimate_image_cost_command,
-    estimate_splat_cost_command,
-    estimate_video_cost_command,
-    estimate_audio_cost_command,
-    estimate_mesh_cost_command,
-    list_image_models_command,
-    list_video_models_command,
-    flip_image,
-    generate_image_command,
-    generate_video_command,
-    generate_splat_command,
-    generate_audio_command,
-    generate_mesh_command,
-    get_app_info_command,
-    get_app_preferences_command,
-    get_provider_order_command,
-    get_task_queue_command,
-    provider_clear_command,
-    provider_list_command,
-    provider_set_api_key_command,
-    grok_clear_credentials_command,
-    grok_get_credential_info_command,
-    grok_open_login_command,
-    load_without_cors_command,
-    mark_task_as_dismissed_command,
-    media_file_delete_command,
-    midjourney_clear_credentials_command,
-    midjourney_get_credential_info_command,
-    midjourney_open_login_command,
-    open_sora_login_command,
-    platform_info_command,
-    set_provider_order_command,
-    sora_get_credential_info_command,
-    sora_logout_command,
-    storyteller_get_login_session_command,
-    storyteller_password_login_command,
-    storyteller_password_signup_command,
-    storyteller_create_login_challenge_command,
-    storyteller_poll_login_challenge_command,
-    storyteller_cancel_login_challenge_command,
-    storyteller_get_credits_command,
-    storyteller_get_subscription_command,
-    storyteller_open_credits_purchase_command,
-    storyteller_open_customer_portal_cancel_plan_command,
-    storyteller_open_customer_portal_manage_plan_command,
-    storyteller_open_customer_portal_switch_plan_command,
-    storyteller_open_customer_portal_update_payment_method_command,
-    storyteller_open_subscription_purchase_command,
-    storyteller_purge_credentials_command,
-    tasks_nuke_all_command,
-    update_app_preferences_command,
-    worldlabs_clear_credentials_command,
-    worldlabs_get_credential_info_command,
-    worldlabs_open_login_command,
-    worldlabs_receive_bearer_command,
-  ]);
+  (builder, startup)
+}
 
-  builder.run(tauri::generate_context!("tauri.conf.json"))
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+  let builder = tauri::Builder::default()
+    .plugin(tauri_plugin_dialog::init())
+    .plugin(tauri_plugin_opener::init());
+  let (builder, startup) = install(builder);
+
+  builder
+    .setup(move |app| {
+      // TODO(bt): This is broken on windows
+      // log_environment_details();
+      let app = app.handle().clone();
+
+      tauri::async_runtime::block_on(async move {
+        let _result = setup_main_window(&app).await;
+
+        let result = startup.start(app).await;
+
+        if let Err(err) = result {
+          error!("Failed to handle Tauri startup: {:?}", err);
+          panic!("Failed to handle Tauri startup: {:?}", err);
+        }
+      });
+
+      Ok(())
+    })
+    .invoke_handler(invoke_handler())
+    .run(tauri::generate_context!("tauri.conf.json"))
     .expect("error while running tauri application");
 }

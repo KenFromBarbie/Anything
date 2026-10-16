@@ -14,26 +14,11 @@ pub async fn update_task_status(
   args: UpdateTaskArgs<'_>,
 ) -> Result<bool, SqliteTasksError> {
 
-  // TODO(bt,2025-07-12): Fix this. The sqlx mysql queries never required temporaries
-  let task_id_temp = args.task_id.as_str();
-  let status_temp = args.status.to_str();
-
-  // info!("Update task id: {}, status: {}", task_id_temp, status_temp);
-
-  // TODO(bt,2025-07-15): We can't set a LIMIT without a certain compiler flag for SQLite ?
-  let query = sqlx::query!(r#"
+  let rows = args.db.lock().execute(r#"
     UPDATE tasks
     SET task_status = ?
     WHERE id = ?
-  "#,
-      status_temp,
-      task_id_temp,
-  );
+  "#, [args.status.to_str(), args.task_id.as_str()])?;
 
-  // info!("query: {:?}", query.sql());
-
-  let res = query.execute(args.db.get_pool()).await?;
-  let rows_updated = res.rows_affected() > 0;
-
-  Ok(rows_updated)
+  Ok(rows > 0)
 }

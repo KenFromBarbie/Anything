@@ -1,3 +1,4 @@
+import { IsLocalOnlyStudio, LOCAL_ONLY_MESSAGE } from "@storyteller/tauri-utils";
 // PageSceneAdapter implementation backed by the artcraft host's Tauri
 // + HTTP plumbing. Built once per <PageScene> mount via useMemo so the
 // reference is stable across re-renders (matters because the lib's
@@ -170,6 +171,7 @@ export const useTauriPageSceneAdapter = (
     () => ({
       ...sceneOutputAdapter,
       enqueueGeneration: async (req) => {
+        if (IsLocalOnlyStudio()) throw new Error(LOCAL_ONLY_MESSAGE);
         const request: GenerateImageRequest = {
           model: req.model,
           provider: req.provider,

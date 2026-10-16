@@ -14,7 +14,10 @@ path = "src/lib.rs"
 
 [features]
 default = []
-database = ["sqlx", "sqlx-core", "sqlx-mysql"]
+# `database` (MySQL coders for the backend services) is disabled in this
+# copy: sqlx 0.7's optional SQLite dependency conflicts with the rusqlite
+# build ArtCraft shares inside Buzz, even when the feature is off.
+database = []
 
 [dependencies]
 
@@ -25,10 +28,6 @@ database = ["sqlx", "sqlx-core", "sqlx-mysql"]
 serde.workspace = true
 serde_derive.workspace = true
 
-# Database conversion of enum types is optional
-sqlx = { version = "0.7.4", features = [ "mysql", "runtime-tokio-rustls", "chrono" ], optional = true }
-sqlx-core = { version = "0.7.4" , optional = true }
-sqlx-mysql = { version = "0.7.4" , optional = true }
 
 log.workspace = true
 

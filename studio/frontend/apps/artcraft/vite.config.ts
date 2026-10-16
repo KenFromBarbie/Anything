@@ -41,12 +41,35 @@ const sparkWasmDataUrlFix = (): Plugin => ({
   },
 });
 
+// Serving ArtCraft under a subpath (e.g. Buzz's Studio at /studio-app/): set
+// ARTCRAFT_BASE. Vite prefixes bundled assets itself; code also refers to the
+// public folders by absolute path ("/resources/..."), which this prefixes too.
+const BASE = process.env.ARTCRAFT_BASE || "/";
+const PUBLIC_PATH_DIRS = ["resources", "jsm", "images", "fonts"];
+
+const publicPathsUnderBase = (base: string): Plugin => ({
+  name: "artcraft-public-paths-under-base",
+  enforce: "pre",
+  transform(code, id) {
+    const file = id.split("?")[0];
+    if (file.includes("node_modules") || !/\.[cm]?[jt]sx?$/.test(file)) {
+      return null;
+    }
+    const absolute = new RegExp(`(["'\`])/(${PUBLIC_PATH_DIRS.join("|")})/`, "g");
+    if (!absolute.test(code)) {
+      return null;
+    }
+    return { code: code.replace(absolute, `$1${base}$2/`), map: null };
+  },
+});
+
 const projectRoot = __dirname;
 const appRoot = path.resolve(projectRoot, "app");
 const workspaceRoot = path.resolve(projectRoot, "..", "..");
 
 export default defineConfig({
   root: appRoot,
+  base: BASE,
   optimizeDeps: {
     exclude: ["@sparkjsdev/spark"],
   },
@@ -68,6 +91,7 @@ export default defineConfig({
     }),
     wasm(),
     topLevelAwait(),
+    ...(BASE === "/" ? [] : [publicPathsUnderBase(BASE)]),
   ],
   server: {
     fs: {

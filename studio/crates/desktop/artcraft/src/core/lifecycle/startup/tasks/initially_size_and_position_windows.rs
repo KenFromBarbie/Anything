@@ -1,3 +1,4 @@
+use crate::core::embedding::is_embedded;
 use crate::core::state::data_dir::app_data_root::AppDataRoot;
 use crate::core::state::window::main_window_position::MainWindowPosition;
 use crate::core::state::window::main_window_size::MainWindowSize;
@@ -9,6 +10,10 @@ pub fn initially_size_and_position_windows(
   app: &AppHandle,
   root: &AppDataRoot,
 ) {
+
+  if is_embedded() {
+    return; // the host owns the window
+  }
 
   println!("Sizing and positioning window...");
 

@@ -56,6 +56,7 @@ import { useTabStore } from "./Stores/TabState";
 import { useTextToImageStore } from "./PageImage/TextToImageStore";
 
 import { AppsIndexPage } from "./PageApps/AppsIndexPage";
+import { isAppAllowed } from "~/config/appMenu";
 import PageDraw from "./PageDraw/PageDraw";
 import {
   topNavMediaId,
@@ -242,6 +243,13 @@ const TabBody = ({ sceneToken }: { sceneToken?: string }) => {
   // top-level children may use position: fixed (e.g. PageDraw); the
   // wrapping <div> scopes them so they don't stack as siblings of
   // the TopBar at the MainApp root.
+  if (activeTabId !== "APPS" && !isAppAllowed(activeTabId)) {
+    return (
+      <div>
+        <AppsIndexPage />
+      </div>
+    );
+  }
   switch (activeTabId) {
     case "3D":
       return <PageScene sceneToken={sceneToken} />;

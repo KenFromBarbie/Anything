@@ -10,6 +10,10 @@ pub fn position_main_window(
   app: &AppHandle,
   position: &MainWindowPosition,
 ) -> AnyhowResult<()> {
+  if crate::core::embedding::is_embedded() {
+    return Ok(()); // the host owns the window
+  }
+
 
   // NB: This non-negative position heuristic is good for MacBook (single screen).
   // Not sure how this fares on Windows, Linux, or multiscreen setups.

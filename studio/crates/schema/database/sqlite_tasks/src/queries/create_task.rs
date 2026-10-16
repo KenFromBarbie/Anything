@@ -27,17 +27,8 @@ pub async fn create_task(
   args: CreateTaskArgs<'_>,
 ) -> Result<TaskId, SqliteTasksError> {
   let task_id = TaskId::generate();
-  
-  // TODO(bt,2025-07-12): Fix this. The sqlx mysql queries never required temporaries
-  let task_id_temp = task_id.as_str();
-  let status_temp = args.status.to_str();
-  let task_type_temp = args.task_type.to_str();
-  let model_type_temp = args.model_type.as_ref().map(|s| s.to_str());
-  let provider_temp = args.provider.to_string();
-  let prompt_token_temp = args.prompt_token.map(|t| t.as_str());
-  let frontend_caller_temp = args.frontend_caller.map(|s| s.to_str());
 
-  let query = sqlx::query!(r#"
+  args.db.lock().execute(r#"
     INSERT INTO tasks (
       id,
       task_status,
@@ -54,21 +45,21 @@ pub async fn create_task(
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   "#,
-      task_id_temp,
-      status_temp,
-      task_type_temp,
-      model_type_temp,
-      provider_temp,
+    rusqlite::params![
+      task_id.as_str(),
+      args.status.to_str(),
+      args.task_type.to_str(),
+      args.model_type.as_ref().map(|s| s.to_str()),
+      args.provider.to_string(),
       args.provider_job_id,
       args.queue_status_url,
       args.queue_response_url,
-      prompt_token_temp,
-      frontend_caller_temp,
+      args.prompt_token.map(|t| t.as_str()),
+      args.frontend_caller.map(|s| s.to_str()),
       args.frontend_subscriber_id,
-      args.frontend_subscriber_payload
-  );
+      args.frontend_subscriber_payload,
+    ],
+  )?;
 
-  let _r = query.execute(args.db.get_pool()).await?;
-  
   Ok(task_id)
 }

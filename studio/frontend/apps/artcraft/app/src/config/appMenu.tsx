@@ -6,6 +6,21 @@ import {
   useStoryboardPageEnabled,
 } from "@storyteller/ui-settings-modal";
 import { useTabStore, TabId } from "~/pages/Stores/TabState";
+import { IsLocalOnlyStudio } from "@storyteller/tauri-utils";
+
+/** The tools that work without ArtCraft's AI credits (the Studio's set). */
+export const LOCAL_APP_IDS: ReadonlySet<string> = new Set([
+  "2D",
+  "3D",
+  "VIDEO_FRAME_EXTRACTOR",
+  "VIDEO_EDITOR",
+  "STORYBOARD",
+  "MOODBOARD",
+]);
+
+/** Whether a tool may be opened here. */
+export const isAppAllowed = (action?: string): boolean =>
+  !IsLocalOnlyStudio() || (!!action && LOCAL_APP_IDS.has(action));
 
 export type AppId =
   | "IMAGE"
@@ -35,7 +50,7 @@ export interface AppDescriptor {
   large?: boolean;
 }
 
-export const APP_DESCRIPTORS: AppDescriptor[] = [
+const ALL_APP_DESCRIPTORS: AppDescriptor[] = [
   {
     id: "IMAGE",
     label: "Create Image",
@@ -68,6 +83,10 @@ export const APP_DESCRIPTORS: AppDescriptor[] = [
     large: true,
   },
 ];
+
+export const APP_DESCRIPTORS: AppDescriptor[] = ALL_APP_DESCRIPTORS.filter(
+  (d) => isAppAllowed(d.id),
+);
 
 export interface FullAppItem {
   id: string;
@@ -386,6 +405,8 @@ export const useVisibleApps = (): FullAppItem[] => {
       ALL_APPS.filter((app) => {
         // Background Change is hidden in the desktop app for now.
         if (app.action === "BACKGROUND_CHANGE") return false;
+        // In the Studio: local tools only ("Edit Image" is inpainting).
+        if (!isAppAllowed(app.action) || app.id === "edit-image") return false;
         if (app.action === "STORYBOARD") return storyboardEnabled;
         return true;
       }),
@@ -444,7 +465,8 @@ export const goToApp = (action?: string) => {
       "BACKGROUND_CHANGE",
       "VIDEO_EDITOR",
       "MOODBOARD",
-    ].includes(action)
+    ].includes(action) &&
+    isAppAllowed(action)
   ) {
     if (action === "STORYBOARD") {
       const { enabled, storyboardPageEnabled } =

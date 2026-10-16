@@ -9,6 +9,10 @@ pub fn resize_main_window(
   app: &AppHandle,
   size: &MainWindowSize,
 ) -> errors::AnyhowResult<()> {
+  if crate::core::embedding::is_embedded() {
+    return Ok(()); // the host owns the window
+  }
+
 
   let mut resize_width = size.width;
   let mut resize_height = size.height;

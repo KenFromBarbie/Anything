@@ -12,6 +12,8 @@ import {
   useSubscriptionPlanChangedEvent,
 } from "@storyteller/tauri-events";
 import {
+  IsEmbeddedInHost,
+  IsLocalOnlyStudio,
   useTauriPlatform,
   useTauriWindowControls,
 } from "@storyteller/tauri-utils";
@@ -535,6 +537,7 @@ export const TopBar = ({ pageName }: Props) => {
               {(tabStore.activeTabId === "IMAGE" ||
                 tabStore.activeTabId === "VIDEO" ||
                 tabStore.activeTabId === "AUDIO") && <GalleryViewToggle />}
+              {!IsLocalOnlyStudio() && (
               <PopoverMenu
                 position="bottom"
                 align="end"
@@ -607,8 +610,9 @@ export const TopBar = ({ pageName }: Props) => {
                   </div>
                 )}
               </PopoverMenu>
+              )}
 
-              {!hasPaidPlan && (
+              {!hasPaidPlan && !IsLocalOnlyStudio() && (
                 <Button
                   variant="primary"
                   icon={GemIcon}
@@ -655,7 +659,8 @@ export const TopBar = ({ pageName }: Props) => {
               {/* TODO(bt,2025-09-12): This was the old auth buttons that didn't work. We need to remove this and clean up the DOM. */}
             </div>
 
-            {isDesktop && platform !== "macos" && (
+            {/* Inside Buzz's Studio these would act on Buzz's window. */}
+            {isDesktop && !IsEmbeddedInHost() && platform !== "macos" && (
               <div className="no-drag flex items-center">
                 <Button
                   variant="secondary"

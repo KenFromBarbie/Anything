@@ -20,9 +20,9 @@ anyhow.workspace = true
 chrono.workspace = true
 log.workspace = true
 
-# TODO(bt,2025-07-09): Update sqlx ASAP. We're stuck on 0.7 because of the complex use of internal types and macros in the database crate.
-# We're going to embed in-memory SQLite
-sqlx = { package = "sqlx", version = "0.7.4", features = ["runtime-tokio-rustls", "sqlite", "chrono"] }
+# SQLite through rusqlite (was sqlx 0.7). Same version Buzz uses, so one
+# libsqlite3-sys links when ArtCraft is built into Buzz.
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 # Needed to safety check some queries we can't use escaping for
 once_cell.workspace = true
@@ -35,8 +35,6 @@ serde_json.workspace = true
 
 [dev-dependencies]
 # serial_test = "3.0.0"
-
-[build-dependencies]
 tempfile.workspace = true
-sqlx = { package = "sqlx", version = "0.7.4", features = ["runtime-tokio-rustls", "sqlite", "chrono"] }
-#rusqlite = "0.25.4" # NB: For the build.rs file
+tokio = { workspace = true, features = ["rt"] }
+

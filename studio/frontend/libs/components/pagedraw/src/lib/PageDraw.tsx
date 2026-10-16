@@ -1263,6 +1263,7 @@ const PageDraw = ({
           the content area (right of the sidebar). It spans 0..right so the
           promptbox's own `left-1/2 -translate-x-1/2` centers within the content
           area — do NOT re-apply the sidebar offset or it double-shifts right. */}
+      {!localOnlyStudio() && (
       <div
         className={`preserve-aspect-ratio fixed inset-x-0 bottom-0 z-10 ${
           isSelecting ? "pointer-events-none" : "pointer-events-auto"
@@ -1291,6 +1292,7 @@ const PageDraw = ({
           }
         />
       </div>
+      )}
       <SideToolbar
         className="fixed left-0 top-[calc(50%_-_var(--pd-bottom-reserve,0px))] z-10 -translate-y-1/2 transform"
         onSelect={handleSelectTool}
@@ -1298,7 +1300,7 @@ const PageDraw = ({
         onPaintBrush={handlePaintBrush}
         onCanvasBackground={handleCanvasBackground}
         onUploadImage={handleUploadImageClick}
-        supportsMaskTool={supportsMaskedInpainting}
+        supportsMaskTool={supportsMaskedInpainting && !localOnlyStudio()}
         activeToolId={activeTool}
         currentShape={currentShape}
       />
@@ -1384,3 +1386,11 @@ const PageDraw = ({
 };
 
 export default PageDraw;
+
+/** Kenn's Harness's Studio offers no credit-spending generation. */
+function localOnlyStudio(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    (window as { __ARTCRAFT_EMBEDDED__?: boolean }).__ARTCRAFT_EMBEDDED__ === true
+  );
+}
