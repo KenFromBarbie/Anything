@@ -96,7 +96,12 @@ jobs:
         shell: bash
         run: |
           cd office
-          npm ci
+          # Skip install scripts: they'd compile the native modules for the
+          # runner's Node (which on Windows needs Clang tools). Fetch Electron,
+          # then the Office's own postinstall rebuilds them for Electron.
+          npm ci --ignore-scripts
+          node node_modules/electron/install.js
+          npm run postinstall
           npm run build
           npx vite build --config sidecar.web.vite.config.ts --outDir ../desktop/public/office-app --emptyOutDir
           cd ..
