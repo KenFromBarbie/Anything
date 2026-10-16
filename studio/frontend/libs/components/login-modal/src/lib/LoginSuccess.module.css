@@ -1,0 +1,64 @@
+.panel {
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  padding: 56px 32px;
+  text-align: center;
+  animation: arrive 450ms ease-out both;
+}
+
+.badge {
+  display: flex;
+  width: 64px;
+  height: 64px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 28px;
+  border: 1px solid rgb(255 255 255 / 20%);
+  color: #ffffff;
+  background: rgb(255 255 255 / 5%);
+}
+
+.heading {
+  margin: 0;
+  max-width: 100%;
+  color: rgb(255 255 255 / 60%);
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.username {
+  display: block;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+  color: #ffffff;
+  font-family: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  text-transform: none;
+}
+
+.caption {
+  margin: 14px 0 0;
+  color: rgb(255 255 255 / 50%);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@keyframes arrive {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel { animation: none; }
+}

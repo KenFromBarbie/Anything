@@ -1,0 +1,863 @@
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2c2c2f #0b0b0c;
+}
+
+/* Works on Chrome, Edge, and Safari */
+*::-webkit-scrollbar {
+  width: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #0b0b0c;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #2c2c2f;
+  border: 2px solid #0b0b0c;
+}
+
+/* Light theme: the scrollbar track/thumb must be light, not the dark defaults. */
+.theme-light {
+  scrollbar-color: #c4c4c8 #ececef;
+}
+
+.theme-light *::-webkit-scrollbar-track {
+  background: #ececef;
+}
+
+.theme-light *::-webkit-scrollbar-thumb {
+  background-color: #c4c4c8;
+  border: 2px solid #ececef;
+}
+
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Display face: Archivo, matching artcraft-webapp. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family:
+    "Archivo",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+  letter-spacing: -0.03em;
+}
+
+/* Only display-scale headings run expanded on the wdth axis; compact
+   headings (card titles, section labels) stay at normal width so they
+   don't truncate in tight layouts. */
+h1,
+h2 {
+  font-stretch: 118%;
+  font-weight: 620;
+}
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+  color: var(--st-fg);
+  background-color: var(--st-bg);
+  color-scheme: var(--st-color-scheme, dark);
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: #2d81ff;
+  color: #ffffff;
+}
+
+:focus-visible {
+  outline: 2px solid #74aaff;
+  outline-offset: 3px;
+}
+
+/* Mono HUD micro-label, matching the webapp/marketing site's .hud-label. */
+.hud-label {
+  font-family:
+    "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.font-serif-italic {
+  font-family: "Instrument Serif", Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* Display utility carries the ax-display treatment (Archivo at weight 620,
+   118% width). Plain (unlayered) rule so it wins over font-weight
+   utilities like font-semibold. */
+.font-display {
+  font-stretch: 118%;
+  font-weight: 620;
+}
+
+/* ===================== THEME VARIABLES ===================== */
+/* The default (the "gray" theme id) is the brutalist system shared with
+   artcraft-webapp: near-black surfaces, white/15 hairline borders. */
+:root {
+  --st-bg: #121316;
+  --st-panel: #101014;
+  --st-panel-border: rgba(255, 255, 255, 0.15);
+  --st-modal: #101014;
+  /* default modal surface (can be gradient per theme) */
+  --st-controls: #1e1f22;
+  --st-controls-rgb: 30 31 34;
+  --st-controls-border: rgba(255, 255, 255, 0.15);
+  --st-sunken: #060607;
+  --st-fg: #f2f1ee;
+  --st-fg-rgb: 242 241 238;
+  --st-divider: rgba(255, 255, 255, 0.15);
+  --st-gallery-vignette-alpha: 0.6;
+  /* Photo tint (default neutral) */
+  --st-photo-tint-rgb: 0 0 0;
+  --st-photo-tint-alpha: 0;
+  --st-photo-grayscale: 1;
+  /* Theme-aware badge alpha (default dark) */
+  --st-badge-alpha: 0.4;
+
+  /* shadcn design tokens consumed by @storyteller/ui-video-editor.
+     Same values as artcraft-webapp's styles.css. */
+  --background: 225 10% 8%;
+  --foreground: 0 0% 98%;
+  --card: 240 11% 7%;
+  --card-foreground: 0 0% 98%;
+  --popover: 240 11% 7%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 216 100% 59%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 240 4% 9%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 240 4% 9%;
+  --muted-foreground: 0 0% 64%;
+  --accent: 240 4% 9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 70% 50%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 100% / 0.15;
+  --input: 0 0% 100% / 0.15;
+  --ring: 217 100% 73%;
+
+  /* Motion tokens, mirrored from artcraft-webapp. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-emphasis: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 340ms;
+  --dur-page: 260ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 1ms;
+    --dur-base: 1ms;
+    --dur-slow: 1ms;
+    --dur-page: 1ms;
+  }
+}
+
+/* Light theme */
+.theme-light {
+  --st-bg: #ffffff;
+  --st-panel: #f8f8f8;
+  --st-panel-border: #e5e7eb;
+  --st-modal: #f8f8f8;
+  --st-controls: #eeeeef;
+  /* requested light button surface */
+  --st-controls-rgb: 238 238 239;
+  --st-controls-border: #dcdcdf;
+  /* requested light button border */
+  --st-sunken: #ececef;
+  --st-fg: #111827;
+  --st-fg-rgb: 17 24 39;
+  --st-divider: #d1d5db;
+  --st-color-scheme: light;
+  --st-photo-tint-rgb: 0 0 0;
+  --st-photo-tint-alpha: 0;
+  --st-photo-grayscale: 1;
+  /* lighter badge background for light themes */
+  --st-badge-alpha: 0.1;
+}
+
+/* Default dark (brutalist, matches artcraft-webapp) */
+.theme-gray {
+  --st-bg: #121316;
+  --st-panel: #101014;
+  --st-panel-border: rgba(255, 255, 255, 0.15);
+  --st-modal: #101014;
+  --st-controls: #1e1f22;
+  --st-controls-rgb: 30 31 34;
+  --st-controls-border: rgba(255, 255, 255, 0.15);
+  --st-sunken: #060607;
+  --st-fg: #f2f1ee;
+  --st-fg-rgb: 242 241 238;
+  --st-divider: rgba(255, 255, 255, 0.15);
+  --st-color-scheme: dark;
+  --st-gallery-vignette-alpha: 0.3;
+  --st-photo-tint-rgb: 0 0 0;
+  --st-photo-tint-alpha: 0.6;
+  --st-photo-grayscale: 1;
+  --st-badge-alpha: 0.4;
+}
+
+/* Full black */
+.theme-black {
+  --st-bg: #000000;
+  --st-panel: #0a0a0a;
+  --st-panel-border: rgba(255, 255, 255, 0.15);
+  --st-modal: #0a0a0a;
+  --st-controls: #111111;
+  --st-controls-rgb: 17 17 17;
+  --st-controls-border: rgba(255, 255, 255, 0.15);
+  --st-sunken: #000000;
+  --st-fg: #ffffff;
+  --st-fg-rgb: 255 255 255;
+  --st-divider: #303030;
+  --st-color-scheme: dark;
+  --st-photo-tint-rgb: 0 0 0;
+  --st-photo-tint-alpha: 0;
+  --st-photo-grayscale: 1;
+  --st-badge-alpha: 0.4;
+}
+
+/* Aurora gradient theme */
+.theme-aurora,
+.theme-gradient {
+  --st-bg:
+    radial-gradient(1200px 600px at 10% -10%, #2d81ff22, transparent),
+    radial-gradient(900px 480px at 110% 110%, #1cb6be22, transparent), #070a12;
+  --st-panel: #0f1220;
+  --st-panel-border: #1e2237;
+  --st-modal:
+    radial-gradient(560px 280px at 12% -10%, #2d81ff33, transparent),
+    radial-gradient(520px 280px at 110% 120%, #1cb6be33, transparent), #0f1220;
+  --st-controls: #1a1f35;
+  --st-controls-rgb: 26 31 53;
+  --st-controls-border: rgba(255, 255, 255, 0.15);
+  --st-sunken: #05070d;
+  --st-fg: #f8fafc;
+  --st-fg-rgb: 248 250 252;
+  --st-divider: #2a3152;
+  --st-color-scheme: dark;
+  --st-photo-tint-rgb: 22 32 56;
+  /* slightly darker bluish tint */
+  --st-photo-tint-alpha: 0.34;
+  --st-photo-grayscale: 0;
+  --st-badge-alpha: 0.4;
+}
+
+/* Sunset gradient theme: purple to orange */
+.theme-sunset {
+  --st-bg:
+    radial-gradient(1100px 520px at 10% -10%, #8b5cf635, transparent),
+    radial-gradient(1400px 720px at 115% 120%, #fb923c66, transparent), #140b12;
+  --st-panel: #1a121a;
+  --st-panel-border: #3a253a;
+  --st-modal:
+    radial-gradient(560px 260px at 12% -10%, #8b5cf640, transparent),
+    radial-gradient(700px 360px at 115% 120%, #fb923c88, transparent), #1a121a;
+  --st-controls: #271927;
+  --st-controls-rgb: 39 25 39;
+  --st-controls-border: rgba(255, 255, 255, 0.15);
+  --st-sunken: #0d070b;
+  --st-fg: #f8fafc;
+  --st-fg-rgb: 248 250 252;
+  --st-divider: #4a2e3a;
+  --st-color-scheme: dark;
+  --st-photo-tint-rgb: 96 32 48;
+  /* warmer tint for images */
+  --st-photo-tint-alpha: 0.3;
+  --st-photo-grayscale: 0;
+  --st-badge-alpha: 0.4;
+}
+
+/* Fallback classes hooking common UI areas to variables without refactors */
+.bg-ui-background {
+  background: var(--st-bg);
+}
+
+.bg-ui-panel {
+  background: var(--st-panel);
+}
+
+/* Panel surface. Brutalist system: flat, no gradient (class name kept
+   for lib compatibility). */
+.bg-ui-panel-gradient {
+  background: var(--st-panel);
+  background-color: var(--st-panel);
+}
+
+.bg-ui-modal {
+  background: var(--st-modal);
+}
+
+.border-ui-panel-border {
+  border-color: var(--st-panel-border);
+}
+
+.border-ui-controls-border {
+  border-color: var(--st-controls-border);
+}
+
+.bg-ui-controls {
+  background: var(--st-controls);
+}
+
+.bg-ui-badge {
+  background-color: rgba(0, 0, 0, var(--st-badge-alpha));
+}
+
+.text-base-fg {
+  color: rgb(var(--st-fg-rgb) / 1);
+}
+
+.border-ui-divider {
+  border-color: var(--st-divider);
+}
+
+/* Tauri custom titlebar drag regions */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+
+.tauri-no-drag,
+[data-tauri-drag-region] .no-drag,
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] textarea,
+[data-tauri-drag-region] select {
+  -webkit-app-region: no-drag;
+}
+
+img {
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Icon auto-contrast: invert only in dark themes */
+.icon-auto-contrast {
+  filter: invert(1);
+}
+
+.theme-light .icon-auto-contrast {
+  filter: none;
+}
+
+/* Hide native scrollbars while preserving scrollability */
+/* Minimal thin scrollbar for prompt textareas */
+.promptbox-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.promptbox-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.promptbox-scrollbar::-webkit-scrollbar:vertical {
+  width: 4px;
+}
+
+.promptbox-scrollbar::-webkit-scrollbar:horizontal {
+  height: 4px;
+}
+
+.promptbox-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.promptbox-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.promptbox-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.35);
+}
+
+/* Light theme: white thumb is invisible on the light glass — use a dark tint. */
+.theme-light .promptbox-scrollbar {
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+}
+
+.theme-light .promptbox-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.25);
+}
+
+.theme-light .promptbox-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+.promptbox-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.promptbox-scrollbar::-webkit-resizer {
+  background: transparent;
+  border: none;
+}
+
+.promptbox-resize-wrap {
+  position: relative;
+}
+
+.promptbox-resize-wrap::after {
+  content: "";
+  position: absolute;
+  bottom: 16px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.5) 40%,
+    rgba(255, 255, 255, 0.5) 45%,
+    transparent 45%,
+    transparent 55%,
+    rgba(255, 255, 255, 0.5) 55%,
+    rgba(255, 255, 255, 0.5) 60%,
+    transparent 60%,
+    transparent 70%,
+    rgba(255, 255, 255, 0.5) 70%,
+    rgba(255, 255, 255, 0.5) 75%,
+    transparent 75%
+  );
+}
+
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari, Opera */
+}
+
+.topbar-spacer {
+  height: 56px;
+  width: 100vw;
+}
+
+.prevent-select {
+  -webkit-user-select: none;
+  /* Safari */
+  -ms-user-select: none;
+  /* IE 10 and IE 11 */
+  user-select: none;
+  /* Standard syntax */
+  pointer-events: none;
+}
+
+.text-overflow-ellipsis {
+  -ms-text-overflow: ellipsis;
+  -o-text-overflow: ellipsis;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/*!
+ * three-dots - v0.3.2
+ * CSS loading animations made with single element
+ * https://nzbin.github.io/three-dots/
+ *
+ * Copyright (c) 2018 nzbin
+ * Released under MIT License
+ */
+
+/**
+ * ==============================================
+ * Dot Typing
+ * ==============================================
+ */
+.dot-typing {
+  position: relative;
+  left: -9999px;
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  background-color: #ffffff30;
+  color: #ffffff30;
+  box-shadow:
+    9984px 0 0 0 #ffffff30,
+    9999px 0 0 0 #ffffff30,
+    10014px 0 0 0 #ffffff30;
+  animation: dot-typing 1.5s infinite linear;
+}
+
+@keyframes dot-typing {
+  0% {
+    box-shadow:
+      9984px 0 0 0 #ffffff30,
+      9999px 0 0 0 #ffffff30,
+      10014px 0 0 0 #ffffff30;
+  }
+
+  16.667% {
+    box-shadow:
+      9984px -10px 0 0 #ffffff30,
+      9999px 0 0 0 #ffffff30,
+      10014px 0 0 0 #ffffff30;
+  }
+
+  33.333% {
+    box-shadow:
+      9984px 0 0 0 #ffffff30,
+      9999px 0 0 0 #ffffff30,
+      10014px 0 0 0 #ffffff30;
+  }
+
+  50% {
+    box-shadow:
+      9984px 0 0 0 #ffffff30,
+      9999px -10px 0 0 #ffffff30,
+      10014px 0 0 0 #ffffff30;
+  }
+
+  66.667% {
+    box-shadow:
+      9984px 0 0 0 #ffffff30,
+      9999px 0 0 0 #ffffff30,
+      10014px 0 0 0 #ffffff30;
+  }
+
+  83.333% {
+    box-shadow:
+      9984px 0 0 0 #ffffff30,
+      9999px 0 0 0 #ffffff30,
+      10014px -10px 0 0 #ffffff30;
+  }
+
+  100% {
+    box-shadow:
+      9984px 0 0 0 #ffffff30,
+      9999px 0 0 0 #ffffff30,
+      10014px 0 0 0 #ffffff30;
+  }
+}
+
+/**
+  * ==============================================
+  * Dot Bricks
+  * ==============================================
+  */
+.dot-bricks {
+  position: relative;
+  top: 8px;
+  left: -9999px;
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  background-color: #ffffff30;
+  color: #ffffff30;
+  box-shadow:
+    9991px -16px 0 0 #ffffff30,
+    9991px 0 0 0 #ffffff30,
+    10007px 0 0 0 #ffffff30;
+  animation: dot-bricks 2s infinite ease;
+}
+
+@keyframes dot-bricks {
+  0% {
+    box-shadow:
+      9991px -16px 0 0 #ffffff30,
+      9991px 0 0 0 #ffffff30,
+      10007px 0 0 0 #ffffff30;
+  }
+
+  8.333% {
+    box-shadow:
+      10007px -16px 0 0 #ffffff30,
+      9991px 0 0 0 #ffffff30,
+      10007px 0 0 0 #ffffff30;
+  }
+
+  16.667% {
+    box-shadow:
+      10007px -16px 0 0 #ffffff30,
+      9991px -16px 0 0 #ffffff30,
+      10007px 0 0 0 #ffffff30;
+  }
+
+  25% {
+    box-shadow:
+      10007px -16px 0 0 #ffffff30,
+      9991px -16px 0 0 #ffffff30,
+      9991px 0 0 0 #ffffff30;
+  }
+
+  33.333% {
+    box-shadow:
+      10007px 0 0 0 #ffffff30,
+      9991px -16px 0 0 #ffffff30,
+      9991px 0 0 0 #ffffff30;
+  }
+
+  41.667% {
+    box-shadow:
+      10007px 0 0 0 #ffffff30,
+      10007px -16px 0 0 #ffffff30,
+      9991px 0 0 0 #ffffff30;
+  }
+
+  50% {
+    box-shadow:
+      10007px 0 0 0 #ffffff30,
+      10007px -16px 0 0 #ffffff30,
+      9991px -16px 0 0 #ffffff30;
+  }
+
+  58.333% {
+    box-shadow:
+      9991px 0 0 0 #ffffff30,
+      10007px -16px 0 0 #ffffff30,
+      9991px -16px 0 0 #ffffff30;
+  }
+
+  66.666% {
+    box-shadow:
+      9991px 0 0 0 #ffffff30,
+      10007px 0 0 0 #ffffff30,
+      9991px -16px 0 0 #ffffff30;
+  }
+
+  75% {
+    box-shadow:
+      9991px 0 0 0 #ffffff30,
+      10007px 0 0 0 #ffffff30,
+      10007px -16px 0 0 #ffffff30;
+  }
+
+  83.333% {
+    box-shadow:
+      9991px -16px 0 0 #ffffff30,
+      10007px 0 0 0 #ffffff30,
+      10007px -16px 0 0 #ffffff30;
+  }
+
+  91.667% {
+    box-shadow:
+      9991px -16px 0 0 #ffffff30,
+      9991px 0 0 0 #ffffff30,
+      10007px -16px 0 0 #ffffff30;
+  }
+
+  100% {
+    box-shadow:
+      9991px -16px 0 0 #ffffff30,
+      9991px 0 0 0 #ffffff30,
+      10007px 0 0 0 #ffffff30;
+  }
+}
+
+.ReactCrop__crop-selection:focus {
+  outline: none !important;
+}
+
+/* Editor3D HistoryStack pending running border (continuous) */
+.st-loading-tile {
+  position: relative;
+}
+
+.st-border-svg {
+  position: absolute;
+  inset: -2px;
+  width: calc(100% + 4px);
+  height: calc(100% + 4px);
+  pointer-events: none;
+}
+
+/* base rect style for runner */
+.st-border-svg rect {
+  fill: none;
+  stroke: rgba(59, 130, 246, 1);
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Single runner: a solid line chasing its tail */
+/* Continuous runner with wrapping to avoid flicker at corners */
+.st-border-solid {
+  stroke-dasharray: 90 110;
+  /* shorter visible segment + larger gap = clearer motion */
+  stroke-dashoffset: 0;
+  animation: st-solid-wrap 1.6s linear infinite;
+  filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.8))
+    drop-shadow(0 0 18px rgba(59, 130, 246, 0.5));
+}
+
+@keyframes st-solid-wrap {
+  0% {
+    stroke-dashoffset: 0;
+  }
+
+  100% {
+    stroke-dashoffset: -200;
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+/* Shimmer skeleton used by the shared generation-list rows (matches the
+   webapp's .animate-shimmer — gradient sweep over a translucent base). */
+@keyframes generation-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: generation-shimmer 1.5s ease-in-out infinite;
+}
+
+/* Prompt box drag & drop overlay (mirrors the webapp's styles.css) */
+@keyframes promptbox-drop-overlay-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.promptbox-drop-overlay {
+  animation: promptbox-drop-overlay-in 0.15s ease-out both;
+}
+
+@keyframes promptbox-drop-chip-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+    scale: 0.9;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+    scale: 1;
+  }
+}
+
+.promptbox-drop-chip {
+  animation: promptbox-drop-chip-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ===================== Brutalist extras (from artcraft-webapp) ========== */
+
+.liquid-glass {
+  background: rgba(11, 11, 12, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+.animate-toast-in {
+  animation: toast-in 0.2s ease-out both;
+}
+
+.bg-dots {
+  background-image: radial-gradient(#ffffff20 1px, transparent 0);
+  background-color: var(--st-panel);
+  background-size: 33px 33px;
+  background-position: center;
+}
+
+/* Fine registration marks echo the landing page section corners. */
+.frame-corner-mark {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  margin: -5px;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(242, 241, 238, 0.4), rgba(242, 241, 238, 0.4))
+      center / 1px 11px no-repeat,
+    linear-gradient(rgba(242, 241, 238, 0.4), rgba(242, 241, 238, 0.4))
+      center / 11px 1px no-repeat;
+}
+
+/* Contained section borders match the landing without decorative extensions. */
+.create-empty-section {
+  margin-inline: 12px;
+  border: 1px solid rgba(242, 241, 238, 0.2);
+  background: rgba(242, 241, 238, 0.015);
+}
+
+@media (min-width: 640px) {
+  .create-empty-section {
+    margin-inline: 32px;
+  }
+}

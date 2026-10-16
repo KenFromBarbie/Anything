@@ -1,0 +1,5 @@
+# Rust sources and Cargo manifests must remain watched for `cargo tauri dev`.
+# Vite owns frontend reloads; build artifacts must not trigger Rust rebuilds.
+target/
+node_modules/
+dist/
