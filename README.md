@@ -33,7 +33,7 @@ They aren't code-signed yet:
 
 - **Windows**: SmartScreen may warn; choose *More info → Run anyway*.
 - **macOS**: right-click the app and choose *Open* the first time (or run
-  `xattr -dr com.apple.quarantine "/Applications/Kenn's Harness.app"`).
+  `xattr -dr com.apple.quarantine "/Applications/Kenn’s Harness.app"`).
 - **Linux**: `sudo apt install ./kenns-harness_*.deb`, or make the AppImage
   executable and run it.
 

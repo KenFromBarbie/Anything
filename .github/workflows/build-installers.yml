@@ -104,6 +104,8 @@ jobs:
         shell: bash
         env:
           ARTCRAFT_BASE: /studio-app/
+          # Git Bash on Windows would rewrite /studio-app/ into a Windows path.
+          MSYS2_ENV_CONV_EXCL: ARTCRAFT_BASE
         run: |
           cd studio/frontend
           npm ci

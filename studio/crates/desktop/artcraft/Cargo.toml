@@ -21,6 +21,18 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2.6.2", features = [] }
 
+[features]
+# The standalone ArtCraft app (src/main.rs and `run()`). Kenn's Harness embeds
+# the Studio as a library and turns this off: `run()` expands Tauri's
+# generate_context!, which would read the host app's build config.
+default = ["standalone"]
+standalone = []
+
+[[bin]]
+name = "artcraft"
+path = "src/main.rs"
+required-features = ["standalone"]
+
 [dependencies]
 toml.workspace = true
 browser_emulation.workspace = true

@@ -84,7 +84,7 @@ tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-window-state = "2"
 tauri-plugin-dialog = "2"
 # The Studio: ArtCraft, built in from the artcraft checkout next to this repo.
-artcraft = { path = "../../studio/crates/desktop/artcraft" }
+artcraft = { path = "../../studio/crates/desktop/artcraft", default-features = false }
 # ArtCraft's own plugins, listed here so tauri-build sees their permission
 # manifests for the Studio capability (capabilities/studio.json).
 tauri-plugin-http = { path = "../../studio/crates/vendor/tauri-plugin-http" }

@@ -332,6 +332,7 @@ pub fn install(builder: tauri::Builder<tauri::Wry>) -> (tauri::Builder<tauri::Wr
   (builder, startup)
 }
 
+#[cfg(feature = "standalone")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let builder = tauri::Builder::default()
