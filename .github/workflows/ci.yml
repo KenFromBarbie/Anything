@@ -1,0 +1,434 @@
+name: CI
+on:
+  push:
+    branches: [main, release]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  BUZZ_TEST_POSTGRES_PASSWORD: buzz_dev
+  PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+
+jobs:
+  changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.selection.outputs.rust }}
+      desktop: ${{ steps.selection.outputs.desktop }}
+      desktop-rust: ${{ steps.selection.outputs.desktop-rust }}
+      web: ${{ steps.selection.outputs.web }}
+      mobile: ${{ steps.selection.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 2
+      - uses: cashapp/activate-hermit@cea9af7913204a965fd488637a8d1811bba2e616 # v1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          # PR files come from GitHub's PR diff. A tokenless comparison uses the
+          # checked-out merge commit and can include newer, unrelated base changes.
+          token: ${{ github.token }}
+          # Root and docs/ Markdown do not select runtime suites. Markdown under
+          # runtime directories remains covered by the directory filters below.
+          filters: |
+            rust:
+              - 'crates/**'
+              - 'migrations/**'
+              - 'schema/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+              - '.config/nextest.toml'
+              - 'scripts/postgres-test-*.sh'
+              - 'scripts/reconcile-schema-after-pgschema.sql'
+              - 'bin/pgschema'
+              - 'bin/.pgschema-*.pkg'
+              - 'scripts/check-postgres-test-discovery.py'
+              - 'scripts/test-postgres-test-discovery.sh'
+              - 'scripts/test-postgres-test-wrapper.sh'
+              - 'deny.toml'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/_ci-*.yml'
+              - 'docker-compose.yml'
+              - 'docker-compose.ci.yml'
+              - 'scripts/run-tests.sh'
+              - 'scripts/model-capabilities.json'
+              - 'scripts/normative-corpus.json'
+              - 'justfile'
+            desktop:
+              - 'scripts/model-capabilities.json'
+              - 'scripts/normative-corpus.json'
+              - 'desktop/**'
+              - 'pnpm-lock.yaml'
+            desktop-rust:
+              - 'desktop/src-tauri/**'
+            web:
+              - 'web/**'
+              - 'pnpm-lock.yaml'
+            mobile:
+              - 'mobile/**'
+              - 'scripts/mobile-release.sh'
+              - 'scripts/mobile-worktree-overrides.sh'
+              - 'scripts/mobile-worktree-clean.sh'
+              - 'scripts/publish-mobile-release-candidate.sh'
+              - 'scripts/release-rulesets.sh'
+              - 'scripts/test-mobile-release-contract.sh'
+              - 'scripts/test-mobile-release-candidate-publisher.sh'
+              - 'scripts/test-mobile-worktree-overrides.sh'
+              - '.github/workflows/mobile-release-candidate.yml'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/_ci-*.yml'
+      - name: Select runtime suites conservatively at the PR file-list limit
+        id: selection
+        env:
+          FILTER_OUTPUTS: ${{ toJSON(steps.filter.outputs) }}
+        run: node scripts/ci-runtime-selection.mjs
+      - name: Validate PostgreSQL test discovery
+        if: github.event_name == 'push' || steps.selection.outputs.rust == 'true'
+        run: |
+          scripts/test-postgres-test-discovery.sh
+          scripts/test-postgres-test-wrapper.sh
+      - name: Release workflow source contract
+        run: scripts/test-release-ref-contract.sh
+      - name: Relay image eligibility contract
+        run: scripts/test-relay-image-eligibility-workflow.sh
+      - name: Desktop release candidate contract
+        run: scripts/test-desktop-release-candidate.sh
+      - name: OSS desktop promotion contract
+        run: |
+          scripts/test-oss-desktop-promotion.sh
+          scripts/test-oss-desktop-promotion-behavior.sh
+      - name: Mobile release contract
+        run: |
+          scripts/test-mobile-release-contract.sh
+          scripts/test-mobile-release-candidate-publisher.sh
+      - name: Desktop instance environment contract
+        run: scripts/test-desktop-instance-detection.sh
+      - name: Mobile worktree identity contract
+        run: scripts/test-mobile-worktree-overrides.sh
+      - name: Codex security review contract
+        run: just security-review-check
+      - name: Rust cache contract
+        run: |
+          scripts/test-rust-cache-contract.sh
+          scripts/test-rust-cache-contract-regressions.sh
+      - name: CI required-context isolation contract
+        run: scripts/test-ci-required-context-isolation.sh
+      - name: CI path selection regression tests
+        run: node --test scripts/ci-selection.test.mjs scripts/ci-required-gates.test.mjs
+      - name: File size policy
+        run: just file-size-check
+
+  dead-token-guard:
+    name: Dead Token Reference Guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Check for dead API token references in client code
+        run: |
+          # Fail if dead API token patterns reappear in desktop, mobile, docs, or config.
+          # Relay crates are excluded — they still use token auth internally.
+          PATTERNS='TokenScope|MintTokenResponse|hasApiToken|spr_tok_'
+          PATHS='desktop/src/ desktop/tests/ mobile/test/ mobile/lib/ .env.example'
+          EXCLUDES='--exclude-dir=node_modules --exclude-dir=.dart_tool'
+          if grep -rn $EXCLUDES -E "$PATTERNS" $PATHS 2>/dev/null; then
+            echo "::error::Dead API token references found in client code. See above."
+            exit 1
+          fi
+          echo "No dead token references found."
+
+  rust:
+    name: Rust
+    needs: [changes]
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.desktop-rust == 'true'
+    uses: ./.github/workflows/_ci-rust.yml
+    with:
+      rust: ${{ needs.changes.outputs.rust == 'true' }}
+      desktop_rust: ${{ needs.changes.outputs.desktop-rust == 'true' }}
+      lane: required
+
+  rust-cross-compile-domain:
+    name: Rust Cross-Compile
+    needs: [changes]
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
+    uses: ./.github/workflows/_ci-rust.yml
+    with:
+      rust: ${{ needs.changes.outputs.rust == 'true' }}
+      desktop_rust: ${{ needs.changes.outputs.desktop-rust == 'true' }}
+      lane: cross-compile
+
+  desktop-domain:
+    name: Desktop Domain
+    needs: [changes]
+    if: github.event_name == 'push' || needs.changes.outputs.desktop == 'true' || needs.changes.outputs.desktop-rust == 'true' || needs.changes.outputs.rust == 'true'
+    uses: ./.github/workflows/_ci-desktop.yml
+    with:
+      rust: ${{ needs.changes.outputs.rust == 'true' }}
+      desktop: ${{ needs.changes.outputs.desktop == 'true' }}
+      desktop_rust: ${{ needs.changes.outputs.desktop-rust == 'true' }}
+
+  relay-artifacts-domain:
+    name: Relay Artifact Producer
+    needs: [changes]
+    if: github.event_name == 'push' || needs.changes.outputs.desktop == 'true' || needs.changes.outputs.desktop-rust == 'true' || needs.changes.outputs.rust == 'true'
+    uses: ./.github/workflows/_ci-relay.yml
+    with:
+      rust: ${{ needs.changes.outputs.rust == 'true' }}
+      desktop: ${{ needs.changes.outputs.desktop == 'true' }}
+      desktop_rust: ${{ needs.changes.outputs.desktop-rust == 'true' }}
+      lane: artifacts
+
+  postgres-domain:
+    name: PostgreSQL Domain
+    needs: [changes, relay-artifacts-domain]
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
+    uses: ./.github/workflows/_ci-relay.yml
+    with:
+      rust: ${{ needs.changes.outputs.rust == 'true' }}
+      desktop: ${{ needs.changes.outputs.desktop == 'true' }}
+      desktop_rust: ${{ needs.changes.outputs.desktop-rust == 'true' }}
+      lane: postgres
+
+  desktop-macos-domain:
+    name: Desktop macOS Domain
+    needs: [changes]
+    if: github.event_name == 'push' || needs.changes.outputs.desktop == 'true' || needs.changes.outputs.desktop-rust == 'true' || needs.changes.outputs.rust == 'true'
+    uses: ./.github/workflows/_ci-desktop-macos.yml
+    with:
+      rust: ${{ needs.changes.outputs.rust == 'true' }}
+      desktop: ${{ needs.changes.outputs.desktop == 'true' }}
+      desktop_rust: ${{ needs.changes.outputs.desktop-rust == 'true' }}
+
+  relay-domain:
+    name: Relay and PostgreSQL
+    needs: [changes, relay-artifacts-domain]
+    if: github.event_name == 'push' || needs.changes.outputs.desktop == 'true' || needs.changes.outputs.desktop-rust == 'true' || needs.changes.outputs.rust == 'true'
+    uses: ./.github/workflows/_ci-relay.yml
+    with:
+      rust: ${{ needs.changes.outputs.rust == 'true' }}
+      desktop: ${{ needs.changes.outputs.desktop == 'true' }}
+      desktop_rust: ${{ needs.changes.outputs.desktop-rust == 'true' }}
+      lane: required
+
+  clients:
+    name: Clients
+    needs: [changes]
+    if: github.event_name == 'push' || needs.changes.outputs.web == 'true' || needs.changes.outputs.mobile == 'true'
+    uses: ./.github/workflows/_ci-clients.yml
+    with:
+      web: ${{ needs.changes.outputs.web == 'true' }}
+      mobile: ${{ needs.changes.outputs.mobile == 'true' }}
+      lane: required
+
+  mobile-swift-domain:
+    name: Mobile Swift Domain
+    needs: [changes]
+    if: needs.changes.outputs.mobile == 'true'
+    uses: ./.github/workflows/_ci-clients.yml
+    with:
+      web: ${{ needs.changes.outputs.web == 'true' }}
+      mobile: ${{ needs.changes.outputs.mobile == 'true' }}
+      lane: mobile-swift
+
+  security-domain:
+    name: Security Domain
+    needs: [changes]
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
+    uses: ./.github/workflows/_ci-security.yml
+    with:
+      rust: ${{ needs.changes.outputs.rust == 'true' }}
+
+  rust-lint:
+    name: Rust Lint
+    if: always() && (needs.changes.result != 'success' || ((github.event_name == 'push' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.desktop-rust == 'true')))
+    needs: [changes, rust]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check Rust Lint result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.rust.outputs.rust_lint_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
+
+  unit-tests:
+    name: Unit Tests
+    if: always() && (needs.changes.result != 'success' || ((github.event_name == 'push' || needs.changes.outputs.rust == 'true')))
+    needs: [changes, rust]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check Unit Tests result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.rust.outputs.unit_tests_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
+
+  windows-rust:
+    name: Windows Rust (x86_64-pc-windows-msvc)
+    if: always() && (needs.changes.result != 'success' || ((github.event_name == 'push' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.desktop-rust == 'true')))
+    needs: [changes, rust]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check Windows Rust result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.rust.outputs.windows_rust_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
+
+  desktop:
+    name: Desktop
+    if: always() && (needs.changes.result != 'success' || ((github.event_name == 'push' || needs.changes.outputs.desktop == 'true' || needs.changes.outputs.desktop-rust == 'true' || needs.changes.outputs.rust == 'true')))
+    needs: [changes, desktop-domain]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check Desktop result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.desktop-domain.outputs.desktop_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
+
+  desktop-build-macos:
+    name: Desktop Build (macOS)
+    if: always() && (needs.changes.result != 'success' || ((github.event_name == 'push' || needs.changes.outputs.desktop == 'true' || needs.changes.outputs.desktop-rust == 'true' || needs.changes.outputs.rust == 'true')))
+    needs: [changes, desktop-macos-domain]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check Desktop Build (macOS) result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.desktop-macos-domain.outputs.desktop_macos_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
+
+  desktop-e2e-relay:
+    name: Desktop E2E Relay
+    if: always() && (needs.changes.result != 'success' || ((github.event_name == 'push' || needs.changes.outputs.desktop == 'true' || needs.changes.outputs.desktop-rust == 'true' || needs.changes.outputs.rust == 'true')))
+    needs: [changes, relay-artifacts-domain]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check Desktop E2E Relay result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.relay-artifacts-domain.outputs.desktop_e2e_relay_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
+
+  desktop-e2e-integration:
+    name: Desktop E2E Integration
+    if: always() && (needs.changes.result != 'success' || (needs.relay-artifacts-domain.result == 'success' && (github.event_name == 'push' || needs.changes.outputs.desktop == 'true' || needs.changes.outputs.desktop-rust == 'true' || needs.changes.outputs.rust == 'true')))
+    needs: [changes, relay-artifacts-domain, relay-domain]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check Desktop E2E Integration result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.relay-domain.outputs.desktop_e2e_integration_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
+
+  backend-integration:
+    name: Backend Integration (relay e2e)
+    if: always() && (needs.changes.result != 'success' || (needs.relay-artifacts-domain.result == 'success' && (github.event_name == 'push' || needs.changes.outputs.rust == 'true')))
+    needs: [changes, relay-artifacts-domain, relay-domain]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check Backend Integration result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.relay-domain.outputs.backend_integration_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
+
+  postgres-tests:
+    name: PostgreSQL Tests
+    if: always() && (needs.changes.result != 'success' || (needs.relay-artifacts-domain.result == 'success' && (github.event_name == 'push' || needs.changes.outputs.rust == 'true')))
+    needs: [changes, relay-artifacts-domain, postgres-domain]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check PostgreSQL Tests result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.postgres-domain.outputs.postgres_tests_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
+
+  relay-e2e:
+    name: Relay E2E
+    if: always() && (needs.changes.result != 'success' || (needs.relay-artifacts-domain.result == 'success' && (github.event_name == 'push' || needs.changes.outputs.rust == 'true')))
+    needs: [changes, relay-artifacts-domain, relay-domain]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check Relay E2E result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.relay-domain.outputs.relay_e2e_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
+
+  web:
+    name: Web
+    if: always() && (needs.changes.result != 'success' || ((github.event_name == 'push' || needs.changes.outputs.web == 'true')))
+    needs: [changes, clients]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check Web result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.clients.outputs.web_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
+
+  mobile:
+    name: Mobile
+    if: always() && (needs.changes.result != 'success' || ((github.event_name == 'push' || needs.changes.outputs.mobile == 'true')))
+    needs: [changes, clients]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check Mobile result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.clients.outputs.mobile_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
+
+  security:
+    name: Security
+    if: always() && (needs.changes.result != 'success' || ((github.event_name == 'push' || needs.changes.outputs.rust == 'true')))
+    needs: [changes, security-domain]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check Security result
+        env:
+          SELECTION_RESULT: ${{ needs.changes.result }}
+          RESULT: ${{ needs.security-domain.outputs.security_result }}
+        run: test "$SELECTION_RESULT" = success && test "$RESULT" = success
