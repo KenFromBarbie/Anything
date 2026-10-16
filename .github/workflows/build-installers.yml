@@ -34,7 +34,9 @@ jobs:
       matrix:
         include:
           - name: Windows
-            os: windows-latest
+            # windows-latest ships Visual Studio 2026, which the Office's node-gyp
+            # (for its native modules) doesn't recognize yet.
+            os: windows-2022
             bundles: nsis
             artifacts: |
               desktop/src-tauri/target/release/bundle/nsis/*.exe
