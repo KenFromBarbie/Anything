@@ -563,20 +563,73 @@ pub fn research_open(app: AppHandle, id: String, file: Option<String>) -> Result
         .ok_or("That project isn't in Research anymore.")?;
     let mut target = PathBuf::from(&project.path);
     if let Some(name) = file {
-        // Only a direct child of the project folder.
-        if name.contains(['/', '\\']) || name == ".." {
+        // Only a direct child of the project folder (":" would make a
+        // drive-relative path on Windows).
+        if name.contains(['/', '\\', ':']) || name == ".." || name == "." {
             return Err("invalid file name".into());
         }
         target = target.join(name);
+        // Agents write into project folders: never launch a program or script
+        // from a click; show it in the file manager instead.
+        if is_runnable(&target) {
+            return app
+                .opener()
+                .reveal_item_in_dir(&target)
+                .map_err(|e| format!("Couldn't show it: {e}"));
+        }
     }
     app.opener()
         .open_path(target.to_string_lossy(), None::<&str>)
         .map_err(|e| format!("Couldn't open it: {e}"))
 }
 
+/// Files the OS would run rather than open in a viewer.
+fn is_runnable(path: &Path) -> bool {
+    const RUNNABLE: &[&str] = &[
+        "exe", "com", "bat", "cmd", "ps1", "psm1", "vbs", "vbe", "js", "jse", "wsf", "wsh",
+        "msi", "msp", "scr", "pif", "lnk", "url", "hta", "cpl", "jar", "reg", "sh", "bash",
+        "zsh", "command", "app", "pkg", "dmg", "run", "appimage", "desktop", "py", "pyw",
+    ];
+    if path.is_dir() {
+        return false;
+    }
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase());
+    match ext {
+        Some(ext) => RUNNABLE.contains(&ext.as_str()),
+        // No extension: an executable on macOS/Linux if its mode says so.
+        None => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::metadata(path)
+                    .map(|m| m.permissions().mode() & 0o111 != 0)
+                    .unwrap_or(false)
+            }
+            #[cfg(not(unix))]
+            {
+                false
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn programs_and_scripts_are_not_launched() {
+        let dir = std::env::temp_dir();
+        for name in ["setup.exe", "run.BAT", "x.ps1", "a.lnk", "b.sh", "c.js"] {
+            assert!(is_runnable(&dir.join(name)), "{name}");
+        }
+        for name in ["notes.md", "report.pdf", "data.csv", "cover.png"] {
+            assert!(!is_runnable(&dir.join(name)), "{name}");
+        }
+    }
 
     #[test]
     fn attachment_names_stay_in_their_folder() {

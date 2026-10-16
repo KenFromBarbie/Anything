@@ -3,17 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 
+import { useChannelsQuery, useOpenDmMutation } from "@/features/channels/hooks";
 import {
   useChannelMessagesQuery,
   useChannelSubscription,
 } from "@/features/messages/hooks";
 import type { OfficeAgent } from "@/features/office/lib/officeLink";
 import { useIdentityQuery } from "@/shared/api/hooks";
-import {
-  listManagedAgents,
-  openDm,
-  sendChannelMessage,
-} from "@/shared/api/tauri";
+import { listManagedAgents, sendChannelMessage } from "@/shared/api/tauri";
 import type { Channel } from "@/shared/api/types";
 import { KIND_STREAM_MESSAGE } from "@/shared/constants/kinds";
 import { cn } from "@/shared/lib/cn";
@@ -42,14 +39,24 @@ function useAgentPubkey(agent: OfficeAgent) {
   });
 }
 
-/** The direct-message channel with an agent (opened, or found, once). */
-function useAgentDm(pubkey: string | null) {
-  return useQuery({
-    queryKey: ["office", "agent-dm", pubkey ?? ""],
-    queryFn: () => openDm({ pubkeys: [pubkey ?? ""] }),
-    enabled: !!pubkey,
-    staleTime: Number.POSITIVE_INFINITY,
-  });
+/** The existing direct-message channel with an agent, if there is one.
+ *  Looking at an agent never creates one; the first message does. */
+function useAgentDm(pubkey: string | null, myPubkey: string | undefined) {
+  const { data: channels, isLoading } = useChannelsQuery();
+  const channel = React.useMemo(
+    () =>
+      pubkey
+        ? (channels?.find(
+            (c) =>
+              c.channelType === "dm" &&
+              !c.archivedAt &&
+              c.participantPubkeys.includes(pubkey) &&
+              c.participantPubkeys.every((p) => p === pubkey || p === myPubkey),
+          ) ?? null)
+        : null,
+    [channels, pubkey, myPubkey],
+  );
+  return { channel, isLoading };
 }
 
 function time(seconds: number): string {
@@ -66,7 +73,8 @@ function time(seconds: number): string {
  */
 export function AgentChat({ agent }: { agent: OfficeAgent }) {
   const { data: pubkey, isLoading } = useAgentPubkey(agent);
-  const dm = useAgentDm(pubkey ?? null);
+  const { data: identity } = useIdentityQuery();
+  const dm = useAgentDm(pubkey ?? null, identity?.pubkey);
 
   if (isLoading || (pubkey && dm.isLoading)) {
     return (
@@ -76,7 +84,7 @@ export function AgentChat({ agent }: { agent: OfficeAgent }) {
       </div>
     );
   }
-  if (!pubkey || !dm.data) {
+  if (!pubkey) {
     return (
       <div className="grid gap-2">
         <p className="text-sm text-muted-foreground">
@@ -87,7 +95,91 @@ export function AgentChat({ agent }: { agent: OfficeAgent }) {
       </div>
     );
   }
-  return <DmChat agent={agent} channel={dm.data} pubkey={pubkey} />;
+  if (!dm.channel) {
+    return <NewDmChat agent={agent} pubkey={pubkey} />;
+  }
+  return <DmChat agent={agent} channel={dm.channel} pubkey={pubkey} />;
+}
+
+/** No conversation yet: the first message opens the direct-message channel. */
+function NewDmChat({ agent, pubkey }: { agent: OfficeAgent; pubkey: string }) {
+  const openDmMutation = useOpenDmMutation();
+  const [text, setText] = React.useState("");
+  const [sending, setSending] = React.useState(false);
+
+  const send = async () => {
+    const content = text.trim();
+    if (!content || sending) return;
+    setSending(true);
+    try {
+      const channel = await openDmMutation.mutateAsync({ pubkeys: [pubkey] });
+      await sendChannelMessage(channel.id, content, null, undefined, [pubkey]);
+      setText("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-2" data-testid="agent-chat">
+      <div className="flex min-h-40 items-center justify-center rounded-xl border border-border/70 bg-muted/20 p-3">
+        <p className="text-sm text-muted-foreground">
+          No messages with {agent.name} yet. Say hello, or give them something
+          to do.
+        </p>
+      </div>
+      <Composer
+        agent={agent}
+        onChange={setText}
+        onSend={() => void send()}
+        sending={sending}
+        text={text}
+      />
+    </div>
+  );
+}
+
+function Composer({
+  agent,
+  onChange,
+  onSend,
+  sending,
+  text,
+}: {
+  agent: OfficeAgent;
+  onChange: (text: string) => void;
+  onSend: () => void;
+  sending: boolean;
+  text: string;
+}) {
+  return (
+    <div className="flex items-end gap-2">
+      <Textarea
+        className="min-h-10 flex-1 resize-none"
+        data-testid="agent-chat-input"
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            onSend();
+          }
+        }}
+        placeholder={`Message ${agent.name}`}
+        rows={1}
+        value={text}
+      />
+      <Button
+        aria-label="Send"
+        disabled={!text.trim() || sending}
+        onClick={onSend}
+        size="icon"
+      >
+        {sending ? <Loader2 className="animate-spin" /> : <Send />}
+      </Button>
+    </div>
+  );
 }
 
 function DmChat({
@@ -180,30 +272,13 @@ function DmChat({
           })
         )}
       </div>
-      <div className="flex items-end gap-2">
-        <Textarea
-          className="min-h-10 flex-1 resize-none"
-          data-testid="agent-chat-input"
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-          placeholder={`Message ${agent.name}`}
-          rows={1}
-          value={text}
-        />
-        <Button
-          aria-label="Send"
-          disabled={!text.trim() || sending}
-          onClick={() => void send()}
-          size="icon"
-        >
-          {sending ? <Loader2 className="animate-spin" /> : <Send />}
-        </Button>
-      </div>
+      <Composer
+        agent={agent}
+        onChange={setText}
+        onSend={() => void send()}
+        sending={sending}
+        text={text}
+      />
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>Enter to send, Shift+Enter for a new line.</span>
         <button
