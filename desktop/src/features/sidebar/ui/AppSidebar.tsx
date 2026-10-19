@@ -4,6 +4,10 @@ import { FeatureGate } from "@/shared/features";
 import { SidebarDndContext } from "@/features/sidebar/ui/SidebarDnd";
 
 import { AddCommunityDialog } from "@/features/communities/ui/AddCommunityDialog";
+import {
+  SidebarFilesSection,
+  SidebarThreadsSection,
+} from "@/features/sidebar/ui/SidebarThreadsAndFiles";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { useDeferredLoad } from "@/shared/hooks/useDeferredStartup";
 import {
@@ -515,7 +519,7 @@ export function AppSidebar({
     >
       <div
         className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
-          communities.length > 1 ? "md:-ml-[11px] md:w-[calc(100%+11px)]" : ""
+          communities.length > 0 ? "md:-ml-[11px] md:w-[calc(100%+11px)]" : ""
         }`}
         data-sidebar-background
         data-testid="app-sidebar-scroll-anchor"
@@ -564,6 +568,15 @@ export function AppSidebar({
               data-sidebar-background
               data-testid="sidebar-scroll-content"
             >
+              {activeCommunity ? (
+                <div
+                  className="truncate px-2 pt-1 text-sm font-semibold text-sidebar-foreground"
+                  data-testid="sidebar-server-name"
+                  title={activeCommunity.name}
+                >
+                  {activeCommunity.name}
+                </div>
+              ) : null}
               <AppSidebarPrimaryMenu
                 homeBadgeCount={homeBadgeCount}
                 onSelectAgents={onSelectAgents}
@@ -755,6 +768,8 @@ export function AppSidebar({
                       onDeleteChannel={requestDeleteChannel}
                     />
                   </FeatureGate>
+                  <SidebarThreadsSection />
+                  <SidebarFilesSection />
                   <SidebarSection
                     action={
                       <div className="absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5">

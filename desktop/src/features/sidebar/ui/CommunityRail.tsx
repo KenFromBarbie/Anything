@@ -334,7 +334,9 @@ export function CommunityRail({
     }),
   );
 
-  if (communities.length <= 1) {
+  // Every community is a server on the rail, as in Discord: shown even with
+  // one, so there's always a way to add the next.
+  if (communities.length === 0) {
     return null;
   }
 

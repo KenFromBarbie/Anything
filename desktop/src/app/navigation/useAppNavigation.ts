@@ -140,6 +140,17 @@ export function useAppNavigation() {
     [commitNavigation],
   );
 
+  const goFiles = React.useCallback(
+    (behavior?: NavigationBehavior) =>
+      commitNavigation(
+        {
+          to: "/files",
+        },
+        behavior,
+      ),
+    [commitNavigation],
+  );
+
   const goPulse = React.useCallback(
     (behavior?: NavigationBehavior) =>
       commitNavigation(
@@ -510,6 +521,7 @@ export function useAppNavigation() {
     goTasks,
     goResearch,
     goStudio,
+    goFiles,
     goChannel,
     goDuplicateWorkflow,
     goEditWorkflow,
