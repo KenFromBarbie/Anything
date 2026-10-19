@@ -1,5 +1,7 @@
 import * as React from "react";
 
+import { resetOfficeSession } from "@/features/office/lib/officeLink";
+import { clearMirrorSnapshot } from "@/features/office/lib/officeMirror";
 import {
   useOfficeAnchor,
   useOfficeFullWindow,
@@ -83,6 +85,16 @@ export function OfficeHost({ active }: { active: boolean }) {
       setOpened(true);
     }
   }, [live]);
+
+  // Unmounted only when the app shell is (switching community): that
+  // community's Office replaces this one, so forget this one's state.
+  React.useEffect(
+    () => () => {
+      resetOfficeSession();
+      clearMirrorSnapshot();
+    },
+    [],
+  );
 
   React.useEffect(() => {
     const notify = () => setOpened(true);

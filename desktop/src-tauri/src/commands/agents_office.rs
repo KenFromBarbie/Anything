@@ -24,6 +24,7 @@ use crate::managed_agents::{
     load_managed_agents, save_managed_agents, BackendKind, ManagedAgentRecord, DEFAULT_ACP_COMMAND,
     DEFAULT_AGENT_TURN_TIMEOUT_SECONDS,
 };
+use crate::office::OfficeScope;
 use crate::util::now_iso;
 
 pub(crate) const OFFICE_BACKEND_ID: &str = "office";
@@ -68,6 +69,46 @@ fn is_michael(record: &ManagedAgentRecord) -> bool {
     is_office_backend(&record.backend) && office_agent_id(&record.backend).is_none()
 }
 
+/// The community an office record belongs to (`None` on records from before
+/// Offices were per community).
+fn office_community(backend: &BackendKind) -> Option<&str> {
+    match backend {
+        BackendKind::Provider { id, config } if id == OFFICE_BACKEND_ID => {
+            config.get("officeCommunity").and_then(|v| v.as_str())
+        }
+        _ => None,
+    }
+}
+
+/// Whether an office record is this community's Office's. Untagged records
+/// belong to the community that kept the original Office data.
+pub(crate) fn in_office_scope(record: &ManagedAgentRecord, scope: &OfficeScope) -> bool {
+    is_office_backend(&record.backend)
+        && match office_community(&record.backend) {
+            Some(community) => community == scope.community,
+            None => scope.legacy,
+        }
+}
+
+/// Stamp an untagged record with its community (adopted by the legacy one).
+fn tag_community(record: &mut ManagedAgentRecord, scope: &OfficeScope) -> bool {
+    if office_community(&record.backend).is_some() {
+        return false;
+    }
+    if let BackendKind::Provider { config, .. } = &mut record.backend {
+        if let Some(map) = config.as_object_mut() {
+            map.insert(
+                "officeCommunity".into(),
+                serde_json::Value::String(scope.community.clone()),
+            );
+            return true;
+        }
+        *config = serde_json::json!({ "officeCommunity": scope.community });
+        return true;
+    }
+    false
+}
+
 /// Whether `pubkey` is one of the Office's agent records (Michael or a
 /// floor agent).
 pub(crate) fn is_office_agent(app: &AppHandle, pubkey: &str) -> bool {
@@ -105,6 +146,7 @@ fn office_record(
     name: &str,
     about: &str,
     office_agent_id: Option<&str>,
+    scope: &OfficeScope,
 ) -> ManagedAgentRecord {
     let now = now_iso();
     ManagedAgentRecord {
@@ -140,8 +182,10 @@ fn office_record(
         backend: BackendKind::Provider {
             id: OFFICE_BACKEND_ID.to_string(),
             config: match office_agent_id {
-                Some(id) => serde_json::json!({ "officeAgentId": id }),
-                None => serde_json::json!({}),
+                Some(id) => {
+                    serde_json::json!({ "officeAgentId": id, "officeCommunity": scope.community })
+                }
+                None => serde_json::json!({ "officeCommunity": scope.community }),
             },
         },
         backend_agent_id: None,
@@ -184,6 +228,7 @@ fn office_record(
 /// no key to import, a fresh one is generated.
 pub(crate) async fn ensure_office_agent(
     app: &AppHandle,
+    scope: &OfficeScope,
     import_secret_hex: Option<String>,
 ) -> Result<OfficeAgentIdentity, String> {
     let state = app.state::<AppState>();
@@ -194,7 +239,15 @@ pub(crate) async fn ensure_office_agent(
             .managed_agents_store_lock
             .lock()
             .map_err(|e| e.to_string())?;
-        load_managed_agents(app)?.into_iter().find(is_michael)
+        let mut records = load_managed_agents(app)?;
+        let found = records
+            .iter_mut()
+            .find(|r| is_michael(r) && in_office_scope(r, scope));
+        let tagged = found.map(|record| (tag_community(record, scope), record.clone()));
+        if tagged.as_ref().is_some_and(|(changed, _)| *changed) {
+            save_managed_agents(app, &records)?;
+        }
+        tagged.map(|(_, record)| record)
     };
     if let Some(record) = existing {
         let keys = Keys::parse(&record.private_key_nsec)
@@ -236,6 +289,7 @@ pub(crate) async fn ensure_office_agent(
             OFFICE_AGENT_NAME,
             OFFICE_AGENT_ABOUT,
             None,
+            scope,
         ));
         save_managed_agents(app, &records)?;
         if let Some(record) = records.iter().find(|r| r.pubkey == pubkey) {
@@ -268,8 +322,13 @@ pub(crate) async fn ensure_office_agent(
 }
 
 /// Mark Michael deployed when the office starts; when it stops, every office
-/// record (Michael and the floor's agents) reads as stopped.
-pub(crate) fn set_office_agent_deployed(app: &AppHandle, deployed: bool) {
+/// record (Michael and the floor's agents) reads as stopped. `scope` limits it
+/// to one community's Office; `None` is every Office (at launch, none runs).
+pub(crate) fn set_office_agent_deployed(
+    app: &AppHandle,
+    scope: Option<&OfficeScope>,
+    deployed: bool,
+) {
     let state = app.state::<AppState>();
     let result = (|| -> Result<(), String> {
         let _store_guard = state
@@ -280,11 +339,13 @@ pub(crate) fn set_office_agent_deployed(app: &AppHandle, deployed: bool) {
         let now = now_iso();
         let mut changed = false;
         for record in records.iter_mut() {
-            let applies = if deployed {
-                is_michael(record)
-            } else {
-                is_office_backend(&record.backend)
-            };
+            let in_scope = scope.is_none_or(|scope| in_office_scope(record, scope));
+            let applies = in_scope
+                && if deployed {
+                    is_michael(record)
+                } else {
+                    is_office_backend(&record.backend)
+                };
             if !applies {
                 continue;
             }
@@ -314,6 +375,7 @@ pub(crate) fn set_office_agent_deployed(app: &AppHandle, deployed: bool) {
 /// back keeps its identity, but read as not deployed.
 pub(crate) async fn ensure_office_workers(
     app: &AppHandle,
+    scope: &OfficeScope,
     roster: &[(String, String)],
 ) -> Result<Vec<OfficeWorkerIdentity>, String> {
     let state = app.state::<AppState>();
@@ -327,10 +389,13 @@ pub(crate) async fn ensure_office_workers(
         let mut records = load_managed_agents(app)?;
         let mut changed = false;
         for (floor_id, name) in roster {
-            let existing = records
-                .iter()
-                .find(|r| office_agent_id(&r.backend) == Some(floor_id.as_str()));
-            let (keys, auth_tag, name) = match existing {
+            let mut existing = records.iter_mut().find(|r| {
+                in_office_scope(r, scope) && office_agent_id(&r.backend) == Some(floor_id.as_str())
+            });
+            if let Some(record) = existing.as_deref_mut() {
+                changed |= tag_community(record, scope);
+            }
+            let (keys, auth_tag, name) = match existing.as_deref() {
                 Some(record) => {
                     let keys = Keys::parse(&record.private_key_nsec)
                         .map_err(|e| format!("office agent key unreadable: {e}"))?;
@@ -354,6 +419,7 @@ pub(crate) async fn ensure_office_workers(
                         name,
                         OFFICE_WORKER_ABOUT,
                         Some(floor_id),
+                        scope,
                     ));
                     created.push((keys.clone(), name.clone(), auth_tag.clone()));
                     changed = true;
@@ -369,7 +435,7 @@ pub(crate) async fn ensure_office_workers(
         }
         // Deployed while on the floor.
         let now = now_iso();
-        for record in records.iter_mut() {
+        for record in records.iter_mut().filter(|r| in_office_scope(r, scope)) {
             let on_floor = match office_agent_id(&record.backend) {
                 Some(floor_id) => roster.iter().any(|(id, _)| id == floor_id),
                 None => continue,

@@ -253,3 +253,23 @@ export function useOfficeOverlay(): boolean {
     () => overlayOpen,
   );
 }
+
+/**
+ * Forget the Office that was: switching community starts that community's own
+ * Office, so nothing from the last one (queued commands, waiting calls, its
+ * roster and panel) may carry over.
+ */
+export function resetOfficeSession(): void {
+  sender = null;
+  queued.splice(0);
+  for (const call of pendingCalls.values()) {
+    call.reject(new Error("The Office changed (another community)."));
+  }
+  pendingCalls.clear();
+  panel = { sections: [], section: null, agentName: null };
+  for (const notify of subscribers) notify();
+  agentsState = { agents: [], selectedId: null, loaded: false };
+  for (const notify of agentSubscribers) notify();
+  overlayOpen = false;
+  for (const notify of overlaySubscribers) notify();
+}

@@ -36,3 +36,8 @@ export function setMirrorTarget(target: Window | null): void {
     askMain?.();
   }
 }
+
+/** Drop the last floor state (another community's Office is starting). */
+export function clearMirrorSnapshot(): void {
+  lastSnapshot = null;
+}

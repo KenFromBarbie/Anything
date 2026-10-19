@@ -250,7 +250,7 @@ pub fn run() {
             let app_handle = app.handle().clone();
             // The office never outlives Buzz; clear a stale "deployed" left by
             // an unclean exit.
-            commands::set_office_agent_deployed(&app_handle, false);
+            commands::set_office_agent_deployed(&app_handle, None, false);
             // ArtCraft's background work, without a window of its own, once
             // the Studio is installed; its UI opens with the Studio page
             // (`studio::studio_place`).

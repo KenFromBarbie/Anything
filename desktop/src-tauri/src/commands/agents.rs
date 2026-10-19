@@ -330,8 +330,17 @@ pub async fn list_managed_agents(app: AppHandle) -> Result<Vec<ManagedAgentSumma
         let teams = load_teams(&app).unwrap_or_default();
         let global_config =
             crate::managed_agents::load_global_agent_config(&app).unwrap_or_default();
+        // Office agents show only in their own community (each has its own
+        // Office and Michael).
+        let office_scope = crate::office::active_office_scope(&app);
         records
             .iter()
+            .filter(|record| {
+                !office_agent::is_office_backend(&record.backend)
+                    || office_scope
+                        .as_ref()
+                        .is_none_or(|scope| office_agent::in_office_scope(record, scope))
+            })
             .map(|record| {
                 build_managed_agent_summary(
                     &app,

@@ -9,6 +9,11 @@
 //! with Buzz. It is told to exit by closing its stdin (Windows has no graceful
 //! SIGTERM for child processes); a hard kill is the fallback.
 //!
+//! Each community (server) has its own Office: its own data folder (floor,
+//! hive, Michael's key) and its own agent records. The Office running is the
+//! active community's; switching community stops it, and the next connect
+//! starts the new community's (see `OfficeScope`).
+//!
 //! Its Buzz bridge reports the floor's agents on stdout (`MD_OFFICE_ROSTER`);
 //! Buzz gives each one an owner-attested identity and sends the identities
 //! back as a JSON line on the sidecar's stdin, so keys never touch disk.
@@ -40,6 +45,83 @@ struct Running {
     child: Child,
     stdin: Option<ChildStdin>,
     conn: OfficeConnection,
+    scope: OfficeScope,
+}
+
+/// The community an Office belongs to, by its relay (as the workspace names
+/// it). `legacy` marks the community that owns the Office data from before
+/// Offices were per community (`<app data>/office`), whose agent records carry
+/// no community tag yet.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct OfficeScope {
+    pub community: String,
+    pub legacy: bool,
+}
+
+const COMMUNITIES_FILE: &str = "office-communities.json";
+const LEGACY_DIR: &str = "office";
+
+pub(crate) fn normalize_community(relay: &str) -> String {
+    relay.trim().trim_end_matches('/').to_ascii_lowercase()
+}
+
+fn current_community(app: &AppHandle) -> String {
+    let state = app.state::<crate::app_state::AppState>();
+    normalize_community(&crate::relay::relay_ws_url_with_override(&state))
+}
+
+/// Which data folder each community's Office uses (`community -> folder`
+/// under the app data dir). The first community gets the existing `office`
+/// folder, so the Office from before keeps its floor and Michael.
+fn office_folders(base: &Path) -> std::collections::BTreeMap<String, String> {
+    std::fs::read(base.join(COMMUNITIES_FILE))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
+}
+
+fn folder_for(folders: &std::collections::BTreeMap<String, String>, community: &str) -> String {
+    if let Some(folder) = folders.get(community) {
+        return folder.clone();
+    }
+    if folders.values().any(|f| f == LEGACY_DIR) {
+        use sha2::Digest;
+        let hash = hex::encode(sha2::Sha256::digest(community.as_bytes()));
+        format!("office-{}", &hash[..12])
+    } else {
+        LEGACY_DIR.to_string()
+    }
+}
+
+/// The active community's Office scope and data folder (recorded on first
+/// use, so it stays the same).
+fn office_scope(app: &AppHandle) -> Result<(OfficeScope, PathBuf), String> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("no app data dir: {e}"))?;
+    let community = current_community(app);
+    let mut folders = office_folders(&base);
+    let folder = folder_for(&folders, &community);
+    if folders.get(&community) != Some(&folder) {
+        folders.insert(community.clone(), folder.clone());
+        std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
+        let json = serde_json::to_vec_pretty(&folders).map_err(|e| e.to_string())?;
+        std::fs::write(base.join(COMMUNITIES_FILE), json)
+            .map_err(|e| format!("save office folders: {e}"))?;
+    }
+    let legacy = folder == LEGACY_DIR;
+    Ok((OfficeScope { community, legacy }, base.join(folder)))
+}
+
+/// The active community's scope without recording anything (for filtering
+/// which agent records show).
+pub(crate) fn active_office_scope(app: &AppHandle) -> Option<OfficeScope> {
+    let base = app.path().app_data_dir().ok()?;
+    let community = current_community(app);
+    let folders = office_folders(&base);
+    let legacy = folder_for(&folders, &community) == LEGACY_DIR;
+    Some(OfficeScope { community, legacy })
 }
 
 #[derive(Default)]
@@ -121,14 +203,6 @@ fn office_minted_key(user_data: &Path) -> Option<String> {
     String::from_utf8(plain).ok()
 }
 
-fn office_user_data(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("no app data dir: {e}"))?
-        .join("office"))
-}
-
 /// The active workspace relay (HTTP API base) and the signed-in identity, which
 /// becomes the office owner: the only Buzz user who can task Michael.
 fn bridge_target(app: &AppHandle) -> Result<(String, String), String> {
@@ -161,6 +235,8 @@ fn buzz_cli() -> Option<PathBuf> {
 
 fn spawn_sidecar(
     app: &AppHandle,
+    scope: &OfficeScope,
+    user_data: &Path,
     agent: Option<&crate::commands::OfficeAgentIdentity>,
 ) -> Result<Running, String> {
     let dir = office_dir(app)?;
@@ -175,8 +251,7 @@ fn spawn_sidecar(
             runtime.display()
         ));
     }
-    let user_data = office_user_data(app)?;
-    std::fs::create_dir_all(&user_data)
+    std::fs::create_dir_all(user_data)
         .map_err(|e| format!("create {}: {e}", user_data.display()))?;
 
     let mut cmd = Command::new(&runtime);
@@ -184,7 +259,7 @@ fn spawn_sidecar(
         .current_dir(&dir)
         .env("ELECTRON_RUN_AS_NODE", "1")
         .env("MD_SIDECAR_STDIN_WATCH", "1")
-        .env("MD_USER_DATA", &user_data)
+        .env("MD_USER_DATA", user_data)
         .env("MD_APP_PATH", &dir)
         .env("MD_MASTER_KEY", master_key()?);
     // The AI accounts picked in Settings: agents start on them.
@@ -224,6 +299,7 @@ fn spawn_sidecar(
     forward_log(stderr, "stderr");
     let (tx, rx) = mpsc::channel::<OfficeConnection>();
     let roster_app = app.clone();
+    let roster_scope = scope.clone();
     std::thread::spawn(move || {
         let mut tx = Some(tx);
         for line in BufReader::new(stdout).lines().map_while(Result::ok) {
@@ -233,6 +309,7 @@ fn spawn_sidecar(
                         eprintln!("buzz-office: floor reports {} agent(s)", roster.len());
                         tauri::async_runtime::spawn(sync_office_workers(
                             roster_app.clone(),
+                            roster_scope.clone(),
                             roster,
                         ));
                     }
@@ -258,7 +335,12 @@ fn spawn_sidecar(
     });
 
     match rx.recv_timeout(READY_TIMEOUT) {
-        Ok(conn) if !conn.token.is_empty() => Ok(Running { child, stdin, conn }),
+        Ok(conn) if !conn.token.is_empty() => Ok(Running {
+            child,
+            stdin,
+            conn,
+            scope: scope.clone(),
+        }),
         outcome => {
             let _ = child.kill();
             let _ = child.wait();
@@ -287,12 +369,12 @@ fn parse_roster(json: &str) -> Option<Vec<(String, String)>> {
 }
 
 /// Give the floor's agents their Buzz identities and hand them to the bridge.
-async fn sync_office_workers(app: AppHandle, roster: Vec<(String, String)>) {
+async fn sync_office_workers(app: AppHandle, scope: OfficeScope, roster: Vec<(String, String)>) {
     let Some(state) = app.try_state::<OfficeState>() else {
         return;
     };
     let _syncing = state.roster_lock.lock().await;
-    let identities = match crate::commands::ensure_office_workers(&app, &roster).await {
+    let identities = match crate::commands::ensure_office_workers(&app, &scope, &roster).await {
         Ok(identities) => identities,
         Err(error) => {
             eprintln!("buzz-desktop: office agent identities unavailable: {error}");
@@ -307,7 +389,7 @@ async fn sync_office_workers(app: AppHandle, roster: Vec<(String, String)>) {
     line.push('\n');
     // The report can arrive before office_connect has stored the sidecar.
     for _ in 0..50 {
-        if send_to_sidecar(&app, &line) {
+        if send_to_sidecar(&app, &scope, &line) {
             return;
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -315,8 +397,9 @@ async fn sync_office_workers(app: AppHandle, roster: Vec<(String, String)>) {
     eprintln!("buzz-desktop: office sidecar did not take its agents' identities");
 }
 
-/// Write one line to the running sidecar's stdin. False if it isn't running.
-fn send_to_sidecar(app: &AppHandle, line: &str) -> bool {
+/// Write one line to the running sidecar's stdin. False if it isn't running
+/// (or is another community's: a late report never reaches the next Office).
+fn send_to_sidecar(app: &AppHandle, scope: &OfficeScope, line: &str) -> bool {
     use std::io::Write;
     let Some(state) = app.try_state::<OfficeState>() else {
         return false;
@@ -324,7 +407,11 @@ fn send_to_sidecar(app: &AppHandle, line: &str) -> bool {
     let Ok(mut guard) = state.running.lock() else {
         return false;
     };
-    let Some(stdin) = guard.as_mut().and_then(|r| r.stdin.as_mut()) else {
+    let Some(stdin) = guard
+        .as_mut()
+        .filter(|r| &r.scope == scope)
+        .and_then(|r| r.stdin.as_mut())
+    else {
         return false;
     };
     stdin
@@ -362,21 +449,31 @@ pub async fn office_connect(
     state: State<'_, OfficeState>,
 ) -> Result<OfficeConnection, String> {
     let _starting = state.start_lock.lock().await;
-    {
+    let (scope, user_data) = office_scope(&app)?;
+    let stale = {
         let mut guard = state.running.lock().map_err(|_| "office state poisoned")?;
-        if let Some(running) = guard.as_mut() {
-            if matches!(running.child.try_wait(), Ok(None)) {
+        let alive = guard
+            .as_mut()
+            .is_some_and(|running| matches!(running.child.try_wait(), Ok(None)));
+        match guard.as_ref() {
+            Some(running) if alive && running.scope == scope => {
                 return Ok(running.conn.clone());
             }
-            *guard = None; // exited; start a fresh one below
+            // Another community's Office: replace it.
+            Some(_) if alive => guard.take(),
+            _ => {
+                *guard = None; // exited (or never started); start one below
+                None
+            }
         }
+    };
+    if let Some(old) = stale {
+        stop_scoped(app.clone(), old).await;
     }
     // Michael as the owner's Buzz agent. Best-effort: without it the bridge
     // falls back to the identity the office keeps itself.
-    let import = office_user_data(&app)
-        .ok()
-        .and_then(|dir| office_minted_key(&dir));
-    let agent = match crate::commands::ensure_office_agent(&app, import).await {
+    let import = office_minted_key(&user_data);
+    let agent = match crate::commands::ensure_office_agent(&app, &scope, import).await {
         Ok(agent) => Some(agent),
         Err(error) => {
             eprintln!("buzz-desktop: office agent identity unavailable: {error}");
@@ -384,14 +481,43 @@ pub async fn office_connect(
         }
     };
     let handle = app.clone();
-    let running =
-        tauri::async_runtime::spawn_blocking(move || spawn_sidecar(&handle, agent.as_ref()))
-            .await
-            .map_err(|e| format!("office start task failed: {e}"))??;
+    let spawn_scope = scope.clone();
+    let running = tauri::async_runtime::spawn_blocking(move || {
+        spawn_sidecar(&handle, &spawn_scope, &user_data, agent.as_ref())
+    })
+    .await
+    .map_err(|e| format!("office start task failed: {e}"))??;
     let conn = running.conn.clone();
     *state.running.lock().map_err(|_| "office state poisoned")? = Some(running);
-    crate::commands::set_office_agent_deployed(&app, true);
+    crate::commands::set_office_agent_deployed(&app, Some(&scope), true);
     Ok(conn)
+}
+
+/// Stop an Office that was taken out of the state, off the async runtime.
+async fn stop_scoped(app: AppHandle, running: Running) {
+    let scope = running.scope.clone();
+    let _ = tauri::async_runtime::spawn_blocking(move || stop_running(running)).await;
+    crate::commands::set_office_agent_deployed(&app, Some(&scope), false);
+}
+
+/// After a community switch: stop the Office if it is another community's
+/// (the next connect starts this one's).
+pub(crate) async fn stop_if_other_community(app: &AppHandle) {
+    let Some(state) = app.try_state::<OfficeState>() else {
+        return;
+    };
+    let _starting = state.start_lock.lock().await;
+    let community = current_community(app);
+    let stale = state.running.lock().ok().and_then(|mut guard| {
+        if guard.as_ref().is_some_and(|r| r.scope.community != community) {
+            guard.take()
+        } else {
+            None
+        }
+    });
+    if let Some(old) = stale {
+        stop_scoped(app.clone(), old).await;
+    }
 }
 
 /// The running office's connection, or `None` if it isn't running. Never
@@ -421,8 +547,41 @@ pub async fn office_stop(app: AppHandle) -> Result<(), String> {
 pub(crate) fn shutdown(app: &AppHandle) {
     if let Some(state) = app.try_state::<OfficeState>() {
         if let Some(running) = state.running.lock().ok().and_then(|mut g| g.take()) {
+            let scope = running.scope.clone();
             stop_running(running);
-            crate::commands::set_office_agent_deployed(app, false);
+            crate::commands::set_office_agent_deployed(app, Some(&scope), false);
         }
+    }
+}
+
+#[cfg(test)]
+mod scope_tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn the_first_community_keeps_the_original_office_folder() {
+        let folders = BTreeMap::new();
+        assert_eq!(folder_for(&folders, "wss://a.example"), LEGACY_DIR);
+    }
+
+    #[test]
+    fn later_communities_get_their_own_folders_and_keep_them() {
+        let mut folders = BTreeMap::new();
+        folders.insert("wss://a.example".to_string(), LEGACY_DIR.to_string());
+        let b = folder_for(&folders, "wss://b.example");
+        assert!(b.starts_with("office-") && b != LEGACY_DIR);
+        assert_ne!(b, folder_for(&folders, "wss://c.example"));
+        folders.insert("wss://b.example".to_string(), b.clone());
+        assert_eq!(folder_for(&folders, "wss://b.example"), b);
+        assert_eq!(folder_for(&folders, "wss://a.example"), LEGACY_DIR);
+    }
+
+    #[test]
+    fn communities_compare_without_case_or_trailing_slash() {
+        assert_eq!(
+            normalize_community(" WSS://Relay.Example/ "),
+            normalize_community("wss://relay.example")
+        );
     }
 }
