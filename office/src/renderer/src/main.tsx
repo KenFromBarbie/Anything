@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './App';
+import { mirrorRole } from './host/buzzHost';
 import brandLogo from '@brand/logo.png?url';
 import './design/global.css';
 import './i18n';
@@ -23,8 +23,14 @@ if (splashMark) {
 const root = document.getElementById('root');
 if (!root) throw new Error('No root element');
 
+// Kenn's Harness's background frame draws only the floor (host/MirrorFloor);
+// everything else runs the full Office.
+const Root = mirrorRole
+  ? (await import('./host/MirrorFloor')).MirrorFloor
+  : (await import('./App')).App;
+
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <Root />
   </StrictMode>
 );

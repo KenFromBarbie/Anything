@@ -306,16 +306,17 @@
 }
 
 /*
- * The Office floor as the app's background (OfficeHost, Settings ->
+ * The Office floor as the app's background (OfficeBackdrop, Settings ->
  * Appearance): while it's behind the main content panel, the panel lets it
  * show through. Unlayered, so it wins over the panel's bg-background utility.
  */
 :root[data-office-backdrop] [data-buzz-content-surface]:not([data-buzz-content-unframed]) {
-  background-color: hsl(var(--background) / var(--office-backdrop-alpha));
+  /* As see-through as the sidebar: the wash under it is the only tint. */
+  background-color: transparent;
 }
 
 /* The wash over the Office floor: the app's own background (the Buzz
- * gradient, or the flat sidebar colour in other themes), faded in OfficeHost. */
+ * gradient, or the flat sidebar colour in other themes), faded in OfficeBackdrop. */
 .office-backdrop-wash {
   background-color: hsl(var(--sidebar-background));
 }

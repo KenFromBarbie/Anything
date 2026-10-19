@@ -49,6 +49,37 @@ export const hostedInBuzz =
   window.parent !== window &&
   /(^|[#&])sidecarUrl=/.test(window.location.hash);
 
+/** Kenn's Harness's background frame: draws the floor only, from the state
+ *  the main frame broadcasts (see MirrorFloor). */
+export const mirrorRole =
+  hostedInBuzz && /(^|[#&])role=mirror(&|$)/.test(window.location.hash);
+
+/** What the floor draws, copied from the main frame to the mirror. */
+function mirrorSnapshot() {
+  const s = useStore.getState();
+  return { agents: s.agents, selectedId: s.selectedId, officeTheme: s.officeTheme };
+}
+
+/** The main frame broadcasts the floor's state for the background mirror:
+ *  on change (at most every 150 ms) and every 2 s. */
+function startMirrorBroadcast(): void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const send = () => {
+    timer = null;
+    try {
+      post({ type: 'mirror', snapshot: mirrorSnapshot() });
+    } catch {
+      // A value that can't be cloned: the next change or heartbeat retries.
+    }
+  };
+  useStore.subscribe((s, prev) => {
+    if (s.agents === prev.agents && s.selectedId === prev.selectedId && s.officeTheme === prev.officeTheme) return;
+    if (!timer) timer = setTimeout(send, 150);
+  });
+  setInterval(send, 2000);
+  send();
+}
+
 function initialView(): HostView {
   if (!hostedInBuzz) return 'all';
   const v = new URLSearchParams(window.location.hash.slice(1)).get('view') as HostView | null;
@@ -124,11 +155,15 @@ function applyTheme(theme: HostTheme): void {
   const mode = theme.dark ? 'dark' : 'light';
   if (mode !== appTheme()) {
     setAppTheme(mode);
-    notifyThemeChangeAll(mode);
-    void window.cth?.updateConfig?.({ terminalTheme: mode });
+    // The background mirror only draws: terminals and config are the main
+    // frame's business.
+    if (!mirrorRole) {
+      notifyThemeChangeAll(mode);
+      void window.cth?.updateConfig?.({ terminalTheme: mode });
+    }
   }
   for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value);
-  setTerminalBackground(mode, c.card);
+  if (!mirrorRole) setTerminalBackground(mode, c.card);
 }
 
 // ─── Command Center sections, driven from Buzz ──────────────────────────────
@@ -195,7 +230,25 @@ function post(message: Record<string, unknown>): void {
   window.parent.postMessage({ source: 'buzz-office', ...message }, window.location.origin);
 }
 
-if (hostedInBuzz) {
+if (mirrorRole) {
+  // The background mirror: theme and the floor's state from the app, nothing
+  // else (no API, no state reports, no host-ready).
+  document.documentElement.dataset.cthHost = 'buzz';
+  window.addEventListener('message', (event) => {
+    if (event.source !== window.parent || event.origin !== window.location.origin) return;
+    const m = event.data;
+    if (m?.source !== 'buzz-office-host') return;
+    if (m.type === 'theme' && m.theme?.colors) applyTheme(m.theme as HostTheme);
+    if (m.type === 'mirror' && m.snapshot && Array.isArray(m.snapshot.agents)) {
+      useStore.setState({
+        agents: m.snapshot.agents,
+        selectedId: m.snapshot.selectedId ?? null,
+        officeTheme: m.snapshot.officeTheme ?? useStore.getState().officeTheme,
+      });
+    }
+  });
+  window.parent.postMessage({ source: 'buzz-office', type: 'mirror-ready' }, window.location.origin);
+} else if (hostedInBuzz) {
   document.documentElement.dataset.cthHost = 'buzz';
   const style = document.createElement('style');
   style.textContent = HOSTED_CSS;
@@ -210,6 +263,7 @@ if (hostedInBuzz) {
     if (m.type === 'add-agent') useStore.getState().setAddAgentOpen(true);
     if (m.type === 'panel-state-request' && lastPanelState) reportPanelState(lastPanelState);
     if (m.type === 'state-request') post(stateNow());
+    if (m.type === 'mirror-request') post({ type: 'mirror', snapshot: mirrorSnapshot() });
     if (m.type === 'api' && typeof m.op === 'string') {
       runBuzzApi(m.op, m.args ?? {}).then(
         (value) => post({ type: 'api-result', id: m.id, ok: true, value }),
@@ -219,6 +273,8 @@ if (hostedInBuzz) {
   });
   // Buzz's own UI for the Office's agents and tasks reads this snapshot.
   startStatePush(post);
+  // …and the background mirror draws the floor from this one.
+  startMirrorBroadcast();
   if (document.body) watchOverlays();
   else window.addEventListener('DOMContentLoaded', watchOverlays, { once: true });
   // The task board and Ask Me are Buzz pages: when the Office asks for those

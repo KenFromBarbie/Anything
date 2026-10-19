@@ -3,6 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  isOfficeAgent,
+  isOfficeWorker,
+} from "@/features/agents/lib/managedAgentControlActions";
 import { useChannelsQuery, useOpenDmMutation } from "@/features/channels/hooks";
 import {
   useChannelMessagesQuery,
@@ -27,11 +31,13 @@ function useAgentPubkey(agent: OfficeAgent) {
     queryKey: ["office", "agent-pubkey", agent.id],
     queryFn: async () => {
       const managed = await listManagedAgents();
-      const match = managed.find(
-        (m) =>
-          m.backend.type === "provider" &&
-          m.backend.id === "office" &&
-          m.backend.config?.officeAgentId === agent.id,
+      const match = managed.find((m) =>
+        agent.isGod
+          ? // Michael: the Office's own agent (no floor id of its own).
+            isOfficeAgent(m) && !isOfficeWorker(m)
+          : m.backend.type === "provider" &&
+            m.backend.id === "office" &&
+            m.backend.config?.officeAgentId === agent.id,
       );
       return match?.pubkey ?? null;
     },

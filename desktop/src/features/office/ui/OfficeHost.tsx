@@ -1,8 +1,6 @@
 import * as React from "react";
 
 import { useOfficeAnchor } from "@/features/office/lib/officeAnchor";
-import { useOfficeBackdrop } from "@/features/office/lib/officeBackdrop";
-import { setOfficeView } from "@/features/office/lib/officeView";
 import { ViewLoadingFallback } from "@/shared/ui/ViewLoadingFallback";
 
 const OfficeScreen = React.lazy(async () => {
@@ -35,42 +33,6 @@ type Placement = {
   radius: string;
 };
 
-/** The Office's top bar (version, auto mode, tools), hidden in the background. */
-const OFFICE_TOP_BAR_PX = 37;
-/** Room below the window for the Office's bottom badges (memory model etc.). */
-const OFFICE_BOTTOM_BAR_PX = 48;
-
-type BackdropRect = {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  radius: string;
-};
-
-/** The whole window, for drawing the floor behind the entire app. */
-function useBackdropRect(enabled: boolean): BackdropRect | null {
-  const [rect, setRect] = React.useState<BackdropRect | null>(null);
-  React.useEffect(() => {
-    if (!enabled) {
-      setRect(null);
-      return;
-    }
-    const update = () =>
-      setRect({
-        left: 0,
-        top: 0,
-        width: window.innerWidth,
-        height: window.innerHeight,
-        radius: "0px",
-      });
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, [enabled]);
-  return rect;
-}
-
 /** Nearest ancestor that scrolls vertically: the page the anchor sits in. */
 function scrollParent(element: HTMLElement): HTMLElement | null {
   for (let node = element.parentElement; node; node = node.parentElement) {
@@ -95,41 +57,9 @@ function scrollParent(element: HTMLElement): HTMLElement | null {
  */
 export function OfficeHost({ active }: { active: boolean }) {
   const anchor = useOfficeAnchor();
-  const backdrop = useOfficeBackdrop();
   const live = active && anchor !== null;
   const [opened, setOpened] = React.useState(live || openedThisSession);
   const [placement, setPlacement] = React.useState<Placement | null>(null);
-  const backdropRect = useBackdropRect(
-    backdrop.enabled && opened && placement === null,
-  );
-
-  // The floor as the app's background starts the Office with the app.
-  React.useEffect(() => {
-    if (!backdrop.enabled) return;
-    startOffice();
-    setOpened(true);
-  }, [backdrop.enabled]);
-
-  // While it's the background, the Office shows its floor.
-  const showingBackdrop = backdropRect !== null && placement === null;
-  React.useEffect(() => {
-    if (showingBackdrop) setOfficeView("office");
-  }, [showingBackdrop]);
-
-  // The content panel turns see-through while the floor is behind it.
-  React.useEffect(() => {
-    const root = document.documentElement;
-    if (!showingBackdrop) {
-      root.removeAttribute("data-office-backdrop");
-      return;
-    }
-    root.setAttribute("data-office-backdrop", "");
-    root.style.setProperty(
-      "--office-backdrop-alpha",
-      String(1 - backdrop.strength / 100),
-    );
-    return () => root.removeAttribute("data-office-backdrop");
-  }, [showingBackdrop, backdrop.strength]);
 
   React.useEffect(() => {
     if (live) {
@@ -141,6 +71,8 @@ export function OfficeHost({ active }: { active: boolean }) {
   React.useEffect(() => {
     const notify = () => setOpened(true);
     startListeners.add(notify);
+    // A start asked for before this listener existed (e.g. by the background).
+    if (openedThisSession) setOpened(true);
     return () => {
       startListeners.delete(notify);
     };
@@ -193,67 +125,33 @@ export function OfficeHost({ active }: { active: boolean }) {
   }, [active, anchor]);
 
   if (!opened) return null;
-  const wash =
-    !placement && backdropRect ? (
-      // The app's own background, faded by the chosen strength, over the
-      // floor: the sidebar, top bar and margins show the floor as evenly as
-      // the see-through content panel does.
-      <div
-        aria-hidden
-        className="office-backdrop-wash pointer-events-none fixed inset-0 -z-[5]"
-        style={{ opacity: 1 - backdrop.strength / 100 }}
-      />
-    ) : null;
   return (
-    <>
-      {wash}
-      <div
-        aria-hidden={!placement}
-        className={
-          placement
-            ? "fixed z-10 overflow-hidden"
-            : backdropRect
-              ? // Below the main area (its stacking level is 0), which lets it
-                // show through the content panel.
-                "pointer-events-none fixed -z-10 overflow-hidden"
-              : "pointer-events-none invisible fixed -left-[10000px] top-0 h-[800px] w-[1280px]"
-        }
-        data-office-backdrop-frame={
-          !placement && backdropRect ? true : undefined
-        }
-        data-testid="office-host"
-        style={
-          placement
-            ? {
-                left: placement.left,
-                top: placement.top,
-                width: placement.width,
-                height: placement.height,
-                clipPath: placement.clip,
-                borderRadius: placement.radius,
-              }
-            : backdropRect
-              ? {
-                  // Past the Office's own top bar and bottom badges (cut off),
-                  // only the floor shows behind the app.
-                  left: backdropRect.left,
-                  top: backdropRect.top - OFFICE_TOP_BAR_PX,
-                  width: backdropRect.width,
-                  height:
-                    backdropRect.height +
-                    OFFICE_TOP_BAR_PX +
-                    OFFICE_BOTTOM_BAR_PX,
-                  clipPath: `inset(${OFFICE_TOP_BAR_PX}px 0 0 0 round ${backdropRect.radius})`,
-                }
-              : undefined
-        }
+    <div
+      aria-hidden={!placement}
+      className={
+        placement
+          ? "fixed z-10 overflow-hidden"
+          : "pointer-events-none invisible fixed -left-[10000px] top-0 h-[800px] w-[1280px]"
+      }
+      data-testid="office-host"
+      style={
+        placement
+          ? {
+              left: placement.left,
+              top: placement.top,
+              width: placement.width,
+              height: placement.height,
+              clipPath: placement.clip,
+              borderRadius: placement.radius,
+            }
+          : undefined
+      }
+    >
+      <React.Suspense
+        fallback={<ViewLoadingFallback includeHeader kind="pulse" />}
       >
-        <React.Suspense
-          fallback={<ViewLoadingFallback includeHeader kind="pulse" />}
-        >
-          <OfficeScreen />
-        </React.Suspense>
-      </div>
-    </>
+        <OfficeScreen />
+      </React.Suspense>
+    </div>
   );
 }

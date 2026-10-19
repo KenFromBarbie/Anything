@@ -75,6 +75,7 @@ import {
   type SettingsSection,
   isSettingsSection,
 } from "@/features/settings/ui/SettingsPanels";
+import { OfficeBackdrop } from "@/features/office/ui/OfficeBackdrop";
 import { OfficeHost } from "@/features/office/ui/OfficeHost";
 import { NotionSyncRunner } from "@/features/tasks/ui/NotionSyncRunner";
 import { useDueReminderBadgeCount } from "@/features/reminders/hooks";
@@ -965,6 +966,7 @@ export function AppShell() {
                       ) : null}
                     </div>
                   )}
+                  {!isHuddleRoom ? <OfficeBackdrop /> : null}
                   {!isHuddleRoom ? (
                     <OfficeHost
                       active={

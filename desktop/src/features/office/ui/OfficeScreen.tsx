@@ -4,6 +4,10 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { managedAgentsQueryKey } from "@/features/agents/hooks";
 import { useOfficeAnchor } from "@/features/office/lib/officeAnchor";
+import {
+  relayToMirror,
+  setMirrorSource,
+} from "@/features/office/lib/officeMirror";
 import { runOfficeHostCall } from "@/features/office/lib/officeHostCalls";
 import {
   connectOffice,
@@ -33,7 +37,7 @@ const OFFICE_APP_URL = "/office-app/index.html";
  * onto these). Read from the page around the Office so the content surface's
  * own overrides (Buzz Dark's warmer canvas) are included.
  */
-function hostTheme(context: Element) {
+export function hostTheme(context: Element) {
   const css = getComputedStyle(context);
   const token = (name: string) => {
     const value = css.getPropertyValue(name).trim();
@@ -134,6 +138,10 @@ export function OfficeScreen() {
         setOfficeOverlay(false);
         return;
       }
+      if (msg.type === "mirror") {
+        relayToMirror(msg.snapshot);
+        return;
+      }
       if (msg.type === "api-result") {
         settleOfficeCall(msg);
         return;
@@ -200,6 +208,12 @@ export function OfficeScreen() {
 
   // No commands to a frame that is gone.
   React.useEffect(() => () => disconnectRef.current?.(), []);
+
+  // The background mirror asks this frame for the floor's state.
+  React.useEffect(() => {
+    setMirrorSource(() => postToOffice({ type: "mirror-request" }));
+    return () => setMirrorSource(null);
+  }, [postToOffice]);
 
   // The Agents and Office pages pick which part of the Office shows.
   React.useEffect(() => subscribeOfficeView(sendView), [sendView]);
