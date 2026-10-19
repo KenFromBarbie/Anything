@@ -104,7 +104,7 @@ Michael is one of the owner's managed agents (`commands/agents_office.rs`):
   `office::shutdown`); Delete removes the record without `!shutdown` or a
   provider teardown (recreated from the same key on the next Office start).
   Backend `start_managed_agent` refuses the office record.
-- **Agents and Office pages** (sidebar: Inbox, Tasks, Ask Me, Agents, Office, Studio). The
+- **Agents and Office pages** (sidebar: Inbox, Tasks, Agents, Office, Studio). The
   **Agents** page (`OfficeAgentsPage`) shows the selected agent's panel
   (Michael's Command Center: terminal, monitor, tasks, ask me, …) at full width
   plus the agent strip (Michael · BOSS, Jim, "add agent"); the **Office** page
@@ -121,9 +121,9 @@ Michael is one of the owner's managed agents (`commands/agents_office.rs`):
   own section navigation on the Agents page, under the agent's name: Michael's
   Command Center (terminal & monitor — one section, the monitor under the
   terminal — triggers, memory, graph, activity, skills, workers) or a worker's
-  panel (terminal, git, messages, traces). **Tasks** and **Ask Me** (the
-  agents' questions) are sidebar pages of their own, above Agents (`/tasks`,
-  `/ask-me`), both Buzz's own UI (see "Tasks, Notion and the Agents page in
+  panel (terminal, git, messages, traces). **Tasks** is a sidebar page of its
+  own, above Agents (`/tasks`); the agents' questions sit at the top of the
+  Inbox (old `/ask-me` links land there). Both are Buzz's own UI (see "Tasks, Notion and the Agents page in
   Buzz's UI" below). When the Office asks for either (the floor's task board,
   a question) Buzz opens the page (`navigate`). The Office reports them (`panel-state`, from `CommandCenterPanel` /
   `AgentDetailPanel`), hides its own tab bars when hosted, and opens what Buzz
@@ -342,11 +342,14 @@ resume a session, custom command) still render in the Office frame.
   (`notion.json`) live in the app data dir; Disconnect forgets the secret and
   both files. My tasks is read and written live (add, done, status, due,
   notes, trash with undo).
-- **Ask Me** (`features/tasks/ui/AskMePage`): blocked tasks with an open
-  question, newest first (the Office's rules, `lib/askMe`), each with the
-  question, earlier answers, what it's holding up, and Respond / Dismiss.
-  Answering records it on the task and tells Michael; drafts survive leaving
-  the page.
+- **Questions from agents** (`features/tasks/ui/AgentQuestions`, at the top
+  of the Inbox and counted on its badge): blocked tasks with an open question,
+  newest first (the Office's rules, `lib/askMe`), each with the question,
+  earlier answers, what it's holding up, and Respond / Dismiss. Answering
+  records it on the task and tells Michael; drafts survive leaving the Inbox.
+  Work that came from a Buzz channel or DM carries its origin on the card
+  (`"buzz": {"replyTo"}`), and Michael asks about it in that thread instead;
+  the owner's reply reaches him as a Buzz follow-up.
 - **Add / Edit agent** (`ui/agents/AgentFormDialog`): name, look on the floor,
   color, engine and model, folder (recent or chosen) and own git worktree,
   role and goal. Hiring runs the Office's own spawn path (`agents.hire`);

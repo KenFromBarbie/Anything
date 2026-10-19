@@ -1,12 +1,5 @@
 import * as React from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  CircleCheck,
-  Loader2,
-  Send,
-  X,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, Send, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { accentDotClass } from "@/features/office/lib/agentAccent";
@@ -28,7 +21,7 @@ import {
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { Markdown } from "@/shared/ui/markdown";
-import { PageHeader, SubsectionLabel } from "@/shared/ui/PageHeader";
+import { SubsectionLabel } from "@/shared/ui/PageHeader";
 import { Textarea } from "@/shared/ui/textarea";
 
 import { TaskDialog } from "./TaskDialog";
@@ -50,43 +43,43 @@ function askedAgo(iso: string | undefined): string | null {
 }
 
 /**
- * Ask Me: the decisions and to-dos the agents need from you. Each is a blocked
- * task with an open question; answering records it on the task and tells
- * Michael, who unblocks it. Dismissing takes it off this page (the question
- * stays on the task).
+ * The agents' questions for you, at the top of the Inbox: decisions and
+ * to-dos they can't move a task without. (Questions about work that came
+ * from a channel or DM are asked in that thread instead, by the agent.)
+ * Answering records it on the task and tells Michael, who unblocks it;
+ * dismissing takes it out of the Inbox (the question stays on the task).
  */
-export function AskMePage() {
-  const { data: tasks = [], isLoading } = useOfficeTasks();
+export function AgentQuestionsInbox() {
+  const { data: tasks = [] } = useOfficeTasks();
   const { agents } = useOfficeAgents();
   const [openId, setOpenId] = React.useState<string | null>(null);
+  const [collapsed, setCollapsed] = React.useState(false);
   const asks = asksForYou(tasks);
   const opened = tasks.find((task) => task.id === openId) ?? null;
+  if (asks.length === 0) return null;
 
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 py-6 sm:px-6"
-      data-testid="ask-me-page-content"
+    <section
+      className="grid gap-2 border-b border-border/60 px-4 pb-4 pt-2"
+      data-testid="inbox-agent-questions"
     >
-      <PageHeader
-        description="Decisions the agents need from you. Answer here and the work continues."
-        title="Ask Me"
-      />
-      {isLoading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Opening the Office…
-        </div>
-      ) : asks.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border/70 px-6 py-12 text-center">
-          <CircleCheck className="h-8 w-8 text-emerald-500" />
-          <p className="font-medium">Nothing needs you right now</p>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            When an agent can't move a task without you, the question lands
-            here.
-          </p>
-        </div>
-      ) : (
-        <div className="grid max-w-4xl gap-4" data-testid="ask-me-list">
+      <button
+        className="flex items-center gap-1.5 text-left text-sm font-semibold"
+        onClick={() => setCollapsed((value) => !value)}
+        type="button"
+      >
+        {collapsed ? (
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        )}
+        Questions from agents
+        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+          {asks.length}
+        </span>
+      </button>
+      {collapsed ? null : (
+        <div className="grid gap-3">
           {asks.map((task) => (
             <AskCard
               agents={agents}
@@ -105,8 +98,14 @@ export function AskMePage() {
         }}
         task={opened}
       />
-    </div>
+    </section>
   );
+}
+
+/** How many questions are waiting on you (for the Inbox badge). */
+export function useOpenQuestionCount(): number {
+  const { data: tasks = [] } = useOfficeTasks();
+  return asksForYou(tasks).length;
 }
 
 function AskCard({
@@ -155,8 +154,8 @@ function AskCard({
 
   return (
     <article
-      className="grid gap-3 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-xs"
-      data-testid="ask-me-card"
+      className="grid gap-3 rounded-2xl border border-border/70 bg-card/80 p-3 shadow-xs"
+      data-testid="agent-question"
     >
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
@@ -197,7 +196,7 @@ function AskCard({
             )
           }
           size="sm"
-          title="Take this off Ask Me without answering. The task stays blocked; the question stays on it."
+          title="Take this out of the Inbox without answering. The task stays blocked; the question stays on it."
           variant="ghost"
         >
           <X />
@@ -246,8 +245,8 @@ function AskCard({
 
       <div className="grid gap-2">
         <Textarea
-          className="min-h-20 resize-y"
-          data-testid="ask-me-answer"
+          className="min-h-14 resize-y"
+          data-testid="agent-question-answer"
           onChange={(event) => update(event.target.value)}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return;
@@ -264,7 +263,7 @@ function AskCard({
             Recorded on the task and sent to Michael. Ctrl+Enter to send.
           </p>
           <Button
-            data-testid="ask-me-respond"
+            data-testid="agent-question-respond"
             disabled={!text.trim() || busy}
             onClick={respond}
             size="sm"

@@ -38,7 +38,7 @@ export function TasksPage() {
   const { agents } = useOfficeAgents();
   const { data: tasks = [], isLoading } = useOfficeTasks();
   const { data: notion } = useNotionStatus();
-  const { goAskMe } = useAppNavigation();
+  const { goHome } = useAppNavigation();
   const myDb = notion?.connected ? notion.config.myDb : null;
 
   const choose = (next: Sheet) => {
@@ -78,7 +78,7 @@ export function TasksPage() {
           <AgentsBoard
             agents={agents}
             loading={isLoading}
-            onOpenAskMe={() => goAskMe()}
+            onOpenAskMe={() => goHome()}
             tasks={tasks}
           />
         </>

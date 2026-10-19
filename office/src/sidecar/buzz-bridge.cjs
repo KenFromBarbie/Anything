@@ -410,6 +410,7 @@ class BuzzBridge {
       '  1. write the reply as markdown to a file',
       `  2. run: ${this.replyCommand()} --reply-to ${ev.id} --text-file "<that file>"`,
       'If you delegate, pass that exact command on so the agent can reply itself. Never post a bare "done".',
+      `If this becomes board work, record where it came from on every card you make for it: "buzz": {"replyTo": "${ev.id}"}. Questions for the owner about that work are asked in this thread (the command above), not on the card.`,
       ...this.buzzToolsNote(who),
       '',
       'The message:',

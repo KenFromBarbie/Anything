@@ -598,7 +598,7 @@ function TaskWindow({
             <button
               className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-2 text-left text-xs"
               onClick={() => {
-                window.location.hash = "#/ask-me";
+                window.location.hash = "#/";
               }}
               type="button"
             >

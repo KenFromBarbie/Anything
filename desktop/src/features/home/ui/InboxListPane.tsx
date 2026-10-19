@@ -19,6 +19,7 @@ import { buildInboxListRows } from "@/features/home/lib/inboxListRows";
 import { hasRenderedVideoAttachment } from "@/features/messages/lib/videoReviewContext";
 import { getThreadReference } from "@/features/messages/lib/threading";
 import { InboxFilterMenu } from "@/features/home/ui/InboxFilterMenu";
+import { AgentQuestionsInbox } from "@/features/tasks/ui/AgentQuestions";
 import {
   DraftsPanel,
   type DraftViewItem,
@@ -705,6 +706,9 @@ export function InboxListPane({
           data-testid="home-inbox-list"
           ref={scrollRef}
         >
+          {filter === "all" || filter === "needs_action" ? (
+            <AgentQuestionsInbox />
+          ) : null}
           {visibleInboxRows.length > 0 ? (
             <VirtualizedList
               estimateSize={96}

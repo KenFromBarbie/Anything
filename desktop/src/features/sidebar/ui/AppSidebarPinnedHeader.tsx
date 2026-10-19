@@ -6,7 +6,6 @@ import {
   Folders,
   Inbox,
   ListChecks,
-  MessageCircleQuestion,
   Palette,
   Zap,
 } from "lucide-react";
@@ -39,8 +38,7 @@ type SidebarSelectedView =
   | "office"
   | "research"
   | "studio"
-  | "tasks"
-  | "askme";
+  | "tasks";
 
 type AppSidebarPinnedHeaderProps = {
   channelLabels: Record<string, string>;
@@ -118,8 +116,7 @@ export function AppSidebarPrimaryMenu({
   projectsOverviewActive,
   selectedView,
 }: AppSidebarPrimaryMenuProps) {
-  const { goAskMe, goOffice, goResearch, goStudio, goTasks } =
-    useAppNavigation();
+  const { goOffice, goResearch, goStudio, goTasks } = useAppNavigation();
   return (
     <>
       <SidebarHeader
@@ -187,19 +184,6 @@ export function AppSidebarPrimaryMenu({
             >
               <ListChecks className="h-4 w-4" />
               <SidebarMenuLabel>Tasks</SidebarMenuLabel>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="data-[active=true]:font-normal"
-              data-testid="open-ask-me-view"
-              isActive={selectedView === "askme"}
-              onClick={() => void goAskMe()}
-              tooltip="Ask Me"
-              type="button"
-            >
-              <MessageCircleQuestion className="h-4 w-4" />
-              <SidebarMenuLabel>Ask Me</SidebarMenuLabel>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

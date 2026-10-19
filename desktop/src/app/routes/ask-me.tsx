@@ -1,23 +1,9 @@
-import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { ViewLoadingFallback } from "@/shared/ui/ViewLoadingFallback";
-
-const AskMePage = React.lazy(async () => {
-  const module = await import("@/features/tasks/ui/AskMePage");
-  return { default: module.AskMePage };
-});
-
+/** Ask Me is part of the Inbox now (the agents' questions sit at its top);
+ *  old links land there. */
 export const Route = createFileRoute("/ask-me")({
-  component: AskMeRouteComponent,
+  beforeLoad: () => {
+    throw redirect({ to: "/" });
+  },
 });
-
-function AskMeRouteComponent() {
-  return (
-    <React.Suspense
-      fallback={<ViewLoadingFallback includeHeader kind="pulse" />}
-    >
-      <AskMePage />
-    </React.Suspense>
-  );
-}

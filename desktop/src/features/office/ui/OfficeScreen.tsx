@@ -182,7 +182,7 @@ export function OfficeScreen() {
       }
       if (msg.type === "navigate") {
         if (msg.page === "tasks" && openFloorTasks()) return;
-        const to = { tasks: "#/tasks", askme: "#/ask-me" }[String(msg.page)];
+        const to = { tasks: "#/tasks", askme: "#/" }[String(msg.page)];
         if (to) window.location.hash = to;
         return;
       }

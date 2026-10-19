@@ -13,7 +13,8 @@
   to a chat with them and their controls.
 - **Tasks**: the agents' board and your own task sheet, synced both ways with
   Notion (sign in with Notion; use a new sheet or one you already have).
-- **Ask Me**: the decisions the agents are waiting on you for.
+- **Questions from agents**: what they need from you, asked in the thread the
+  work came from, or at the top of your Inbox.
 - **Research**: projects as folders. Describe a project (and attach files) and
   Michael researches it in its own chat, saving what he finds into the folder.
   Pin projects and give them covers.

@@ -105,17 +105,6 @@ export function useAppNavigation() {
     [commitNavigation],
   );
 
-  const goAskMe = React.useCallback(
-    (behavior?: NavigationBehavior) =>
-      commitNavigation(
-        {
-          to: "/ask-me",
-        },
-        behavior,
-      ),
-    [commitNavigation],
-  );
-
   const goOffice = React.useCallback(
     async (behavior?: NavigationBehavior) => {
       if (location.pathname !== "/office") await pullOfficeForward();
@@ -517,7 +506,6 @@ export function useAppNavigation() {
     closeSettings,
     closeWorkflowDetail,
     goAgents,
-    goAskMe,
     goOffice,
     goTasks,
     goResearch,

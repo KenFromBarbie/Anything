@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useOpenQuestionCount } from "@/features/tasks/ui/AgentQuestions";
 import { ProtectedGlobalOverlay } from "@protected-feature-components";
 import { useQueryClient } from "@tanstack/react-query";
 import { Outlet, useLocation } from "@tanstack/react-router";
@@ -459,6 +460,8 @@ export function AppShell() {
     unreadThreadFeedItems,
   ]);
 
+  // The agents' questions sit at the top of the Inbox, so they count on it.
+  const openQuestions = useOpenQuestionCount();
   const { homeBadgeCount, homeBadgeCountExcludingHighPriority } =
     useHomeFeedNotificationState(
       homeFeedQuery.data,
@@ -844,7 +847,9 @@ export function AppShell() {
                           currentPubkey={identityQuery.data?.pubkey}
                           errorMessage={channelsErrorMessage}
                           fallbackDisplayName={identityQuery.data?.displayName}
-                          homeBadgeCount={homeBadgeCount + dueReminderBadge}
+                          homeBadgeCount={
+                            homeBadgeCount + dueReminderBadge + openQuestions
+                          }
                           addCommunityPrefill={addCommunityDialog.prefill}
                           isAddCommunityOpen={addCommunityDialog.open}
                           relayConnectionCard={relayConnectionCard}
@@ -972,8 +977,7 @@ export function AppShell() {
                       active={
                         (selectedView === "agents" ||
                           selectedView === "office" ||
-                          selectedView === "tasks" ||
-                          selectedView === "askme") &&
+                          selectedView === "tasks") &&
                         !settingsOpen
                       }
                     />
