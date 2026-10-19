@@ -1,7 +1,7 @@
 import { useCommunityOnboarding } from "@/features/onboarding/communityOnboarding";
 import { useSystemColorScheme } from "@/shared/theme/useSystemColorScheme";
 import { Button } from "@/shared/ui/button";
-import { FlappingBee } from "@/shared/ui/buzz-logo/FlappingBee";
+import { AppMark } from "@/shared/ui/AppMark";
 import { StartupWindowDragRegion } from "@/shared/ui/StartupWindowDragRegion";
 
 /**
@@ -23,7 +23,7 @@ export function PendingInviteGate() {
     >
       <StartupWindowDragRegion />
       <div className="relative flex w-full max-w-[500px] flex-col items-center text-center">
-        <FlappingBee className="h-auto w-24" />
+        <AppMark className="h-20 w-20" loading />
         <h1 className="mt-6 text-3xl font-semibold tracking-tight">
           Opening community link
         </h1>

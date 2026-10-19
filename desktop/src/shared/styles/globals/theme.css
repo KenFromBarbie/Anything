@@ -1042,3 +1042,24 @@
   padding-block: var(--buzz-huddle-drawer-inset);
   padding-inline: var(--buzz-huddle-drawer-inset);
 }
+
+/* The app's mark on loading screens: a gentle float. */
+@keyframes app-mark-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.04);
+  }
+}
+
+.app-mark-loading {
+  animation: app-mark-float 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-mark-loading {
+    animation: none;
+  }
+}

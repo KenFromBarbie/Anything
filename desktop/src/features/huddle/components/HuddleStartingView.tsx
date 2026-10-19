@@ -1,5 +1,5 @@
 import { ThemeGrainientBackground } from "@/app/ThemeGrainientBackground";
-import { FlappingBee } from "@/shared/ui/buzz-logo/FlappingBee";
+import { AppMark } from "@/shared/ui/AppMark";
 
 /** Immediate feedback shown while the native huddle session is being prepared. */
 export function HuddleStartingView() {
@@ -12,7 +12,7 @@ export function HuddleStartingView() {
     >
       <ThemeGrainientBackground />
       <span className="sr-only">Starting call</span>
-      <FlappingBee className="relative z-10 h-auto w-28" />
+      <AppMark className="relative z-10 h-24 w-24" loading />
     </div>
   );
 }
