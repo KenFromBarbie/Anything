@@ -270,7 +270,8 @@ export function App() {
   }, []);
 
   if (!config) {
-    return <div style={{ width: '100vw', height: '100vh', background: 'var(--cth-cream-100)' }} />;
+    // Inside the app the floor behind shows while the settings load.
+    return <div style={{ width: '100vw', height: '100vh', background: hostedInBuzz ? 'transparent' : 'var(--cth-cream-100)' }} />;
   }
 
   if (!config.onboardingComplete) {
