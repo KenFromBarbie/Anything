@@ -6,7 +6,7 @@ import 'pixi.js/unsafe-eval';
 import { useStore, type Agent } from '@/store/store';
 import { TiledMapRenderer } from './TiledMapRenderer';
 import { Camera } from './Camera';
-import { hostedInBuzz } from '@/host/buzzHost';
+import { hostedInBuzz, mirrorRole } from '@/host/buzzHost';
 import { emitAgentClick, setAgentLocator } from './agentLocator';
 import { Character, paintCup } from './Character';
 import { DeskScreen } from './DeskScreen';
@@ -1415,7 +1415,9 @@ export function OfficeFloor() {
           spawnTile: entrance, // walk in from the office door
           glowColor: hexNum(colors.accent[agent.accent]) ?? hexToNumber(member.shirt),
           onClick: (id) => {
-            useStore.getState().select(id);
+            // The app's background floor only reports the click (its
+            // selection is the main frame's, copied in).
+            if (!mirrorRole) useStore.getState().select(id);
             emitAgentClick(id);
           },
         });

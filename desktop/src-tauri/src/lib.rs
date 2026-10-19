@@ -39,6 +39,7 @@ pub mod nostr_convert;
 mod notion;
 mod notion_mcp;
 mod observed_unread;
+mod local_servers;
 mod office;
 mod persona_catalog;
 mod prevent_sleep;
@@ -243,6 +244,7 @@ pub fn run() {
         .manage(terminal_runtime::TerminalSessions::default())
         .manage(archive::sync::ArchiveSyncState::default())
         .manage(office::OfficeState::default())
+        .manage(local_servers::LocalServers::default())
         .manage(native_relay_client::NativeRelayClient::default())
         .manage(observed_unread::ObservedUnreadStore::default())
         .manage(channel_head_cache::ChannelHeadCacheStore::default())
@@ -251,6 +253,8 @@ pub fn run() {
             // The office never outlives Buzz; clear a stale "deployed" left by
             // an unclean exit.
             commands::set_office_agent_deployed(&app_handle, None, false);
+            // Servers on this computer start with the app.
+            local_servers::start_all(&app_handle);
             // ArtCraft's background work, without a window of its own, once
             // the Studio is installed; its UI opens with the Studio page
             // (`studio::studio_place`).
@@ -546,6 +550,8 @@ pub fn run() {
         .invoke_handler(studio::with_artcraft_commands(tauri::generate_handler![
             studio::studio_place,
             studio::studio_theme,
+            local_servers::local_server_create,
+            local_servers::local_servers_available,
             studio::studio_status,
             studio::studio_install,
             studio::studio_set_tools,

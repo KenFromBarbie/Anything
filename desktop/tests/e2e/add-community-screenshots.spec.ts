@@ -1,4 +1,8 @@
 import { expect, test } from "@playwright/test";
+
+// The Builderlab (hosted) create flow is no longer offered from Add community:
+// servers are created on this computer (LocalServerCreateForm).
+test.skip(true, "Add community creates local servers now");
 import { npubEncode } from "nostr-tools/nip19";
 
 import { waitForAnimations } from "../helpers/animations";

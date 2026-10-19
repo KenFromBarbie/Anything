@@ -13,7 +13,15 @@ export type FloorAgentEvent = {
 };
 
 const agentListeners = new Set<(event: FloorAgentEvent) => void>();
-let locate: ((id: string) => void) | null = null;
+/** Which frame is the Office the page shows: the background floor (its
+ *  "mirror", when the floor is the app's background) or the main frame. */
+export type FloorSource = "mirror" | "main";
+type FloorChannel = {
+  locate: (id: string) => void;
+  track?: (id: string | null) => void;
+};
+const channels: Partial<Record<FloorSource, FloorChannel>> = {};
+let source: FloorSource = "main";
 let tasksHandler: (() => void) | null = null;
 
 export function emitFloorAgent(event: FloorAgentEvent): void {
@@ -27,14 +35,37 @@ export function onFloorAgent(
   return () => agentListeners.delete(listener);
 }
 
-/** The Office frame, able to say where an agent stands. */
-export function setFloorLocator(request: ((id: string) => void) | null): void {
-  locate = request;
+/** A frame able to say where an agent stands (and follow one). */
+export function setFloorChannel(
+  from: FloorSource,
+  channel: FloorChannel | null,
+): void {
+  if (channel) channels[from] = channel;
+  else delete channels[from];
+}
+
+/** Which frame the Office page is using. */
+export function setFloorSource(from: FloorSource): void {
+  source = from;
 }
 
 /** Ask where an agent stands; the answer comes as an "anchor" event. */
 export function requestAgentAnchor(id: string): void {
-  locate?.(id);
+  channels[source]?.locate(id);
+}
+
+/** Have the floor report where an agent stands every frame they move (as
+ *  "anchor" events), or stop (null). Falls back to asking now and then. */
+export function trackAgent(id: string | null): () => void {
+  const channel = channels[source];
+  if (channel?.track) {
+    channel.track(id);
+    return () => channel.track?.(null);
+  }
+  if (!id || !channel) return () => undefined;
+  channel.locate(id);
+  const timer = setInterval(() => channel.locate(id), 500);
+  return () => clearInterval(timer);
 }
 
 /** The Office page, while open, takes the floor's "open the tasks" itself. */

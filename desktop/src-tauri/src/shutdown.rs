@@ -24,6 +24,7 @@ pub(crate) fn shut_down_app(app: &tauri::AppHandle, shutdown_done: &std::sync::a
         app.state::<crate::terminal_runtime::TerminalSessions>()
             .shutdown_all();
         crate::office::shutdown(app);
+        crate::local_servers::shutdown(app);
         if let Err(error) = shutdown_managed_agents(app) {
             eprintln!("buzz-desktop: failed to stop managed agents: {error}");
         }

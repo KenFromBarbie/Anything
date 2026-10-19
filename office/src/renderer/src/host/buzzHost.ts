@@ -231,6 +231,27 @@ function post(message: Record<string, unknown>): void {
   window.parent.postMessage({ source: 'buzz-office', ...message }, window.location.origin);
 }
 
+/** Report where one agent stands every frame it moves (null stops). */
+let tracked: string | null = null;
+let trackFrame = 0;
+let trackedAt = '';
+function trackAgent(id: string | null): void {
+  tracked = id;
+  trackedAt = '';
+  if (tracked && !trackFrame) trackFrame = requestAnimationFrame(trackStep);
+}
+function trackStep(): void {
+  trackFrame = 0;
+  if (!tracked) return;
+  const at = locateAgent(tracked);
+  const key = at ? `${Math.round(at.x)},${Math.round(at.y)}` : '';
+  if (key !== trackedAt) {
+    trackedAt = key;
+    post({ type: 'agent-anchor', id: tracked, at });
+  }
+  trackFrame = requestAnimationFrame(trackStep);
+}
+
 if (mirrorRole) {
   // The background mirror: theme and the floor's state from the app, nothing
   // else (no API, no state reports, no host-ready).
@@ -247,6 +268,21 @@ if (mirrorRole) {
         officeTheme: m.snapshot.officeTheme ?? useStore.getState().officeTheme,
       });
     }
+    if (m.type === 'locate-agent' && typeof m.id === 'string') {
+      post({ type: 'agent-anchor', id: m.id, at: locateAgent(m.id) });
+    }
+    if (m.type === 'track-agent') trackAgent(typeof m.id === 'string' ? m.id : null);
+  });
+  // On the app's Office page this floor is the Office itself (the app lets
+  // clicks through to it): a clicked character opens a chat above its head,
+  // which follows the character frame by frame; the task board opens the
+  // app's tasks window.
+  onAgentClick((id) => post({ type: 'agent-click', id, at: locateAgent(id) }));
+  useStore.subscribe((st, prev) => {
+    const req = st.ccTabRequest;
+    if (!req || req === prev.ccTabRequest) return;
+    const page = req.tab === 'tasks' ? 'tasks' : req.tab === 'human' ? 'askme' : null;
+    if (page) post({ type: 'navigate', page });
   });
   window.parent.postMessage({ source: 'buzz-office', type: 'mirror-ready' }, window.location.origin);
 } else if (hostedInBuzz) {

@@ -193,8 +193,8 @@ test("add-community deep link opens one editable prefill and acknowledges the qu
   await page.getByTestId("sidebar-profile-avatar-button").click();
   await page.getByTestId("community-switcher").click();
   await page.getByRole("menuitem", { name: "Add a community" }).click();
-  await page.getByTestId("add-community-join").click();
-  await expect(communityInput).toHaveValue("");
+  // Opened by hand it creates a local server; joining is for invite links.
+  await expect(page.getByTestId("local-server-create")).toBeVisible();
 
   const acknowledgements = await page.evaluate(() =>
     (window.__BUZZ_E2E_COMMAND_LOG__ ?? []).filter(

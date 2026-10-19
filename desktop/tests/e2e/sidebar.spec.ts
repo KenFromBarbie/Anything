@@ -195,21 +195,17 @@ test("sidebar rows separate hover, selected, and reorder states", async ({
     .toBe("none");
 });
 
-test("add community starts with create and join choices", async ({ page }) => {
+test("add community opens on creating a local server", async ({ page }) => {
   await installMockBridge(page, {});
   await page.goto("/");
 
   await openAddCommunityDialog(page);
 
   await expect(
-    page.getByRole("heading", { name: "Add community" }),
+    page.getByRole("heading", { name: "Create a server" }),
   ).toBeVisible();
-  await expect(page.getByTestId("add-community-create")).toContainText(
-    "Create a new community",
-  );
-  await expect(page.getByTestId("add-community-join")).toContainText(
-    "Join an existing community",
-  );
+  await expect(page.getByTestId("local-server-create")).toBeVisible();
+  await expect(page.getByTestId("add-community-join")).toHaveCount(0);
   await expect(page.getByLabel("API Token")).toHaveCount(0);
   await expect(page.getByLabel("Repos Directory")).toHaveCount(0);
 

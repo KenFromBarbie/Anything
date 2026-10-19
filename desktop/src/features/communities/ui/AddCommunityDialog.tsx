@@ -1,8 +1,7 @@
 import * as React from "react";
-import { ArrowLeft, ChevronRight, Link2, Plus } from "lucide-react";
 
 import type { AddCommunityPrefillRequest } from "@/features/communities/addCommunityPrefill";
-import { HostedCommunityCreateFlow } from "@/features/communities/ui/HostedCommunityCreateFlow";
+import { LocalServerCreateForm } from "@/features/communities/ui/LocalServerCreateForm";
 import { useCommunityOnboarding } from "@/features/onboarding/communityOnboarding";
 import { InviteRedeemForm } from "@/features/onboarding/ui/InviteRedeemForm";
 import {
@@ -22,10 +21,9 @@ type AddCommunityDialogProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-type AddCommunityMode = "choose" | "create" | "join";
-
-const OPTION_CLASS =
-  "flex w-full items-center gap-3 rounded-xl border border-border/70 bg-muted/30 px-4 py-4 text-left transition-colors duration-150 ease-out hover:bg-muted/60 focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring";
+/** Servers are created on this computer; joining is only for invite links
+ *  opened from elsewhere (they prefill the address). */
+type AddCommunityMode = "create" | "join";
 
 export function AddCommunityDialog({
   prefill,
@@ -33,7 +31,7 @@ export function AddCommunityDialog({
   onOpenChange,
 }: AddCommunityDialogProps) {
   const communityOnboarding = useCommunityOnboarding();
-  const [mode, setMode] = React.useState<AddCommunityMode>("choose");
+  const [mode, setMode] = React.useState<AddCommunityMode>("create");
   const [joinError, setJoinError] = React.useState<string | null>(null);
   const appliedPrefillId = React.useRef<string | null>(null);
 
@@ -46,7 +44,7 @@ export function AddCommunityDialog({
 
   const handleClose = React.useCallback(() => {
     onOpenChange(false);
-    setMode("choose");
+    setMode("create");
     setJoinError(null);
   }, [onOpenChange]);
 
@@ -79,18 +77,12 @@ export function AddCommunityDialog({
   );
 
   const title =
-    mode === "create"
-      ? "Create a new community"
-      : mode === "join"
-        ? "Join an existing community"
-        : "Add community";
+    mode === "create" ? "Create a server" : "Join an existing community";
 
   const description =
     mode === "create"
-      ? "Opens Builderlab in your browser."
-      : mode === "join"
-        ? "Use the community URL or invite link you received."
-        : "Create a new community or join one you already have.";
+      ? "It runs on this computer, with its own channels and its own Office."
+      : "Use the community URL or invite link you received.";
 
   return (
     <Dialog
@@ -106,82 +98,19 @@ export function AddCommunityDialog({
       >
         <DialogHeader className="px-6 pb-3 pt-5 pr-14">
           <div className="flex min-w-0 items-center gap-2">
-            {mode !== "choose" ? (
-              <button
-                aria-label="Back to add community options"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 ease-out hover:bg-accent hover:text-accent-foreground focus:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
-                data-testid="add-community-back"
-                onClick={() => {
-                  setJoinError(null);
-                  setMode("choose");
-                }}
-                type="button"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-            ) : null}
             <DialogTitle className="truncate">{title}</DialogTitle>
           </div>
-          <DialogDescription
-            className={mode === "create" ? "sr-only" : undefined}
-          >
-            {description}
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="px-6 pb-6 pt-3">
-          {mode === "choose" ? (
-            <div className="space-y-3">
-              <button
-                className={OPTION_CLASS}
-                data-testid="add-community-create"
-                onClick={() => setMode("create")}
-                type="button"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Plus className="h-4 w-4" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-foreground">
-                    Create a new community
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                    Claim a Buzz address for your team.
-                  </span>
-                </span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" />
-              </button>
-
-              <button
-                className={OPTION_CLASS}
-                data-testid="add-community-join"
-                onClick={() => setMode("join")}
-                type="button"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Link2 className="h-4 w-4" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-foreground">
-                    Join an existing community
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                    Use a community URL or invite link.
-                  </span>
-                </span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" />
-              </button>
-            </div>
-          ) : mode === "join" ? (
+          {mode === "join" ? (
             <InviteRedeemForm
               error={joinError}
               initialValue={prefill?.relayUrl}
               isRedeeming={false}
               key={prefill?.requestId ?? "manual-add-community"}
-              onCancel={() => {
-                setJoinError(null);
-                setMode("choose");
-              }}
+              onCancel={handleClose}
               onConnect={(relayUrl) => startConnection({ relayUrl })}
               onRedeem={(relayUrl, inviteCode, policyReceipt) =>
                 startConnection({ relayUrl, inviteCode, policyReceipt })
@@ -189,7 +118,22 @@ export function AddCommunityDialog({
               variant="add-community"
             />
           ) : (
-            <HostedCommunityCreateFlow onComplete={handleClose} />
+            <LocalServerCreateForm
+              onCancel={handleClose}
+              onCreated={(relayUrl, name) => {
+                const started = communityOnboarding.start({
+                  source: "add-community",
+                  relayUrl,
+                  communityName: name,
+                });
+                if (!started) {
+                  throw new Error(
+                    "Finish connecting the community already in progress, then try again.",
+                  );
+                }
+                handleClose();
+              }}
+            />
           )}
         </div>
       </DialogContent>

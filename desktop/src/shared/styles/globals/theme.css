@@ -318,6 +318,27 @@
 
 /* The wash over the Office floor: the app's own background (the Buzz
  * gradient, or the flat sidebar colour in other themes), faded in OfficeBackdrop. */
+/* Under the composer, the page's own colour hides messages scrolling past
+ * (a fade into it, a solid strip, corner masks). Over the see-through page
+ * that drew a solid band, so the fade frosts the messages instead. */
+:root[data-office-backdrop] [class*="before:to-background"]::before {
+  background: transparent !important;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 65%);
+  mask-image: linear-gradient(to bottom, transparent, black 65%);
+}
+
+:root[data-office-backdrop] [class*="before:to-background"]::after,
+:root[data-office-backdrop] .composer-dock-rail-mask {
+  background: transparent !important;
+}
+
+:root[data-office-backdrop] .composer-overlay-corner-masks::before,
+:root[data-office-backdrop] .composer-overlay-corner-masks::after {
+  display: none;
+}
+
 .office-backdrop-wash {
   background-color: hsl(var(--sidebar-background));
   transition: opacity 500ms ease;

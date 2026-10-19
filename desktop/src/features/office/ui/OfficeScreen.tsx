@@ -7,7 +7,7 @@ import { useOfficeAnchor } from "@/features/office/lib/officeAnchor";
 import {
   emitFloorAgent,
   openFloorTasks,
-  setFloorLocator,
+  setFloorChannel,
 } from "@/features/office/lib/officeFloorEvents";
 import {
   relayToMirror,
@@ -230,8 +230,10 @@ export function OfficeScreen() {
 
   // The Office page asks where an agent stands (to put a chat above them).
   React.useEffect(() => {
-    setFloorLocator((id) => postToOffice({ type: "locate-agent", id }));
-    return () => setFloorLocator(null);
+    setFloorChannel("main", {
+      locate: (id) => postToOffice({ type: "locate-agent", id }),
+    });
+    return () => setFloorChannel("main", null);
   }, [postToOffice]);
 
   // The background mirror asks this frame for the floor's state.

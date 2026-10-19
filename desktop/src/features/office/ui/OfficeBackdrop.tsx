@@ -2,6 +2,12 @@ import * as React from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { useOfficeBackdrop } from "@/features/office/lib/officeBackdrop";
+import { useOfficeStage } from "@/features/office/lib/officeAnchor";
+import {
+  emitFloorAgent,
+  openFloorTasks,
+  setFloorChannel,
+} from "@/features/office/lib/officeFloorEvents";
 import { setMirrorTarget } from "@/features/office/lib/officeMirror";
 import { startOffice } from "@/features/office/ui/OfficeHost";
 import { hostTheme } from "@/features/office/ui/OfficeScreen";
@@ -24,6 +30,7 @@ export function OfficeBackdrop() {
   const { enabled, strength } = useOfficeBackdrop();
   const [conn, setConn] = React.useState<Connection | null>(null);
   const frameRef = React.useRef<HTMLIFrameElement>(null);
+  const clip = useStageClip(useOfficeStage());
 
   // The mirror needs the main Office running (it copies its state).
   React.useEffect(() => {
@@ -73,11 +80,38 @@ export function OfficeBackdrop() {
       if (!frame || event.source !== frame.contentWindow) return;
       if (event.origin !== window.location.origin) return;
       if (event.data?.source !== "buzz-office") return;
-      if (event.data.type === "mirror-ready") {
+      const msg = event.data;
+      if (msg.type === "mirror-ready") {
         sendTheme();
         setMirrorTarget(frame.contentWindow);
+        return;
       }
+      // On the Office page this floor is the Office: clicks on characters,
+      // where they stand, and the task board come from here.
+      if (msg.type === "agent-click" || msg.type === "agent-anchor") {
+        const box = frame.getBoundingClientRect();
+        const at =
+          typeof msg.at?.x === "number" && typeof msg.at?.y === "number"
+            ? { x: box.left + msg.at.x, y: box.top + msg.at.y }
+            : null;
+        emitFloorAgent({
+          kind: msg.type === "agent-click" ? "click" : "anchor",
+          id: String(msg.id),
+          at,
+        });
+        return;
+      }
+      if (msg.type === "navigate" && msg.page === "tasks") openFloorTasks();
     }
+    const post = (message: Record<string, unknown>) =>
+      frameRef.current?.contentWindow?.postMessage(
+        { source: "buzz-office-host", ...message },
+        window.location.origin,
+      );
+    setFloorChannel("mirror", {
+      locate: (id) => post({ type: "locate-agent", id }),
+      track: (id) => post({ type: "track-agent", id }),
+    });
     window.addEventListener("message", onMessage);
     const observer = new MutationObserver(sendTheme);
     observer.observe(document.documentElement, {
@@ -88,6 +122,7 @@ export function OfficeBackdrop() {
       window.removeEventListener("message", onMessage);
       observer.disconnect();
       setMirrorTarget(null);
+      setFloorChannel("mirror", null);
     };
   }, [enabled]);
 
@@ -102,8 +137,13 @@ export function OfficeBackdrop() {
     <>
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+        className={
+          clip
+            ? "fixed inset-0 z-10 overflow-hidden"
+            : "pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+        }
         data-office-backdrop-frame
+        style={clip ? { clipPath: clip } : undefined}
       >
         <iframe
           className="h-full w-full border-0"
@@ -122,4 +162,34 @@ export function OfficeBackdrop() {
       />
     </>
   );
+}
+
+/**
+ * On the Office page the floor is brought in front of the page and takes
+ * clicks, cut to the page's area (the app's title bar and sidebar stay above
+ * it). Nothing moves: it's the same floor, in the same place.
+ */
+function useStageClip(stage: HTMLElement | null): string | null {
+  const [clip, setClip] = React.useState<string | null>(null);
+  React.useLayoutEffect(() => {
+    if (!stage) {
+      setClip(null);
+      return;
+    }
+    const update = () => {
+      const box = stage.getBoundingClientRect();
+      setClip(
+        `inset(${Math.max(0, box.top)}px ${Math.max(0, window.innerWidth - box.right)}px ${Math.max(0, window.innerHeight - box.bottom)}px ${Math.max(0, box.left)}px)`,
+      );
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(stage);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [stage]);
+  return clip;
 }

@@ -49,3 +49,25 @@ export function useOfficeFullWindow(): boolean {
     () => false,
   );
 }
+
+// The Office page when the background floor is the Office: the page's area,
+// over which the background frame takes clicks.
+let stage: HTMLElement | null = null;
+const stageSubscribers = new Set<() => void>();
+
+export function setOfficeStage(element: HTMLElement | null): void {
+  if (element === stage) return;
+  stage = element;
+  for (const notify of stageSubscribers) notify();
+}
+
+export function useOfficeStage(): HTMLElement | null {
+  return React.useSyncExternalStore(
+    (notify) => {
+      stageSubscribers.add(notify);
+      return () => stageSubscribers.delete(notify);
+    },
+    () => stage,
+    () => null,
+  );
+}

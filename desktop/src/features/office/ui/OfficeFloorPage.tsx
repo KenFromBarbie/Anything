@@ -15,12 +15,15 @@ import { accentDotClass } from "@/features/office/lib/agentAccent";
 import {
   setOfficeAnchor,
   setOfficeFullWindow,
+  setOfficeStage,
 } from "@/features/office/lib/officeAnchor";
+import { useOfficeBackdrop } from "@/features/office/lib/officeBackdrop";
 import {
   type FloorPoint,
   onFloorAgent,
-  requestAgentAnchor,
+  setFloorSource,
   setFloorTasksHandler,
+  trackAgent,
 } from "@/features/office/lib/officeFloorEvents";
 import {
   type OfficeAgent,
@@ -59,7 +62,11 @@ const TASK_WIDTH = 320;
 export function OfficeFloorPage() {
   useShowOfficePart("office");
   useFoldedSidebar();
-  useOfficeFocus();
+  // With the floor as the app's background, that floor is the Office here
+  // (nothing new appears); otherwise the live Office frame is laid over the
+  // page.
+  const { enabled: floorIsBackground } = useOfficeBackdrop();
+  useOfficeFocus(floorIsBackground);
   const { agents } = useOfficeAgents();
   const [chat, setChat] = React.useState<{
     id: string;
@@ -69,29 +76,17 @@ export function OfficeFloorPage() {
   const [taskId, setTaskId] = React.useState<string | null>(null);
 
   // A character clicked on the floor opens their chat above their head; the
-  // floor's answers about where they stand keep it there as they move.
+  // floor then reports where they stand every frame they move, and the chat
+  // follows (see ChatBubble).
   React.useEffect(
     () =>
       onFloorAgent((event) => {
-        if (event.kind === "click") {
-          setChat({ id: event.id, at: event.at });
-          return;
-        }
-        setChat((current) =>
-          current && current.id === event.id && event.at
-            ? { id: current.id, at: event.at }
-            : current,
-        );
+        if (event.kind === "click") setChat({ id: event.id, at: event.at });
       }),
     [],
   );
   const chatId = chat?.id ?? null;
-  React.useEffect(() => {
-    if (!chatId) return;
-    requestAgentAnchor(chatId);
-    const timer = setInterval(() => requestAgentAnchor(chatId), 700);
-    return () => clearInterval(timer);
-  }, [chatId]);
+  React.useEffect(() => trackAgent(chatId), [chatId]);
 
   // The floor's task board opens the tasks window here, not the Tasks page.
   React.useEffect(() => {
@@ -120,7 +115,7 @@ export function OfficeFloorPage() {
       <div
         className="absolute inset-0"
         data-testid="office-embed"
-        ref={setOfficeAnchor}
+        ref={floorIsBackground ? setOfficeStage : setOfficeAnchor}
       />
       {createPortal(
         <>
@@ -148,7 +143,6 @@ export function OfficeFloorPage() {
                 return;
               }
               setChat({ id, at: null });
-              requestAgentAnchor(id);
             }}
           />
           {chatAgent ? (
@@ -197,19 +191,21 @@ function useFoldedSidebar() {
   }, []);
 }
 
-/** The floor across the whole window, with the wash lifted off the
- *  background floor; both go back on leaving. */
-function useOfficeFocus() {
+/** The wash lifted off the background floor, and the floor this page uses;
+ *  both go back on leaving. */
+function useOfficeFocus(floorIsBackground: boolean) {
   React.useEffect(() => {
     const root = document.documentElement;
     root.setAttribute("data-office-focus", "");
     root.removeAttribute("data-office-entering");
-    setOfficeFullWindow(true);
+    setFloorSource(floorIsBackground ? "mirror" : "main");
+    setOfficeFullWindow(!floorIsBackground);
     return () => {
       root.removeAttribute("data-office-focus");
+      setFloorSource("main");
       setOfficeFullWindow(false);
     };
-  }, []);
+  }, [floorIsBackground]);
 }
 
 /** A small window with a header, floating over the floor. */
@@ -264,25 +260,65 @@ function ChatBubble({
   at: FloorPoint | null;
   onClose: () => void;
 }) {
-  const width = Math.min(CHAT_WIDTH, window.innerWidth - 2 * GAP);
-  const center = at?.x ?? window.innerWidth / 2;
-  const left = Math.min(
-    Math.max(GAP, center - width / 2),
-    window.innerWidth - width - GAP,
+  const wrapRef = React.useRef<HTMLDivElement>(null);
+  const caretRef = React.useRef<HTMLSpanElement>(null);
+  // Above the head or below it, kept while the agent moves about (it only
+  // flips near the top of the window, with some room either way).
+  const aboveRef = React.useRef<boolean | null>(null);
+
+  // Placed straight on the element, every frame the agent moves, so it keeps
+  // up with them without re-rendering the chat.
+  const place = React.useCallback((point: FloorPoint | null) => {
+    const wrap = wrapRef.current;
+    const caret = caretRef.current;
+    if (!wrap) return;
+    const width = Math.min(CHAT_WIDTH, window.innerWidth - 2 * GAP);
+    const center = point?.x ?? window.innerWidth / 2;
+    const left = Math.min(
+      Math.max(GAP, center - width / 2),
+      window.innerWidth - width - GAP,
+    );
+    let above = aboveRef.current;
+    if (!point) above = true;
+    else if (above === null) above = point.y > 320;
+    else if (above && point.y < 290) above = false;
+    else if (!above && point.y > 360) above = true;
+    aboveRef.current = above;
+    wrap.style.width = `${width}px`;
+    wrap.style.left = `${left}px`;
+    if (!point) {
+      wrap.style.top = "";
+      wrap.style.bottom = "72px";
+    } else if (above) {
+      wrap.style.top = "";
+      wrap.style.bottom = `${window.innerHeight - point.y + GAP}px`;
+    } else {
+      wrap.style.bottom = "";
+      wrap.style.top = `${point.y + 72}px`;
+    }
+    if (caret) {
+      caret.style.display = point ? "" : "none";
+      caret.style.left = `${Math.min(Math.max(16, center - left), width - 16) - 6}px`;
+      caret.dataset.side = above ? "above" : "below";
+    }
+  }, []);
+
+  React.useLayoutEffect(() => place(at), [at, place]);
+  React.useEffect(
+    () =>
+      onFloorAgent((event) => {
+        if (event.kind === "anchor" && event.id === agent.id && event.at) {
+          place(event.at);
+        }
+      }),
+    [agent.id, place],
   );
-  // Above the head when there's room; otherwise just below it.
-  const above = !at || at.y > 320;
-  const style: React.CSSProperties = at
-    ? above
-      ? { left, width, bottom: window.innerHeight - at.y + GAP }
-      : { left, width, top: at.y + 72 }
-    : { left, width, bottom: 72 };
-  const caret = Math.min(Math.max(16, center - left), width - 16);
+
   return (
     <div
       className="pointer-events-none fixed z-40"
       data-testid="office-chat-bubble"
-      style={style}
+      ref={wrapRef}
     >
       <div className="pointer-events-auto relative">
         <FloatingWindow
@@ -306,18 +342,11 @@ function ChatBubble({
         >
           <AgentChat agent={agent} compact key={agent.id} />
         </FloatingWindow>
-        {at ? (
-          <span
-            aria-hidden
-            className={cn(
-              "absolute h-3 w-3 rotate-45 border-border/70 bg-background/95",
-              above
-                ? "-bottom-1.5 border-b border-r"
-                : "-top-1.5 border-l border-t",
-            )}
-            style={{ left: caret - 6 }}
-          />
-        ) : null}
+        <span
+          aria-hidden
+          className="absolute h-3 w-3 rotate-45 border-border/70 bg-background/95 data-[side=above]:-bottom-1.5 data-[side=above]:border-b data-[side=above]:border-r data-[side=below]:-top-1.5 data-[side=below]:border-l data-[side=below]:border-t"
+          ref={caretRef}
+        />
       </div>
     </div>
   );
