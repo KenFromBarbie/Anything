@@ -30,10 +30,14 @@ export class Camera {
   /** Fill the view, cropping the map's edges, instead of showing all of it
    *  with bars at the sides (the floor inside Anything). */
   private readonly cover: boolean;
+  /** In cover mode, how much of the map's edge (its empty outer ring) is
+   *  kept off screen, in map pixels. */
+  private readonly edge: number;
 
-  constructor(container: Container, options: { cover?: boolean } = {}) {
+  constructor(container: Container, options: { cover?: boolean; edge?: number } = {}) {
     this.container = container;
     this.cover = options.cover ?? false;
+    this.edge = this.cover ? (options.edge ?? 0) : 0;
   }
 
   setMapSize(width: number, height: number): void {
@@ -50,7 +54,9 @@ export class Camera {
   private getMinZoom(): number {
     if (this.viewWidth === 0 || this.viewHeight === 0) return 1;
     const fit = this.cover ? Math.max : Math.min;
-    return fit(this.viewWidth / this.mapWidth, this.viewHeight / this.mapHeight);
+    const width = Math.max(1, this.mapWidth - 2 * this.edge);
+    const height = Math.max(1, this.mapHeight - 2 * this.edge);
+    return fit(this.viewWidth / width, this.viewHeight / height);
   }
 
   /** Fit the map to the viewport (all of it, or filling it), centered. */
@@ -100,17 +106,19 @@ export class Camera {
     this.container.x = this.viewWidth / 2 - this.currentX * this.currentZoom;
     this.container.y = this.viewHeight / 2 - this.currentY * this.currentZoom;
 
-    const scaledW = this.mapWidth * this.currentZoom;
-    const scaledH = this.mapHeight * this.currentZoom;
+    // Keep the map (less its hidden edge, in cover mode) over the view.
+    const edge = this.edge * this.currentZoom;
+    const scaledW = (this.mapWidth - 2 * this.edge) * this.currentZoom;
+    const scaledH = (this.mapHeight - 2 * this.edge) * this.currentZoom;
     if (scaledW <= this.viewWidth) {
-      this.container.x = (this.viewWidth - scaledW) / 2;
+      this.container.x = (this.viewWidth - scaledW) / 2 - edge;
     } else {
-      this.container.x = Math.min(0, Math.max(this.viewWidth - scaledW, this.container.x));
+      this.container.x = Math.min(-edge, Math.max(this.viewWidth - scaledW - edge, this.container.x));
     }
     if (scaledH <= this.viewHeight) {
-      this.container.y = (this.viewHeight - scaledH) / 2;
+      this.container.y = (this.viewHeight - scaledH) / 2 - edge;
     } else {
-      this.container.y = Math.min(0, Math.max(this.viewHeight - scaledH, this.container.y));
+      this.container.y = Math.min(-edge, Math.max(this.viewHeight - scaledH - edge, this.container.y));
     }
   }
 }

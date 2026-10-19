@@ -272,6 +272,22 @@ if (mirrorRole) {
       post({ type: 'agent-anchor', id: m.id, at: locateAgent(m.id) });
     }
     if (m.type === 'track-agent') trackAgent(typeof m.id === 'string' ? m.id : null);
+    // Clicks on the app's Office page, passed in (this frame stays behind the
+    // app, drawn whole; a see-through layer over the page forwards them).
+    if (m.type === 'pointer' && typeof m.event === 'string' && typeof m.x === 'number' && typeof m.y === 'number') {
+      const canvas = document.querySelector('canvas');
+      canvas?.dispatchEvent(new PointerEvent(m.event, {
+        clientX: m.x,
+        clientY: m.y,
+        button: typeof m.button === 'number' ? m.button : 0,
+        buttons: typeof m.buttons === 'number' ? m.buttons : 0,
+        pointerId: 1,
+        pointerType: 'mouse',
+        isPrimary: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+    }
   });
   // On the app's Office page this floor is the Office itself (the app lets
   // clicks through to it): a clicked character opens a chat above its head,

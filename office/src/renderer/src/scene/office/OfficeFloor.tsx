@@ -294,7 +294,9 @@ export function OfficeFloor() {
         (n, c) => n + ((c as Container).children?.length ?? 0), 0);
       console.log(`[OfficeFloor] map ${mapRenderer.width}x${mapRenderer.height}, ${tileCount} tile sprites rendered`);
 
-      const camera = new Camera(world, { cover: hostedInBuzz });
+      // Inside the app the floor fills the window, its empty outer ring of tiles
+      // kept off screen.
+      const camera = new Camera(world, { cover: hostedInBuzz, edge: mapRenderer.tileSize });
       setAgentLocator((id) => {
         const rt = runtimes.get(id);
         if (!rt) return null;

@@ -30,7 +30,7 @@ export function OfficeBackdrop() {
   const { enabled, strength } = useOfficeBackdrop();
   const [conn, setConn] = React.useState<Connection | null>(null);
   const frameRef = React.useRef<HTMLIFrameElement>(null);
-  const clip = useStageClip(useOfficeStage());
+  const stage = useStageRect(useOfficeStage());
 
   // The mirror needs the main Office running (it copies its state).
   React.useEffect(() => {
@@ -137,13 +137,8 @@ export function OfficeBackdrop() {
     <>
       <div
         aria-hidden
-        className={
-          clip
-            ? "fixed inset-0 z-10 overflow-hidden"
-            : "pointer-events-none fixed inset-0 -z-10 overflow-hidden"
-        }
+        className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
         data-office-backdrop-frame
-        style={clip ? { clipPath: clip } : undefined}
       >
         <iframe
           className="h-full w-full border-0"
@@ -153,6 +148,7 @@ export function OfficeBackdrop() {
           title="Office background"
         />
       </div>
+      {stage ? <FloorClickLayer frame={frameRef} rect={stage} /> : null}
       {/* The app's own background, faded by the chosen strength, over the
           floor: the whole window shows the floor evenly. */}
       <div
@@ -164,23 +160,61 @@ export function OfficeBackdrop() {
   );
 }
 
+type StageRect = { left: number; top: number; width: number; height: number };
+
 /**
- * On the Office page the floor is brought in front of the page and takes
- * clicks, cut to the page's area (the app's title bar and sidebar stay above
- * it). Nothing moves: it's the same floor, in the same place.
+ * On the Office page the floor takes clicks: a see-through layer over the
+ * page's area passes them into the floor (the floor itself stays where it is,
+ * drawn whole behind the app, so nothing moves or reappears).
  */
-function useStageClip(stage: HTMLElement | null): string | null {
-  const [clip, setClip] = React.useState<string | null>(null);
+function FloorClickLayer({
+  frame,
+  rect,
+}: {
+  frame: React.RefObject<HTMLIFrameElement | null>;
+  rect: StageRect;
+}) {
+  const send = (event: React.PointerEvent, type: string) => {
+    frame.current?.contentWindow?.postMessage(
+      {
+        source: "buzz-office-host",
+        type: "pointer",
+        event: type,
+        x: event.clientX,
+        y: event.clientY,
+        button: event.button,
+        buttons: event.buttons,
+      },
+      window.location.origin,
+    );
+  };
+  return (
+    <div
+      className="fixed z-10"
+      data-testid="office-floor-clicks"
+      onPointerDown={(event) => send(event, "pointerdown")}
+      onPointerMove={(event) => send(event, "pointermove")}
+      onPointerUp={(event) => send(event, "pointerup")}
+      style={rect}
+    />
+  );
+}
+
+function useStageRect(stage: HTMLElement | null): StageRect | null {
+  const [rect, setRect] = React.useState<StageRect | null>(null);
   React.useLayoutEffect(() => {
     if (!stage) {
-      setClip(null);
+      setRect(null);
       return;
     }
     const update = () => {
       const box = stage.getBoundingClientRect();
-      setClip(
-        `inset(${Math.max(0, box.top)}px ${Math.max(0, window.innerWidth - box.right)}px ${Math.max(0, window.innerHeight - box.bottom)}px ${Math.max(0, box.left)}px)`,
-      );
+      setRect({
+        left: box.left,
+        top: box.top,
+        width: box.width,
+        height: box.height,
+      });
     };
     update();
     const observer = new ResizeObserver(update);
@@ -191,5 +225,5 @@ function useStageClip(stage: HTMLElement | null): string | null {
       window.removeEventListener("resize", update);
     };
   }, [stage]);
-  return clip;
+  return rect;
 }

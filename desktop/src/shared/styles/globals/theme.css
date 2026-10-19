@@ -357,6 +357,11 @@
   transform: scale(0.97);
 }
 
+/* On the Office page the floor is the page: no panel edge over it. */
+:root[data-office-focus] [data-buzz-content-surface] {
+  box-shadow: none !important;
+}
+
 :root[data-office-entering] .office-backdrop-wash,
 :root[data-office-focus] .office-backdrop-wash {
   opacity: 0 !important;
