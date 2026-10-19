@@ -45,7 +45,33 @@ const PROGRESS_EVENT: &str = "studio-install-progress";
 #[derive(Default)]
 pub struct StudioRuntime {
     startup: Mutex<Option<Startup>>,
+    /// The app's current look (JSON from `studio_theme`), for the Studio view.
+    theme: Mutex<Option<String>>,
 }
+
+/// Runs first in the Studio view: lays the app's colours and font over
+/// ArtCraft's own (its shadcn and `--st-*` variables), now and whenever the
+/// app's theme changes (`studio_theme`).
+const THEME_SCRIPT: &str = r#"(function () {
+  function apply(theme) {
+    if (!theme || !theme.vars) return;
+    window.__HARNESS_THEME__ = theme;
+    var css = ":root, :root.theme-light, .theme-light, .theme-dark {";
+    for (var name in theme.vars) {
+      if (/^--[a-z0-9-]+$/.test(name)) css += name + ": " + String(theme.vars[name]).replace(/[;{}<]/g, "") + " !important;";
+    }
+    css += "} html, body { color-scheme: " + (theme.dark ? "dark" : "light") + "; }";
+    if (theme.font) css += " body { font-family: " + String(theme.font).replace(/[;{}<]/g, "") + "; }";
+    var el = document.getElementById("harness-theme") || document.createElement("style");
+    el.id = "harness-theme";
+    el.textContent = css;
+    (document.head || document.documentElement).appendChild(el);
+  }
+  window.__applyHarnessTheme = apply;
+  var boot = function () { apply(window.__HARNESS_THEME__); };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();"#;
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -118,6 +144,18 @@ fn studio_root(app: &AppHandle) -> Result<PathBuf, String> {
         .join("studio");
     std::fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
     Ok(dir)
+}
+
+/// Where releases are downloaded from. Development builds can point it at a
+/// local copy (`BUZZ_STUDIO_RELEASES_URL`, the part before `/v<version>`) to
+/// test installing without publishing a release.
+fn releases_url() -> String {
+    if cfg!(debug_assertions) {
+        if let Ok(url) = std::env::var("BUZZ_STUDIO_RELEASES_URL") {
+            return url.trim_end_matches('/').to_string();
+        }
+    }
+    RELEASES_URL.to_string()
 }
 
 fn dev_dir() -> Option<PathBuf> {
@@ -357,7 +395,20 @@ fn unpack(zip_bytes: &[u8], dest: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Close the Studio view so it reopens with new files or tools.
+/// Reload an open Studio view with new files or tools. (Closing it to open a
+/// new one leaves its label taken for seconds, so the page couldn't reopen it.)
+/// The tools go through the view's session storage, which its startup script
+/// reads before the ones it was opened with.
+fn reload_view(app: &AppHandle, tools: &[String]) {
+    if let Some(webview) = app.get_webview(EMBEDDED_WEBVIEW_LABEL) {
+        let json = serde_json::to_string(tools).unwrap_or_else(|_| "null".into());
+        let _ = webview.eval(format!(
+            "try {{ sessionStorage.setItem('harness-tools', JSON.stringify({json})); }} catch (e) {{}} location.reload();"
+        ));
+    }
+}
+
+/// Close the Studio view (when its files are removed).
 fn close_view(app: &AppHandle) {
     if let Some(webview) = app.get_webview(EMBEDDED_WEBVIEW_LABEL) {
         let _ = webview.close();
@@ -371,7 +422,7 @@ pub async fn studio_install(app: AppHandle, tools: Vec<String>) -> Result<Studio
     let tools = clean_tools(tools)?;
     let version = app.package_info().version.to_string();
     let name = format!("studio-app-{version}.zip");
-    let base = format!("{RELEASES_URL}/v{version}");
+    let base = format!("{}/v{version}", releases_url());
 
     let _ = app.emit(
         PROGRESS_EVENT,
@@ -414,12 +465,12 @@ pub async fn studio_install(app: AppHandle, tools: Vec<String>) -> Result<Studio
     if !staging.join("studio-app").join("index.html").is_file() {
         return Err("The download doesn't contain the Studio.".into());
     }
-    close_view(&app);
     let current = root.join("app");
     if current.exists() {
         crate::ai_accounts::move_to_trash(&current)?;
     }
     std::fs::rename(&staging, &current).map_err(|e| format!("install: {e}"))?;
+    reload_view(&app, &tools);
     save_settings(
         &app,
         &StudioSettings {
@@ -446,7 +497,7 @@ pub fn studio_set_tools(app: AppHandle, tools: Vec<String>) -> Result<StudioStat
     let mut settings = load_settings(&app);
     settings.tools = tools;
     save_settings(&app, &settings)?;
-    close_view(&app);
+    reload_view(&app, &settings.tools);
     Ok(studio_status(app))
 }
 
@@ -466,6 +517,22 @@ pub fn studio_uninstall(app: AppHandle) -> Result<StudioStatus, String> {
     settings.version = None;
     save_settings(&app, &settings)?;
     Ok(studio_status(app))
+}
+
+/// The app's look for the Studio view (colours as CSS variables, the font,
+/// light or dark); applied now if it's open, and when it next opens.
+#[tauri::command]
+pub fn studio_theme(app: AppHandle, theme: serde_json::Value) -> Result<(), String> {
+    let json = serde_json::to_string(&theme).map_err(|e| e.to_string())?;
+    if let Ok(mut held) = app.state::<StudioRuntime>().theme.lock() {
+        *held = Some(json.clone());
+    }
+    if let Some(webview) = app.get_webview(EMBEDDED_WEBVIEW_LABEL) {
+        let _ = webview.eval(format!(
+            "window.__applyHarnessTheme && window.__applyHarnessTheme({json});"
+        ));
+    }
+    Ok(())
 }
 
 /// Show ArtCraft's view over the Studio page's content area (logical pixels,
@@ -489,17 +556,41 @@ pub async fn studio_place(
                 return Err("The Studio isn't installed.".into());
             }
             let tools = studio_status(app.clone()).tools;
+            let theme = app
+                .state::<StudioRuntime>()
+                .theme
+                .lock()
+                .ok()
+                .and_then(|t| t.clone())
+                .unwrap_or_else(|| "null".into());
             let script = format!(
-                "window.__ARTCRAFT_TOOLS__ = {};",
+                "window.__ARTCRAFT_TOOLS__ = (function () {{ try {{ var t = JSON.parse(sessionStorage.getItem('harness-tools') || 'null'); if (Array.isArray(t)) return t; }} catch (e) {{}} return {}; }})();
+window.__HARNESS_THEME__ = {theme};
+{THEME_SCRIPT}",
                 serde_json::to_string(&tools).map_err(|e| e.to_string())?
             );
             let window = app.get_window("main").ok_or("main window not found")?;
-            let builder = embedded_webview_builder(WebviewUrl::CustomProtocol(studio_url()?))
-                .initialization_script(&script);
-            return window
-                .add_child(builder, position, size)
-                .map(|_| ())
-                .map_err(|e| format!("could not open the Studio: {e}"));
+            // Two placements at once (the page asks on open and on its first
+            // resize) both find no view; the second then waits for the
+            // first's view to register and moves that one. A view closed a
+            // moment ago can also still hold the label briefly.
+            let mut attempt = 0;
+            let webview = loop {
+                let builder = embedded_webview_builder(WebviewUrl::CustomProtocol(studio_url()?))
+                    .initialization_script(&script);
+                match window.add_child(builder, position, size) {
+                    Ok(_) => return Ok(()),
+                    Err(e) if attempt < 30 && e.to_string().contains("already exists") => {
+                        attempt += 1;
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        if let Some(webview) = app.get_webview(EMBEDDED_WEBVIEW_LABEL) {
+                            break webview;
+                        }
+                    }
+                    Err(e) => return Err(format!("could not open the Studio: {e}")),
+                }
+            };
+            webview
         }
     };
     if visible {

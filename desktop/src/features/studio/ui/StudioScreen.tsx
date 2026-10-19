@@ -8,6 +8,7 @@ import {
   useStudioProgress,
   useStudioStatus,
 } from "@/features/studio/lib/studioInstall";
+import { useStudioTheme } from "@/features/studio/lib/studioTheme";
 import { Button } from "@/shared/ui/button";
 import { PageHeader } from "@/shared/ui/PageHeader";
 
@@ -143,6 +144,7 @@ export function StudioInstallCard({
  * ArtCraft keeps its state.
  */
 function StudioView() {
+  useStudioTheme();
   const areaRef = React.useRef<HTMLDivElement>(null);
   const [error, setError] = React.useState<string | null>(null);
 

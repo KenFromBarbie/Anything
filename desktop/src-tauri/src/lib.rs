@@ -545,6 +545,7 @@ pub fn run() {
         })
         .invoke_handler(studio::with_artcraft_commands(tauri::generate_handler![
             studio::studio_place,
+            studio::studio_theme,
             studio::studio_status,
             studio::studio_install,
             studio::studio_set_tools,
