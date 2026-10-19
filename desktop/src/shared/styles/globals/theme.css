@@ -310,7 +310,8 @@
  * Appearance): while it's behind the main content panel, the panel lets it
  * show through. Unlayered, so it wins over the panel's bg-background utility.
  */
-:root[data-office-backdrop] [data-buzz-content-surface]:not([data-buzz-content-unframed]) {
+:root[data-office-backdrop]
+  [data-buzz-content-surface]:not([data-buzz-content-unframed]) {
   /* As see-through as the sidebar: the wash under it is the only tint. */
   background-color: transparent;
 }
@@ -319,6 +320,32 @@
  * gradient, or the flat sidebar colour in other themes), faded in OfficeBackdrop. */
 .office-backdrop-wash {
   background-color: hsl(var(--sidebar-background));
+  transition: opacity 500ms ease;
+}
+
+/* Going to the Office page: the page recedes and fades out while the wash
+ * lifts off the background floor, which then comes forward as the Office. */
+[data-buzz-content-surface] {
+  transition:
+    opacity 280ms ease,
+    transform 280ms ease;
+}
+
+:root[data-office-entering] [data-buzz-content-surface] {
+  opacity: 0;
+  transform: scale(0.97);
+}
+
+:root[data-office-entering] .office-backdrop-wash,
+:root[data-office-focus] .office-backdrop-wash {
+  opacity: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .office-backdrop-wash,
+  [data-buzz-content-surface] {
+    transition: none;
+  }
 }
 
 :root[data-buzz-sidebar] .office-backdrop-wash {

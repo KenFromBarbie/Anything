@@ -6,6 +6,8 @@ import 'pixi.js/unsafe-eval';
 import { useStore, type Agent } from '@/store/store';
 import { TiledMapRenderer } from './TiledMapRenderer';
 import { Camera } from './Camera';
+import { hostedInBuzz } from '@/host/buzzHost';
+import { emitAgentClick, setAgentLocator } from './agentLocator';
 import { Character, paintCup } from './Character';
 import { DeskScreen } from './DeskScreen';
 import { MessageEnvelope, type MessageAct } from './MessageEnvelope';
@@ -292,7 +294,19 @@ export function OfficeFloor() {
         (n, c) => n + ((c as Container).children?.length ?? 0), 0);
       console.log(`[OfficeFloor] map ${mapRenderer.width}x${mapRenderer.height}, ${tileCount} tile sprites rendered`);
 
-      const camera = new Camera(world);
+      const camera = new Camera(world, { cover: hostedInBuzz });
+      setAgentLocator((id) => {
+        const rt = runtimes.get(id);
+        if (!rt) return null;
+        const bounds = rt.character.sprite.container.getBounds();
+        const rect = app.canvas.getBoundingClientRect();
+        const sx = rect.width / app.screen.width;
+        const sy = rect.height / app.screen.height;
+        return {
+          x: rect.left + (bounds.x + bounds.width / 2) * sx,
+          y: rect.top + bounds.y * sy,
+        };
+      });
       camera.setMapSize(mapRenderer.width * mapRenderer.tileSize, mapRenderer.height * mapRenderer.tileSize);
       camera.setViewSize(app.screen.width, app.screen.height);
       camera.fitToScreen();
@@ -1400,7 +1414,10 @@ export function OfficeFloor() {
           seatDirection: facingForSeat(seatTile),
           spawnTile: entrance, // walk in from the office door
           glowColor: hexNum(colors.accent[agent.accent]) ?? hexToNumber(member.shirt),
-          onClick: (id) => useStore.getState().select(id),
+          onClick: (id) => {
+            useStore.getState().select(id);
+            emitAgentClick(id);
+          },
         });
         character.show(charLayer);
         const rt: Runtime = { character, seatIndex, waitTile, charName };
@@ -1755,6 +1772,7 @@ export function OfficeFloor() {
 
     return () => {
       mountIdRef.current++;
+      setAgentLocator(null);
       const a = appRef.current;
       if (a) {
         (a as any).__glRecovery?.();

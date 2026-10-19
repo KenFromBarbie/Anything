@@ -77,7 +77,14 @@ function time(seconds: number): string {
  * messages with you, inline. Replies come back here as the agent answers.
  * Before an agent has its Buzz identity, messages go into its terminal queue.
  */
-export function AgentChat({ agent }: { agent: OfficeAgent }) {
+export function AgentChat({
+  agent,
+  compact = false,
+}: {
+  agent: OfficeAgent;
+  /** Sized for the small window above a character on the Office page. */
+  compact?: boolean;
+}) {
   const { data: pubkey, isLoading } = useAgentPubkey(agent);
   const { data: identity } = useIdentityQuery();
   const dm = useAgentDm(pubkey ?? null, identity?.pubkey);
@@ -102,13 +109,28 @@ export function AgentChat({ agent }: { agent: OfficeAgent }) {
     );
   }
   if (!dm.channel) {
-    return <NewDmChat agent={agent} pubkey={pubkey} />;
+    return <NewDmChat agent={agent} compact={compact} pubkey={pubkey} />;
   }
-  return <DmChat agent={agent} channel={dm.channel} pubkey={pubkey} />;
+  return (
+    <DmChat
+      agent={agent}
+      channel={dm.channel}
+      compact={compact}
+      pubkey={pubkey}
+    />
+  );
 }
 
 /** No conversation yet: the first message opens the direct-message channel. */
-function NewDmChat({ agent, pubkey }: { agent: OfficeAgent; pubkey: string }) {
+function NewDmChat({
+  agent,
+  compact,
+  pubkey,
+}: {
+  agent: OfficeAgent;
+  compact: boolean;
+  pubkey: string;
+}) {
   const openDmMutation = useOpenDmMutation();
   const [text, setText] = React.useState("");
   const [sending, setSending] = React.useState(false);
@@ -130,7 +152,12 @@ function NewDmChat({ agent, pubkey }: { agent: OfficeAgent; pubkey: string }) {
 
   return (
     <div className="grid gap-2" data-testid="agent-chat">
-      <div className="flex min-h-40 items-center justify-center rounded-xl border border-border/70 bg-muted/20 p-3">
+      <div
+        className={cn(
+          "flex items-center justify-center rounded-xl border border-border/70 bg-muted/20 p-3",
+          compact ? "min-h-20" : "min-h-40",
+        )}
+      >
         <p className="text-sm text-muted-foreground">
           No messages with {agent.name} yet. Say hello, or give them something
           to do.
@@ -191,10 +218,12 @@ function Composer({
 function DmChat({
   agent,
   channel,
+  compact,
   pubkey,
 }: {
   agent: OfficeAgent;
   channel: Channel;
+  compact: boolean;
   pubkey: string;
 }) {
   useChannelSubscription(channel);
@@ -235,7 +264,10 @@ function DmChat({
   return (
     <div className="grid gap-2" data-testid="agent-chat">
       <div
-        className="flex max-h-80 min-h-40 flex-col gap-2 overflow-y-auto rounded-xl border border-border/70 bg-muted/20 p-3"
+        className={cn(
+          "flex flex-col gap-2 overflow-y-auto rounded-xl border border-border/70 bg-muted/20 p-3",
+          compact ? "max-h-56 min-h-24" : "max-h-80 min-h-40",
+        )}
         ref={scroller}
       >
         {isLoading ? (
@@ -286,7 +318,9 @@ function DmChat({
         text={text}
       />
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Enter to send, Shift+Enter for a new line.</span>
+        <span>
+          {compact ? "" : "Enter to send, Shift+Enter for a new line."}
+        </span>
         <button
           className="inline-flex items-center gap-1 hover:text-foreground"
           onClick={() => {

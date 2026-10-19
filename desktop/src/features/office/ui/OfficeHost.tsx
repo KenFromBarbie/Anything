@@ -1,6 +1,9 @@
 import * as React from "react";
 
-import { useOfficeAnchor } from "@/features/office/lib/officeAnchor";
+import {
+  useOfficeAnchor,
+  useOfficeFullWindow,
+} from "@/features/office/lib/officeAnchor";
 import { ViewLoadingFallback } from "@/shared/ui/ViewLoadingFallback";
 
 const OfficeScreen = React.lazy(async () => {
@@ -57,7 +60,20 @@ function scrollParent(element: HTMLElement): HTMLElement | null {
  */
 export function OfficeHost({ active }: { active: boolean }) {
   const anchor = useOfficeAnchor();
+  const fullWindow = useOfficeFullWindow();
   const live = active && anchor !== null;
+  // On the Office page the frame fades in over the background floor it lines
+  // up with, so the background seems to come forward.
+  const [shown, setShown] = React.useState(!fullWindow);
+  React.useEffect(() => {
+    if (!fullWindow) {
+      setShown(true);
+      return;
+    }
+    setShown(false);
+    const timer = setTimeout(() => setShown(true), 260);
+    return () => clearTimeout(timer);
+  }, [fullWindow]);
   const [opened, setOpened] = React.useState(live || openedThisSession);
   const [placement, setPlacement] = React.useState<Placement | null>(null);
 
@@ -86,6 +102,17 @@ export function OfficeHost({ active }: { active: boolean }) {
     const scroller = scrollParent(anchor);
     const update = () => {
       const a = anchor.getBoundingClientRect();
+      if (fullWindow) {
+        setPlacement({
+          left: 0,
+          top: 0,
+          width: window.innerWidth,
+          height: window.innerHeight,
+          clip: `inset(${Math.max(0, a.top)}px 0 0 ${Math.max(0, a.left)}px)`,
+          radius: "0",
+        });
+        return;
+      }
       const view = scroller?.getBoundingClientRect() ?? {
         top: 0,
         left: 0,
@@ -122,7 +149,7 @@ export function OfficeHost({ active }: { active: boolean }) {
       window.removeEventListener("scroll", update, true);
       window.removeEventListener("resize", update);
     };
-  }, [active, anchor]);
+  }, [active, anchor, fullWindow]);
 
   if (!opened) return null;
   return (
@@ -130,7 +157,7 @@ export function OfficeHost({ active }: { active: boolean }) {
       aria-hidden={!placement}
       className={
         placement
-          ? "fixed z-10 overflow-hidden"
+          ? `fixed z-10 overflow-hidden transition-opacity duration-500 ease-out ${shown ? "opacity-100" : "opacity-0"}`
           : "pointer-events-none invisible fixed -left-[10000px] top-0 h-[800px] w-[1280px]"
       }
       data-testid="office-host"

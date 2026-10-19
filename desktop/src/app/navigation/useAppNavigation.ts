@@ -13,6 +13,7 @@ import {
   type GuardedNavigation,
   traverseHistory,
 } from "@/app/navigation/navigationGuard";
+import { pullOfficeForward } from "@/features/office/lib/officeBackdrop";
 import type { SearchHit } from "@/shared/api/types";
 
 type NavigationBehavior = {
@@ -116,14 +117,16 @@ export function useAppNavigation() {
   );
 
   const goOffice = React.useCallback(
-    (behavior?: NavigationBehavior) =>
-      commitNavigation(
+    async (behavior?: NavigationBehavior) => {
+      if (location.pathname !== "/office") await pullOfficeForward();
+      return commitNavigation(
         {
           to: "/office",
         },
         behavior,
-      ),
-    [commitNavigation],
+      );
+    },
+    [commitNavigation, location.pathname],
   );
 
   const goResearch = React.useCallback(

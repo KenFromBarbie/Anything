@@ -27,8 +27,13 @@ export class Camera {
   private nudgeDuration = 0;
   private readonly nudgeStrength = 0.4;
 
-  constructor(container: Container) {
+  /** Fill the view, cropping the map's edges, instead of showing all of it
+   *  with bars at the sides (the floor inside Kenn's Harness). */
+  private readonly cover: boolean;
+
+  constructor(container: Container, options: { cover?: boolean } = {}) {
     this.container = container;
+    this.cover = options.cover ?? false;
   }
 
   setMapSize(width: number, height: number): void {
@@ -44,10 +49,11 @@ export class Camera {
 
   private getMinZoom(): number {
     if (this.viewWidth === 0 || this.viewHeight === 0) return 1;
-    return Math.min(this.viewWidth / this.mapWidth, this.viewHeight / this.mapHeight);
+    const fit = this.cover ? Math.max : Math.min;
+    return fit(this.viewWidth / this.mapWidth, this.viewHeight / this.mapHeight);
   }
 
-  /** Fit the whole map to the viewport, centered. */
+  /** Fit the map to the viewport (all of it, or filling it), centered. */
   fitToScreen(): void {
     this.manualOverride = false;
     this.targetX = this.mapWidth / 2;

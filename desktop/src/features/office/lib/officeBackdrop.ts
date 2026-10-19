@@ -72,3 +72,21 @@ function subscribe(notify: () => void): () => void {
 export function useOfficeBackdrop(): OfficeBackdrop {
   return React.useSyncExternalStore(subscribe, getOfficeBackdrop);
 }
+
+/** Before going to the Office page: fade the page out while the background
+ *  floor comes forward (the Office page takes over from here, see
+ *  OfficeFloorPage). */
+export function pullOfficeForward(): Promise<void> {
+  const root = document.documentElement;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    return Promise.resolve();
+  }
+  root.setAttribute("data-office-entering", "");
+  // If the navigation doesn't happen after all, put the page back.
+  setTimeout(() => {
+    if (!root.hasAttribute("data-office-focus")) {
+      root.removeAttribute("data-office-entering");
+    }
+  }, 1500);
+  return new Promise((resolve) => setTimeout(resolve, 280));
+}

@@ -7,9 +7,6 @@ import { startOffice } from "@/features/office/ui/OfficeHost";
 import { hostTheme } from "@/features/office/ui/OfficeScreen";
 
 const OFFICE_APP_URL = "/office-app/index.html";
-/** The Office's top bar and bottom badges, pushed past the window's edges. */
-const TOP_PX = 37;
-const BOTTOM_PX = 48;
 
 type Connection = { url: string; token: string };
 
@@ -105,13 +102,8 @@ export function OfficeBackdrop() {
     <>
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 -z-10 overflow-hidden"
+        className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
         data-office-backdrop-frame
-        style={{
-          top: -TOP_PX,
-          height: `calc(100vh + ${TOP_PX + BOTTOM_PX}px)`,
-          clipPath: `inset(${TOP_PX}px 0 0 0)`,
-        }}
       >
         <iframe
           className="h-full w-full border-0"

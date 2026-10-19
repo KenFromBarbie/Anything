@@ -5,6 +5,11 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { managedAgentsQueryKey } from "@/features/agents/hooks";
 import { useOfficeAnchor } from "@/features/office/lib/officeAnchor";
 import {
+  emitFloorAgent,
+  openFloorTasks,
+  setFloorLocator,
+} from "@/features/office/lib/officeFloorEvents";
+import {
   relayToMirror,
   setMirrorSource,
 } from "@/features/office/lib/officeMirror";
@@ -162,7 +167,21 @@ export function OfficeScreen() {
         });
         return;
       }
+      if (msg.type === "agent-click" || msg.type === "agent-anchor") {
+        const box = frame.getBoundingClientRect();
+        const at =
+          typeof msg.at?.x === "number" && typeof msg.at?.y === "number"
+            ? { x: box.left + msg.at.x, y: box.top + msg.at.y }
+            : null;
+        emitFloorAgent({
+          kind: msg.type === "agent-click" ? "click" : "anchor",
+          id: String(msg.id),
+          at,
+        });
+        return;
+      }
       if (msg.type === "navigate") {
+        if (msg.page === "tasks" && openFloorTasks()) return;
         const to = { tasks: "#/tasks", askme: "#/ask-me" }[String(msg.page)];
         if (to) window.location.hash = to;
         return;
@@ -208,6 +227,12 @@ export function OfficeScreen() {
 
   // No commands to a frame that is gone.
   React.useEffect(() => () => disconnectRef.current?.(), []);
+
+  // The Office page asks where an agent stands (to put a chat above them).
+  React.useEffect(() => {
+    setFloorLocator((id) => postToOffice({ type: "locate-agent", id }));
+    return () => setFloorLocator(null);
+  }, [postToOffice]);
 
   // The background mirror asks this frame for the floor's state.
   React.useEffect(() => {

@@ -45,6 +45,9 @@ export function App() {
   // (see host/buzzHost).
   const hostView = useHostView();
   const showFloor = hostView === 'all' || hostView === 'office';
+  // Kenn's Harness's Office tab: the floor alone, edge to edge (the app has
+  // its own title bar, updates and settings).
+  const bareFloor = hostedInBuzz && hostView === 'office';
   const showAgents = hostView === 'all' || hostView === 'agents';
   const showPage = hostView === 'tasks' || hostView === 'askme';
   // Point every {{godName}} string at the orchestrator's real, renameable name.
@@ -302,7 +305,7 @@ export function App() {
           height: 36, minHeight: 36,
           background: 'linear-gradient(180deg, var(--cth-cream-100) 0%, var(--cth-cream-200) 100%)',
           borderBottom: '1px solid var(--cth-ink-300)',
-          display: showFloor ? 'flex' : 'none',
+          display: showFloor && !bareFloor ? 'flex' : 'none',
           alignItems: 'center',
           // Room for the macOS traffic lights; Buzz draws its own window chrome.
           paddingLeft: hostedInBuzz ? 12 : 96,
@@ -421,7 +424,7 @@ export function App() {
       <div style={{
         flex: 1, minHeight: 0,
         display: showPage ? 'none' : 'flex',
-        padding: 16,
+        padding: bareFloor ? 0 : 16,
         gap: 0
       }}>
         <div style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative', display: showFloor ? 'block' : 'none' }}>

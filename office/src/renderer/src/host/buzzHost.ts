@@ -22,6 +22,7 @@ import { setTerminalBackground } from '@/components/PtyTerminalView';
 import { useStore } from '@/store/store';
 import { SIDEBAR_TABS } from '@/components/SidebarTabs';
 import { runBuzzApi, startStatePush, stateNow } from '@/host/buzzApi';
+import { locateAgent, onAgentClick } from '@/scene/office/agentLocator';
 export { EDIT_AGENT_EVENT } from '@/host/buzzApi';
 
 export type HostView = 'all' | 'agents' | 'office' | 'tasks' | 'askme';
@@ -264,6 +265,9 @@ if (mirrorRole) {
     if (m.type === 'panel-state-request' && lastPanelState) reportPanelState(lastPanelState);
     if (m.type === 'state-request') post(stateNow());
     if (m.type === 'mirror-request') post({ type: 'mirror', snapshot: mirrorSnapshot() });
+    if (m.type === 'locate-agent' && typeof m.id === 'string') {
+      post({ type: 'agent-anchor', id: m.id, at: locateAgent(m.id) });
+    }
     if (m.type === 'api' && typeof m.op === 'string') {
       runBuzzApi(m.op, m.args ?? {}).then(
         (value) => post({ type: 'api-result', id: m.id, ok: true, value }),
@@ -271,6 +275,9 @@ if (mirrorRole) {
       );
     }
   });
+  // A character clicked on the floor: the app opens a chat above its head
+  // (every click, even on the agent already selected).
+  onAgentClick((id) => post({ type: 'agent-click', id, at: locateAgent(id) }));
   // Buzz's own UI for the Office's agents and tasks reads this snapshot.
   startStatePush(post);
   // …and the background mirror draws the floor from this one.
