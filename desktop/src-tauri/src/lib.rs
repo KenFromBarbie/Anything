@@ -1,4 +1,5 @@
 #![recursion_limit = "256"] // Deep Tauri command futures exceed the default layout query depth.
+mod ai_accounts;
 mod app_menu;
 mod app_state;
 mod archive;
@@ -34,11 +35,9 @@ mod native_relay_client;
 mod native_websocket;
 mod native_websocket_batch;
 mod nostr_bind;
+pub mod nostr_convert;
 mod notion;
 mod notion_mcp;
-mod ai_accounts;
-mod research;
-pub mod nostr_convert;
 mod observed_unread;
 mod office;
 mod persona_catalog;
@@ -46,6 +45,7 @@ mod prevent_sleep;
 mod ptt_shortcut;
 mod relay;
 mod relay_admission;
+mod research;
 mod reset;
 mod secret_store;
 mod shutdown;

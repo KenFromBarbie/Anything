@@ -922,7 +922,10 @@ fn write_private(path: &Path, text: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn merge_json(path: &Path, apply: impl FnOnce(&mut serde_json::Map<String, Value>)) -> Result<(), String> {
+fn merge_json(
+    path: &Path,
+    apply: impl FnOnce(&mut serde_json::Map<String, Value>),
+) -> Result<(), String> {
     let mut value = read_json(path).unwrap_or_else(|| Value::Object(Default::default()));
     if !value.is_object() {
         value = Value::Object(Default::default());
@@ -947,7 +950,8 @@ fn install_api_key(engine: Engine, dir: &Path, key: &str) -> Result<(), String> 
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
-                    let _ = std::fs::set_permissions(&helper, std::fs::Permissions::from_mode(0o700));
+                    let _ =
+                        std::fs::set_permissions(&helper, std::fs::Permissions::from_mode(0o700));
                 }
             }
             let command = if cfg!(windows) {
@@ -983,7 +987,9 @@ fn install_api_key(engine: Engine, dir: &Path, key: &str) -> Result<(), String> 
                 use std::os::windows::process::CommandExt;
                 cmd.creation_flags(0x0800_0000);
             }
-            let mut child = cmd.spawn().map_err(|e| format!("Couldn't run codex: {e}"))?;
+            let mut child = cmd
+                .spawn()
+                .map_err(|e| format!("Couldn't run codex: {e}"))?;
             if let Some(mut stdin) = child.stdin.take() {
                 stdin
                     .write_all(format!("{key}\n").as_bytes())
@@ -1011,7 +1017,10 @@ fn install_api_key(engine: Engine, dir: &Path, key: &str) -> Result<(), String> 
             std::fs::create_dir_all(&gemini).map_err(|e| e.to_string())?;
             write_private(&gemini.join(".env"), &format!("GEMINI_API_KEY={key}\n"))?;
             merge_json(&gemini.join("settings.json"), |settings| {
-                settings.insert("selectedAuthType".into(), Value::String("gemini-api-key".into()));
+                settings.insert(
+                    "selectedAuthType".into(),
+                    Value::String("gemini-api-key".into()),
+                );
                 let security = settings
                     .entry("security")
                     .or_insert_with(|| Value::Object(Default::default()));
@@ -1020,7 +1029,10 @@ fn install_api_key(engine: Engine, dir: &Path, key: &str) -> Result<(), String> 
                         .entry("auth")
                         .or_insert_with(|| Value::Object(Default::default()));
                     if let Some(auth) = auth.as_object_mut() {
-                        auth.insert("selectedType".into(), Value::String("gemini-api-key".into()));
+                        auth.insert(
+                            "selectedType".into(),
+                            Value::String("gemini-api-key".into()),
+                        );
                     }
                 }
             })
@@ -1038,10 +1050,17 @@ fn uses_api_key(engine: Engine, home: &Path) -> bool {
                     .is_some()
         }
         Engine::Codex => read_json(&home.join("auth.json"))
-            .and_then(|a| a.get("OPENAI_API_KEY").and_then(Value::as_str).map(|k| !k.is_empty()))
+            .and_then(|a| {
+                a.get("OPENAI_API_KEY")
+                    .and_then(Value::as_str)
+                    .map(|k| !k.is_empty())
+            })
             .unwrap_or(false),
         Engine::Gemini => std::fs::read_to_string(home.join(".gemini").join(".env"))
-            .map(|t| t.lines().any(|l| l.trim_start().starts_with("GEMINI_API_KEY=")))
+            .map(|t| {
+                t.lines()
+                    .any(|l| l.trim_start().starts_with("GEMINI_API_KEY="))
+            })
             .unwrap_or(false),
     }
 }
@@ -1091,7 +1110,10 @@ pub fn ai_accounts_set_api_key(
 ) -> Result<(), String> {
     let engine = Engine::parse(&engine)?;
     if id == "default" {
-        return Err("This computer's own sign-in isn't changed here; add an API key account instead.".into());
+        return Err(
+            "This computer's own sign-in isn't changed here; add an API key account instead."
+                .into(),
+        );
     }
     let dir = profile_dir(&app, engine, &id)?;
     if !dir.is_dir() {

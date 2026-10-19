@@ -327,7 +327,10 @@ fn free_path(dir: &std::path::Path, name: &str) -> PathBuf {
 /// bytes are the raw request body; `x-project` and `x-name` (URI-encoded)
 /// headers say where. Returns the path relative to the project folder.
 #[tauri::command]
-pub fn research_save_file(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
+pub fn research_save_file(
+    app: AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> Result<String, String> {
     let tauri::ipc::InvokeBody::Raw(data) = request.body() else {
         return Err("Expected the file's bytes.".into());
     };
@@ -586,9 +589,9 @@ pub fn research_open(app: AppHandle, id: String, file: Option<String>) -> Result
 /// Files the OS would run rather than open in a viewer.
 fn is_runnable(path: &Path) -> bool {
     const RUNNABLE: &[&str] = &[
-        "exe", "com", "bat", "cmd", "ps1", "psm1", "vbs", "vbe", "js", "jse", "wsf", "wsh",
-        "msi", "msp", "scr", "pif", "lnk", "url", "hta", "cpl", "jar", "reg", "sh", "bash",
-        "zsh", "command", "app", "pkg", "dmg", "run", "appimage", "desktop", "py", "pyw",
+        "exe", "com", "bat", "cmd", "ps1", "psm1", "vbs", "vbe", "js", "jse", "wsf", "wsh", "msi",
+        "msp", "scr", "pif", "lnk", "url", "hta", "cpl", "jar", "reg", "sh", "bash", "zsh",
+        "command", "app", "pkg", "dmg", "run", "appimage", "desktop", "py", "pyw",
     ];
     if path.is_dir() {
         return false;

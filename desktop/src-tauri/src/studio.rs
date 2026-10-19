@@ -53,6 +53,21 @@ pub struct StudioRuntime {
 /// ArtCraft's own (its shadcn and `--st-*` variables), now and whenever the
 /// app's theme changes (`studio_theme`).
 const THEME_SCRIPT: &str = r#"(function () {
+  // The app's type and shapes over ArtCraft's (mono capitals, square
+  // corners), and see-through page backgrounds so the Office shows behind.
+  var LOOK = [
+    "html, body, #root { background: transparent !important; }",
+    "header.fixed { backdrop-filter: blur(14px); }",
+    ".hud-label { font-family: inherit !important; font-size: 0.8125rem !important; font-weight: 500 !important; letter-spacing: 0 !important; text-transform: none !important; }",
+    ".font-display { font-family: inherit !important; font-stretch: 100% !important; font-weight: 650 !important; letter-spacing: -0.03em !important; }",
+    ".font-mono:not(code):not(pre):not(kbd) { font-family: inherit !important; }",
+    ".uppercase { text-transform: none !important; letter-spacing: normal !important; }",
+    ".text-ui-accent-ink { color: hsl(var(--primary)) !important; }",
+    "[class*='rounded-[3px]'], [class*='rounded-[2px]'], .rounded-none { border-radius: 0.75rem !important; }",
+    ".bg-white\\/5 { background-color: hsl(var(--card) / 0.72) !important; backdrop-filter: blur(10px); }",
+    ".h-10.w-10.border, .h-9.w-9.border, .h-8.w-8.border { border-radius: 0.6rem !important; }",
+    ".bg-ui-ink { border-radius: 9999px !important; }"
+  ].join(" ");
   function apply(theme) {
     if (!theme || !theme.vars) return;
     window.__HARNESS_THEME__ = theme;
@@ -61,6 +76,7 @@ const THEME_SCRIPT: &str = r#"(function () {
       if (/^--[a-z0-9-]+$/.test(name)) css += name + ": " + String(theme.vars[name]).replace(/[;{}<]/g, "") + " !important;";
     }
     css += "} html, body { color-scheme: " + (theme.dark ? "dark" : "light") + "; }";
+    css += LOOK;
     if (theme.font) css += " body { font-family: " + String(theme.font).replace(/[;{}<]/g, "") + "; }";
     var el = document.getElementById("harness-theme") || document.createElement("style");
     el.id = "harness-theme";
@@ -91,9 +107,7 @@ pub fn install(builder: tauri::Builder<Wry>) -> (tauri::Builder<Wry>, Startup) {
     let (builder, startup) = artcraft_app_lib::install(builder);
     let builder = builder
         .manage(StudioRuntime::default())
-        .register_uri_scheme_protocol(PROTOCOL, |ctx, request| {
-            serve(ctx.app_handle(), &request)
-        });
+        .register_uri_scheme_protocol(PROTOCOL, |ctx, request| serve(ctx.app_handle(), &request));
     (builder, startup)
 }
 
@@ -335,8 +349,7 @@ async fn download(app: &AppHandle, url: &str, progress: bool) -> Result<Vec<u8>,
         .map_err(|e| format!("Couldn't reach GitHub: {e}"))?;
     if response.status() == reqwest::StatusCode::NOT_FOUND {
         return Err(
-            "This version's Studio download isn't on GitHub (it comes with release builds)."
-                .into(),
+            "This version's Studio download isn't on GitHub (it comes with release builds).".into(),
         );
     }
     if !response.status().is_success() {
@@ -441,7 +454,9 @@ pub async fn studio_install(app: AppHandle, tools: Vec<String>) -> Result<Studio
     let archive = download(&app, &format!("{base}/{name}"), true).await?;
     let actual = hex::encode(Sha256::digest(&archive));
     if expected.len() != 64 || actual != expected {
-        return Err("The Studio download didn't match its checksum, so it wasn't installed.".into());
+        return Err(
+            "The Studio download didn't match its checksum, so it wasn't installed.".into(),
+        );
     }
 
     let _ = app.emit(

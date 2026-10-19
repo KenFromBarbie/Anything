@@ -49,15 +49,19 @@ export function currentStudioTheme() {
     if (value) vars[name] = value;
   }
   const hsl = (name: string) => `hsl(${vars[name] ?? "0 0% 50%"})`;
+  const glass = (name: string, alpha: number) =>
+    `hsl(${vars[name] ?? "0 0% 50%"} / ${alpha})`;
   Object.assign(vars, {
-    "--st-bg": hsl("--background"),
-    "--st-panel": hsl("--card"),
+    // See-through, like the app's pages: the Office floor shows behind the
+    // Studio, with its bars and cards frosted over it.
+    "--st-bg": "transparent",
+    "--st-panel": glass("--background", 0.78),
     "--st-panel-border": hsl("--border"),
     "--st-modal": hsl("--popover"),
     "--st-controls": hsl("--muted"),
     "--st-controls-rgb": rgbParts(hsl("--muted")),
     "--st-controls-border": hsl("--border"),
-    "--st-sunken": `color-mix(in srgb, ${hsl("--background")} 88%, black)`,
+    "--st-sunken": glass("--muted", 0.6),
     "--st-fg": hsl("--foreground"),
     "--st-fg-rgb": rgbParts(hsl("--foreground")),
     "--st-divider": hsl("--border"),
