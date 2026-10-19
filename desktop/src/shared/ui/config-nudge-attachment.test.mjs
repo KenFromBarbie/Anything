@@ -72,7 +72,7 @@ test("shouldOpenDoctor_missingBinary_routesToAgentRuntimes", () => {
 test("missingBinaryRecoveryMessage_requiresBuzzRestart", () => {
   assert.equal(
     missingBinaryRecoveryMessage(),
-    "not found in PATH — install it or update PATH, then restart Kenn’s Harness",
+    "not found in PATH — install it or update PATH, then restart Anything",
   );
 });
 

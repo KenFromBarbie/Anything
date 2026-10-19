@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "mainBinaryName": "kenns-harness",
+  "mainBinaryName": "anything",
   "bundle": {
     "createUpdaterArtifacts": false,
     "resources": {

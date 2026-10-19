@@ -1,5 +1,5 @@
 /**
- * True when ArtCraft runs as Kenn's Harness's Studio: only the tools that work
+ * True when ArtCraft runs as Anything's Studio: only the tools that work
  * on this computer are offered, and nothing that spends ArtCraft's AI credits
  * (cloud image, video, audio and 3D generation, inpainting, background
  * removal) is shown or can be started.

@@ -1,4 +1,4 @@
-# Builds Kenn's Harness installers for Windows, macOS and Linux, and the
+# Builds Anything installers for Windows, macOS and Linux, and the
 # Studio's separate download.
 #
 # - Every push to main and every manual run: builds all three and uploads the
@@ -124,22 +124,22 @@ jobs:
           cd desktop
           pnpm tauri build --ci --bundles ${{ matrix.bundles }} --config src-tauri/tauri.release.conf.json
 
-      # Plain names for downloads (the product name has a ’, awkward in a
-      # terminal): kenns-harness_<version>_<arch>.<ext>.
+      # Plain lower-case names for downloads:
+      # anything_<version>_<arch>.<ext>.
       - name: Name the installers
         shell: bash
         run: |
           shopt -s nullglob
-          for f in desktop/src-tauri/target/release/bundle/*/Kenn*Harness_*; do
+          for f in desktop/src-tauri/target/release/bundle/*/Anything_*; do
             [[ -f "$f" ]] || continue
             base="$(basename "$f")"
-            mv "$f" "$(dirname "$f")/kenns-harness_${base#*Harness_}"
+            mv "$f" "$(dirname "$f")/anything_${base#Anything_}"
           done
           ls desktop/src-tauri/target/release/bundle/*/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: kenns-harness-${{ runner.os }}
+          name: anything-${{ runner.os }}
           path: ${{ matrix.artifacts }}
           if-no-files-found: error
 
@@ -171,7 +171,7 @@ jobs:
           ls -la out
       - uses: actions/upload-artifact@v4
         with:
-          name: kenns-harness-studio
+          name: anything-studio
           path: out/*
           if-no-files-found: error
 

@@ -278,7 +278,7 @@ function AgentDeleteConfirmDialog({
           </li>
           <li>
             {isProviderAgent
-              ? "Unless the agent is known to be Offline, Kenn’s Harness first requests shutdown through a channel when available. A failed request cancels deletion. The remote process may still be running even after a successful request."
+              ? "Unless the agent is known to be Offline, Anything first requests shutdown through a channel when available. A failed request cancels deletion. The remote process may still be running even after a successful request."
               : "Stops any local agent process before deleting the record"}
           </li>
         </ul>

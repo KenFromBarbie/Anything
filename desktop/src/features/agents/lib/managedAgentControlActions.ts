@@ -213,7 +213,7 @@ export async function deleteManagedAgentWithRules({
     // new identity while it's there. Removing it in the Office retires it.
     await deleteManagedAgent({ pubkey: agent.pubkey });
     return {
-      noticeMessage: `${agent.name} was removed from Kenn’s Harness. To retire it, remove it in the Office too.`,
+      noticeMessage: `${agent.name} was removed from Anything. To retire it, remove it in the Office too.`,
     };
   }
   if (isOfficeAgent(agent)) {

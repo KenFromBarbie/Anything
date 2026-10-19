@@ -175,7 +175,7 @@ export function CommunitySwitcher({
       if (result?.status === "already-absent") {
         toast("Community removed", {
           description:
-            "You were no longer a member, so Kenn’s Harness removed the community from this device.",
+            "You were no longer a member, so Anything removed the community from this device.",
         });
       }
     } catch (error) {

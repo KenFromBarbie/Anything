@@ -270,7 +270,7 @@ export function useNotificationSettings(pubkey?: string) {
         }));
         setErrorMessage(
           nextPermission === "denied"
-            ? "Desktop notifications are blocked for Kenn’s Harness. Enable them in system settings to turn alerts on."
+            ? "Desktop notifications are blocked for Anything. Enable them in system settings to turn alerts on."
             : "Desktop notifications are unavailable in this environment.",
         );
         return false;

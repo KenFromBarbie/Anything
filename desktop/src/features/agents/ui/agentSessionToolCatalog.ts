@@ -148,8 +148,8 @@ export function getBuzzToolInfo(title: string): BuzzToolInfo | null {
     return {
       icon: Workflow,
       label: isRead
-        ? "Reads workflow state from Kenn’s Harness."
-        : "Updates workflow state in Kenn’s Harness.",
+        ? "Reads workflow state from Anything."
+        : "Updates workflow state in Anything.",
       tone: isWrite ? "write" : "read",
     };
   }
@@ -182,7 +182,7 @@ export function getBuzzToolInfo(title: string): BuzzToolInfo | null {
   if (name.includes("search") || name === "get_feed") {
     return {
       icon: Search,
-      label: "Searches relay-visible Kenn’s Harness history.",
+      label: "Searches relay-visible Anything history.",
       tone: "read",
     };
   }
@@ -193,14 +193,14 @@ export function getBuzzToolInfo(title: string): BuzzToolInfo | null {
   ) {
     return {
       icon: Send,
-      label: "Publishes relay-visible Kenn’s Harness activity.",
+      label: "Publishes relay-visible Anything activity.",
       tone: "write",
     };
   }
 
   return {
     icon: MessageSquare,
-    label: isRead ? "Reads from Kenn’s Harness." : "Writes to Kenn’s Harness.",
+    label: isRead ? "Reads from Anything." : "Writes to Anything.",
     tone: isWrite ? "write" : "read",
   };
 }

@@ -28,7 +28,7 @@ export class Camera {
   private readonly nudgeStrength = 0.4;
 
   /** Fill the view, cropping the map's edges, instead of showing all of it
-   *  with bars at the sides (the floor inside Kenn's Harness). */
+   *  with bars at the sides (the floor inside Anything). */
   private readonly cover: boolean;
 
   constructor(container: Container, options: { cover?: boolean } = {}) {

@@ -52,7 +52,7 @@ export function formatModelDiscoveryErrorStatus(
     if (message.includes("waiting for the current member roster")) {
       return {
         message:
-          "Kenn’s Harness is waiting for the relay's member roster. Try again shortly; if this persists, check the relay's membership configuration.",
+          "Anything is waiting for the relay's member roster. Try again shortly; if this persists, check the relay's membership configuration.",
         tone: "warning",
       };
     }
@@ -68,7 +68,7 @@ export function formatModelDiscoveryErrorStatus(
     if (message.includes("shared compute is not available in this build")) {
       return {
         message:
-          "This version of Kenn’s Harness cannot use shared compute. Update Kenn’s Harness or choose another provider.",
+          "This version of Anything cannot use shared compute. Update Anything or choose another provider.",
         tone: "warning",
       };
     }
@@ -76,14 +76,14 @@ export function formatModelDiscoveryErrorStatus(
     if (message.includes("shared compute status is malformed")) {
       return {
         message:
-          "Kenn’s Harness received an invalid shared compute status. Check the member machine, then try again.",
+          "Anything received an invalid shared compute status. Check the member machine, then try again.",
         tone: "warning",
       };
     }
 
     return {
       message:
-        "Kenn’s Harness couldn't check shared compute through the relay. Check your relay connection and try again.",
+        "Anything couldn't check shared compute through the relay. Check your relay connection and try again.",
       tone: "warning",
     };
   }

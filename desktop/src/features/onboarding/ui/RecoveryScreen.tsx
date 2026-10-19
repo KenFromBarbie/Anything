@@ -33,7 +33,7 @@ export function RecoveryScreen({
           }}
           type="button"
         >
-          Relaunch Kenn’s Harness
+          Relaunch Anything
         </Button>
       </div>
     </div>

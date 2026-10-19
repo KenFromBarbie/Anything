@@ -1,6 +1,6 @@
 # Credits
 
-Kenn's Harness is built from these open-source projects:
+Anything is built from these open-source projects:
 
 - **Buzz** (Block, Inc.), Apache-2.0: the desktop app, relay and agent
   runtime this is based on. See `LICENSE`.

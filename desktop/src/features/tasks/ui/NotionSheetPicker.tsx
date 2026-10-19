@@ -169,7 +169,7 @@ function MapSummary({ map }: { map: MyMap }) {
   ];
   return (
     <div className="grid gap-1 rounded-2xl bg-muted/50 px-4 py-3 text-xs">
-      <p className="font-medium text-foreground">Kenn’s Harness will use</p>
+      <p className="font-medium text-foreground">Anything will use</p>
       {rows.map(([label, value]) => (
         <p className="text-muted-foreground" key={label}>
           <span className="inline-block w-20">{label}</span>

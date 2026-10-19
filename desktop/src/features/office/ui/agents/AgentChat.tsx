@@ -101,8 +101,8 @@ export function AgentChat({
     return (
       <div className="grid gap-2">
         <p className="text-sm text-muted-foreground">
-          {agent.name} doesn't have a Kenn’s Harness chat yet; messages go
-          straight into their terminal.
+          {agent.name} doesn't have a Anything chat yet; messages go straight
+          into their terminal.
         </p>
         <QueueComposer agent={agent} />
       </div>

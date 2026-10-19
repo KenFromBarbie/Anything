@@ -98,7 +98,7 @@ export function ContributorsPanel({
       role: signedPubkey
         ? matchedProfile?.nip05Handle ||
           contributor.email ||
-          "Kenn’s Harness contributor"
+          "Anything contributor"
         : heuristicProfile
           ? `${
               heuristicProfile.profile.nip05Handle ||
@@ -137,7 +137,7 @@ export function ContributorsPanel({
         reviewCount: signedCounts.reviews,
         role:
           profile?.nip05Handle ||
-          (isAgent ? "Agent contributor" : "Kenn’s Harness contributor"),
+          (isAgent ? "Agent contributor" : "Anything contributor"),
         taskCount: signedCounts.tasks,
       };
     });

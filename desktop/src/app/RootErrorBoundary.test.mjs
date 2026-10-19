@@ -77,7 +77,7 @@ test("root boundary shows recovery UI without exposing error details", async () 
     createElement(RootErrorBoundary, null, createElement(ThrowingProvider)),
   );
 
-  assert.ok(screen.getByText("Kenn’s Harness failed to start"));
+  assert.ok(screen.getByText("Anything failed to start"));
   assert.ok(screen.getByRole("button", { name: "Reload" }));
   assert.equal(document.body.textContent.includes(diagnostic), false);
   assert.match(document.body.textContent, /contact support/i);

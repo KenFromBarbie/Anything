@@ -1,6 +1,6 @@
 import { getCanvas, setCanvas } from "@/shared/api/tauri";
 
-export const WELCOME_CANVAS_CONTENT = `# Welcome to Kenn’s Harness
+export const WELCOME_CANVAS_CONTENT = `# Welcome to Anything
 
 This private channel is your home base for getting oriented. Fizz, Honey, and Pollen can help you learn the app, troubleshoot setup, and work through something you are building.
 
@@ -16,7 +16,7 @@ Bring the team something you are building, or give them a quick challenge to see
 
 ## Get help
 
-Ask the team a question here, or read the [Kenn’s Harness user guide](https://github.com/KenFromBarbie/Kenns-Harness#readme).
+Ask the team a question here, or read the [Anything user guide](https://github.com/KenFromBarbie/Kenns-Harness#readme).
 `;
 
 type WelcomeCanvasClient = {

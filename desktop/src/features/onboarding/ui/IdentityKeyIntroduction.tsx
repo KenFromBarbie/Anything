@@ -37,8 +37,8 @@ export function IdentityKeyIntroduction({
           Create a private identity key
         </h1>
         <p className="mt-2 text-base leading-6 text-foreground/75">
-          This key will be how you log into Kenn’s Harness. You can use it
-          across Kenn’s Harness communities and other platforms.
+          This key will be how you log into Anything. You can use it across
+          Anything communities and other platforms.
         </p>
         <div className="mt-2">
           <IdentityKeyHelpDialog inline onOpen={onOpenHelp} />

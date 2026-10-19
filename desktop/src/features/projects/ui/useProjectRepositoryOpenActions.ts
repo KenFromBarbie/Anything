@@ -42,7 +42,7 @@ export function useProjectRepositoryOpenActions({
     if (!localRepositoryPath || !repository || !cloneUrl) {
       toast.error("Couldn’t open repository folder", {
         description:
-          "Kenn’s Harness could not find this repository’s local checkout.",
+          "Anything could not find this repository’s local checkout.",
       });
       return;
     }
@@ -55,7 +55,7 @@ export function useProjectRepositoryOpenActions({
     } catch {
       toast.error("Couldn’t open repository folder", {
         description:
-          "Kenn’s Harness could not open this checkout in your file browser.",
+          "Anything could not open this checkout in your file browser.",
       });
     }
   }, [localRepositoryPath, repository, reposDir]);

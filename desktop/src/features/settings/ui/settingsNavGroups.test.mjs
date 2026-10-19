@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { settingsNavGroups } from "./SettingsView.tsx";
 
-// Kenn's Harness runs one local community, so the Communities group (hosted
+// Anything runs one local community, so the Communities group (hosted
 // communities, members, relay admin) is left out of the Settings menu.
 test("the Communities group is not in the Settings menu", () => {
   assert.equal(

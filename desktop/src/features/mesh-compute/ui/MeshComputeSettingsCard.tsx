@@ -581,7 +581,7 @@ function MeshModelPicker({
         {catalog
           ? `Recommended for this machine${catalog.gpuName ? ` (${catalog.gpuName}, ${catalog.vramDisplay} AI memory)` : ""}.`
           : "Choose a model or enter a model reference or local file."}{" "}
-        Kenn’s Harness downloads remote models when sharing starts.
+        Anything downloads remote models when sharing starts.
       </p>
     </div>
   );
@@ -640,8 +640,8 @@ function StatusLine({
     return (
       <p className="text-sm text-muted-foreground">
         This machine is currently using another member's shared compute. Turn on
-        sharing to switch to the selected local model; Kenn’s Harness may
-        briefly restart.
+        sharing to switch to the selected local model; Anything may briefly
+        restart.
       </p>
     );
   }

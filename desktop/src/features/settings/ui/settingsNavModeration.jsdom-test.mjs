@@ -165,7 +165,7 @@ function stubNoOrigin() {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-test("relay-admin-nav-hidden: Kenn's Harness leaves relay admin out of the Settings menu", async () => {
+test("relay-admin-nav-hidden: Anything leaves relay admin out of the Settings menu", async () => {
   stubNoOrigin();
   const { container, doRender, unmount } = mountSettingsView();
   try {

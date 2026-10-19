@@ -597,7 +597,7 @@ export const Stage3DBody = ({
   );
 };
 
-/** Kenn's Harness's Studio offers no credit-spending generation. */
+/** Anything's Studio offers no credit-spending generation. */
 function localOnlyStudio(): boolean {
   return (
     typeof window !== "undefined" &&

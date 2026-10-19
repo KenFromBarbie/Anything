@@ -155,7 +155,7 @@ export function NotionSyncControl() {
           <AlertDialogHeader>
             <AlertDialogTitle>Sign out of Notion?</AlertDialogTitle>
             <AlertDialogDescription>
-              Kenn’s Harness forgets your Notion sign-in and stops syncing. Your
+              Anything forgets your Notion sign-in and stops syncing. Your
               databases stay in Notion; signing in again sets up new ones.
             </AlertDialogDescription>
           </AlertDialogHeader>

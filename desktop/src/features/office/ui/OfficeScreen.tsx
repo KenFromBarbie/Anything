@@ -105,7 +105,7 @@ export function OfficeScreen() {
     if (!isTauri()) {
       setState({
         status: "error",
-        message: "The Office needs the Kenn’s Harness desktop app.",
+        message: "The Office needs the Anything desktop app.",
       });
       return;
     }

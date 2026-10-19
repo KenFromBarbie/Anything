@@ -154,10 +154,10 @@ export function BackupStep({
 
   const storageDescription =
     identityStorage === "system-keyring"
-      ? "Kenn’s Harness keeps your identity key in your system keychain. Your computer may ask for your password when Kenn’s Harness needs to read the key."
+      ? "Anything keeps your identity key in your system keychain. Your computer may ask for your password when Anything needs to read the key."
       : identityStorage === "local-file"
-        ? "Your system keychain wasn’t available, so Kenn’s Harness keeps your identity key in a private file on this device."
-        : "Kenn’s Harness keeps your identity key protected on this device. Make a separate backup in case you lose access.";
+        ? "Your system keychain wasn’t available, so Anything keeps your identity key in a private file on this device."
+        : "Anything keeps your identity key protected on this device. Make a separate backup in case you lose access.";
   const storageTitle =
     identityStorage === "system-keyring"
       ? "Protected by your system keychain"
@@ -190,9 +190,9 @@ export function BackupStep({
               cardLayout ? "mt-2 text-base" : "mt-5 text-sm",
             )}
           >
-            Your identity key works like a password for your Kenn’s Harness
-            account. Keep a copy somewhere safe. You can create a backup file
-            and lock it with a password you can remember.
+            Your identity key works like a password for your Anything account.
+            Keep a copy somewhere safe. You can create a backup file and lock it
+            with a password you can remember.
           </p>
         </div>
 

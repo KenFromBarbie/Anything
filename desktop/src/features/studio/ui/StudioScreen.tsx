@@ -36,7 +36,7 @@ export function StudioScreen() {
     return (
       <StudioPage>
         <p className="text-sm text-muted-foreground">
-          The Studio needs the Kenn’s Harness desktop app.
+          The Studio needs the Anything desktop app.
         </p>
       </StudioPage>
     );
@@ -152,7 +152,7 @@ function StudioView() {
     const area = areaRef.current;
     if (!area) return;
     if (!isTauri()) {
-      setError("The Studio needs the Kenn’s Harness desktop app.");
+      setError("The Studio needs the Anything desktop app.");
       return;
     }
     let frame = 0;

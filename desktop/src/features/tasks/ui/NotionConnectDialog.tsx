@@ -79,14 +79,14 @@ function SignInStep() {
       <DialogHeader>
         <DialogTitle>Connect Notion</DialogTitle>
         <DialogDescription>
-          Sign in with your Notion account. Your own task sheet lives there,
-          and rows you add to "Office tasks" become work for the agents (their
-          own board isn't written back to Notion).
+          Sign in with your Notion account. Your own task sheet lives there, and
+          rows you add to "Office tasks" become work for the agents (their own
+          board isn't written back to Notion).
         </DialogDescription>
       </DialogHeader>
       <ol className="grid list-decimal gap-2 pl-5 text-sm text-muted-foreground">
         <li>Notion opens in your browser.</li>
-        <li>Pick the workspace and approve Kenn’s Harness.</li>
+        <li>Pick the workspace and approve Anything.</li>
         <li>Come back here to choose where the task databases go.</li>
       </ol>
       {busy ? (

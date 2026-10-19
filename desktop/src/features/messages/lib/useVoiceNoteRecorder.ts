@@ -157,7 +157,7 @@ export function useVoiceNoteRecorder() {
                 sessionRef.current === session
               ) {
                 setError(
-                  "Kenn’s Harness could not prepare this voice note for upload.",
+                  "Anything could not prepare this voice note for upload.",
                 );
               }
             }
@@ -220,8 +220,8 @@ export function useVoiceNoteRecorder() {
         (cause.name === "NotAllowedError" || cause.name === "SecurityError");
       setError(
         denied
-          ? "Allow Kenn’s Harness to access your microphone to record a voice note."
-          : "Kenn’s Harness could not start the voice recorder.",
+          ? "Allow Anything to access your microphone to record a voice note."
+          : "Anything could not start the voice recorder.",
       );
     }
   }, [status]);

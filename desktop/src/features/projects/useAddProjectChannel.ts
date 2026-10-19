@@ -93,7 +93,7 @@ export async function addProjectChannel(
     } catch (cleanupError) {
       throw new AggregateError(
         [error, cleanupError],
-        "Kenn’s Harness could not verify the project after creating the channel, and could not remove the unlinked channel. Delete it manually, then refresh and try again.",
+        "Anything could not verify the project after creating the channel, and could not remove the unlinked channel. Delete it manually, then refresh and try again.",
       );
     }
     throw error;

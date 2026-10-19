@@ -23,7 +23,7 @@ if (splashMark) {
 const root = document.getElementById('root');
 if (!root) throw new Error('No root element');
 
-// Kenn's Harness's background frame draws only the floor (host/MirrorFloor);
+// Anything's background frame draws only the floor (host/MirrorFloor);
 // everything else runs the full Office.
 const Root = mirrorRole
   ? (await import('./host/MirrorFloor')).MirrorFloor

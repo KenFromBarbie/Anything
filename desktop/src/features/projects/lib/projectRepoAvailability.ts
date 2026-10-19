@@ -19,7 +19,7 @@ const PROJECT_REPO_UNAVAILABLE_PRESENTATIONS: Record<
 > = {
   authentication: {
     description:
-      "Kenn’s Harness could not authenticate with this repository. Check your access and try again.",
+      "Anything could not authenticate with this repository. Check your access and try again.",
     title: "Repository access failed",
   },
   missing: {
@@ -49,7 +49,7 @@ const PROJECT_REPO_UNAVAILABLE_PRESENTATIONS: Record<
   },
   unknown: {
     description:
-      "Kenn’s Harness could not load this repository. Try again or contact the project owner.",
+      "Anything could not load this repository. Try again or contact the project owner.",
     title: "Repository unavailable",
   },
 };

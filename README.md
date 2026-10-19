@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="desktop/src-tauri/icons/128x128@2x.png" width="128" height="128" alt="Kenn's Harness icon">
+  <img src="desktop/src-tauri/icons/128x128@2x.png" width="128" height="128" alt="Anything icon">
 </p>
 
-<h1 align="center">Kenn's Harness</h1>
+<h1 align="center">Anything</h1>
 
 <p align="center">One desktop app for running a team of AI agents: chat, tasks, research and a studio, with your own Claude, ChatGPT and Gemini accounts.</p>
 
@@ -37,8 +37,8 @@ They aren't code-signed yet:
 
 - **Windows**: SmartScreen may warn; choose *More info → Run anyway*.
 - **macOS**: right-click the app and choose *Open* the first time (or run
-  `xattr -dr com.apple.quarantine "/Applications/Kenn’s Harness.app"`).
-- **Linux**: `sudo apt install ./kenns-harness_*.deb`, or make the AppImage
+  `xattr -dr com.apple.quarantine "/Applications/Anything.app"`).
+- **Linux**: `sudo apt install ./anything_*.deb`, or make the AppImage
   executable and run it.
 
 The agents need their CLIs installed and signed in on your machine: Claude
@@ -52,11 +52,11 @@ Code, Codex and/or Gemini CLI.
 | `crates/` | Relay, agent runtime, CLI and shared Rust crates |
 | `office/` | The Office (agents, floor, hive), run as a sidecar |
 | `studio/` | The Studio (ArtCraft), built into the app |
-| `docs/KENNS_HARNESS.md` | How the pieces fit together, and dev notes |
+| `docs/ANYTHING.md` | How the pieces fit together, and dev notes |
 
 ## Building
 
-See `docs/KENNS_HARNESS.md` for development (local services, running the
+See `docs/ANYTHING.md` for development (local services, running the
 app) and `.github/workflows/build-installers.yml` for the full release build
 on each platform.
 

@@ -50,7 +50,7 @@ export const hostedInBuzz =
   window.parent !== window &&
   /(^|[#&])sidecarUrl=/.test(window.location.hash);
 
-/** Kenn's Harness's background frame: draws the floor only, from the state
+/** Anything's background frame: draws the floor only, from the state
  *  the main frame broadcasts (see MirrorFloor). */
 export const mirrorRole =
   hostedInBuzz && /(^|[#&])role=mirror(&|$)/.test(window.location.hash);

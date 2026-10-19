@@ -674,7 +674,7 @@ function ProjectDetail({
           {!project.exists ? (
             <p className="text-sm text-destructive">
               The folder isn't there any more. It may have been moved or deleted
-              outside Kenn’s Harness.
+              outside Anything.
             </p>
           ) : filesLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

@@ -19,10 +19,10 @@ import { StartupWindowDragRegion } from "@/shared/ui/StartupWindowDragRegion";
 import { writeTextToClipboard } from "@/shared/lib/clipboard";
 
 const COPY_SUCCESS_MESSAGE =
-  "Signed response copied. Paste it into the Kenn’s Harness admin console.";
+  "Signed response copied. Paste it into the Anything admin console.";
 const PREVIEW_COPY_SUCCESS_MESSAGE = "Preview response copied.";
 const COPY_FAILURE_MESSAGE =
-  "Kenn’s Harness couldn't access the clipboard. Try again.";
+  "Anything couldn't access the clipboard. Try again.";
 const EXPIRED_LINK_MESSAGE =
   "This binding link has expired. Request a new one from the requesting app.";
 const VERIFICATION_CODE_LENGTH = 6;
@@ -653,7 +653,7 @@ export function NostrBindConsentDialog() {
             <StartupWindowDragRegion />
             <div className="m-auto flex w-full max-w-[500px] flex-col items-center text-center">
               <img
-                alt="Kenn’s Harness"
+                alt="Anything"
                 className="h-14 w-14 rounded-xl shadow-xs"
                 src="/app-icon@2x.png"
                 srcSet="/app-icon@2x.png 1x, /app-icon@3x.png 2x"
@@ -669,15 +669,15 @@ export function NostrBindConsentDialog() {
                   <DialogPrimitive.Title className="mt-6 text-3xl font-semibold tracking-tight">
                     {payload.returnMode === "browser_fragment_v1"
                       ? "Continue in your browser"
-                      : "Finish on the Kenn’s Harness website"}
+                      : "Finish on the Anything website"}
                   </DialogPrimitive.Title>
                   <DialogPrimitive.Description
                     className="mt-3 max-w-[440px] text-sm leading-6 text-muted-foreground"
                     id="nostr-bind-description"
                   >
                     {payload.returnMode === "browser_fragment_v1"
-                      ? "Kenn’s Harness opened your browser to finish verification."
-                      : "Copy the response below, then paste it into the Kenn’s Harness website to finish verification."}
+                      ? "Anything opened your browser to finish verification."
+                      : "Copy the response below, then paste it into the Anything website to finish verification."}
                   </DialogPrimitive.Description>
 
                   {error ? (

@@ -490,7 +490,7 @@ export function ProfileSettingsCard({
       <div>
         <SettingsSectionHeader
           title="Profile"
-          description="Update how your name, avatar, and bio appear across Kenn’s Harness."
+          description="Update how your name, avatar, and bio appear across Anything."
         />
 
         <div className="space-y-3">

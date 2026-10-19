@@ -234,8 +234,8 @@ export function ProfileStep({
           What should we call you?
         </h1>
         <p className="mt-5 text-sm leading-6 text-muted-foreground">
-          Pick the name people and agents will see in Kenn’s Harness. You can
-          change it anytime.
+          Pick the name people and agents will see in Anything. You can change
+          it anytime.
         </p>
       </div>
 

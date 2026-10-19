@@ -231,8 +231,8 @@ export function CustomEmojiSettingsCard() {
                     className="text-sm font-normal text-muted-foreground/70"
                     data-settings-subcopy
                   >
-                    Choose an image first; Kenn’s Harness will suggest a name
-                    from the filename.
+                    Choose an image first; Anything will suggest a name from the
+                    filename.
                   </p>
                 ) : ownDuplicate ? (
                   <p

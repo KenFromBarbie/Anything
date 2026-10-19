@@ -45,7 +45,7 @@ export function App() {
   // (see host/buzzHost).
   const hostView = useHostView();
   const showFloor = hostView === 'all' || hostView === 'office';
-  // Kenn's Harness's Office tab: the floor alone, edge to edge (the app has
+  // Anything's Office tab: the floor alone, edge to edge (the app has
   // its own title bar, updates and settings).
   const bareFloor = hostedInBuzz && hostView === 'office';
   const showAgents = hostView === 'all' || hostView === 'agents';

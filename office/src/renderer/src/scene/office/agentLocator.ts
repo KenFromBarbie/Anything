@@ -1,5 +1,5 @@
 /**
- * Where an agent stands on screen, and who was just clicked: Kenn's Harness
+ * Where an agent stands on screen, and who was just clicked: Anything
  * opens a small chat above the character's head (see host/buzzHost). The
  * floor registers the locator while it's mounted.
  */

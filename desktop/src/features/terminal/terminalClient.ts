@@ -59,7 +59,7 @@ export class TerminalConnection {
     onFrame: (delivery: TerminalDelivery) => void,
   ): Promise<TerminalConnection> {
     if (!isTauri())
-      throw new Error("terminal sessions require Kenn’s Harness Desktop");
+      throw new Error("terminal sessions require Anything Desktop");
 
     let connection: TerminalConnection | null = null;
     const pending: TerminalMessage[] = [];

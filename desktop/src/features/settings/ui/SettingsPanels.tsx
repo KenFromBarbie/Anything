@@ -595,7 +595,7 @@ function ThemeSettingsCard() {
           }}
         />
         {/* Bottom fade — hidden while the accent picker is visible so its
-            near-white gradient (Kenn’s Harness light) can't mask the swatches below it
+            near-white gradient (Anything light) can't mask the swatches below it
             (the "white bar"). Kept only when the picker is hidden. */}
         {accentPickerHidden ? (
           <div
@@ -657,7 +657,7 @@ function ThemeSettingsCard() {
     >
       <SettingsSectionHeader
         title="Appearance"
-        description="Choose how Kenn’s Harness looks and feels."
+        description="Choose how Anything looks and feels."
       />
 
       <SettingsOptionGroupList>
@@ -717,7 +717,7 @@ function ThemeSettingsCard() {
                 className="text-sm font-normal text-muted-foreground/70"
                 data-settings-subcopy
               >
-                Choose the colors used throughout Kenn’s Harness.
+                Choose the colors used throughout Anything.
               </p>
             </div>
             <button
@@ -768,7 +768,7 @@ function ThemeSettingsCard() {
             </AnimatePresence>
           )}
 
-          {/* Accent color picker — hidden for Kenn’s Harness themes (pinned neutral accent).
+          {/* Accent color picker — hidden for Anything themes (pinned neutral accent).
               Reveal/hide with the translate-up + opacity fade defined by
               ACCENT_PICKER_TRANSITION above. Reduced motion skips the transition
               and just renders/unrenders. */}

@@ -377,9 +377,7 @@ function TasksWindow({
 }) {
   const { data: tasks = [], isLoading } = useOfficeTasks();
   const { add } = useOfficeTaskActions();
-  const [picked, setStatus] = React.useState<OfficeTask["status"] | null>(
-    null,
-  );
+  const [picked, setStatus] = React.useState<OfficeTask["status"] | null>(null);
   // Until one is picked: what's being worked on, else what's next.
   const status =
     picked ??

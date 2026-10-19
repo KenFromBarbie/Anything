@@ -151,7 +151,7 @@ export function useDetachedAgentStart(): (
         // communities.
         warnAgentMayNotRespond(
           agent.name,
-          "Kenn’s Harness is still connecting to this community — mention the agent again in a moment.",
+          "Anything is still connecting to this community — mention the agent again in a moment.",
         );
         return false;
       }

@@ -429,8 +429,8 @@ export function AgentCardMintDialog({
             >
               Minting calls the OpenAI API with your key and costs money —
               typically well under a dollar per mint, billed by OpenAI. It runs
-              in the background (takes a few minutes); you can keep using Kenn’s
-              Harness while it works.
+              in the background (takes a few minutes); you can keep using
+              Anything while it works.
             </p>
             <FreeSharePathRow
               disabled={false}

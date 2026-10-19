@@ -38,12 +38,10 @@ export class RootErrorBoundary extends Component<
     if (error) {
       return (
         <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background px-6 text-foreground">
-          <p className="text-base font-semibold">
-            Kenn’s Harness failed to start
-          </p>
+          <p className="text-base font-semibold">Anything failed to start</p>
           <p className="max-w-md text-center text-sm text-muted-foreground">
-            Reload Kenn’s Harness to try again. If this keeps happening, check
-            that Kenn’s Harness can access website data, then contact support.
+            Reload Anything to try again. If this keeps happening, check that
+            Anything can access website data, then contact support.
           </p>
           <button
             type="button"

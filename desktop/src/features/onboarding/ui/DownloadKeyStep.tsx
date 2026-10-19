@@ -105,7 +105,7 @@ export function DownloadKeyStep({
               ? "Enter your password to make sure you can unlock this file."
               : hasCreated
                 ? "Test your backup to make sure it works, or continue without testing."
-                : "This creates a password-protected file with your private key. Remember, Kenn’s Harness can’t recover your key if you lose it."}
+                : "This creates a password-protected file with your private key. Remember, Anything can’t recover your key if you lose it."}
         </p>
       </motion.div>
 

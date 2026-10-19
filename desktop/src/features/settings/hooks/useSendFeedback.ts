@@ -19,7 +19,7 @@ async function collectDiagnostics(): Promise<string> {
   }
   const nav = typeof navigator !== "undefined" ? navigator : undefined;
   return [
-    "Kenn’s Harness feedback diagnostics",
+    "Anything feedback diagnostics",
     `captured: ${new Date().toISOString()}`,
     `app version: ${appVersion}`,
     `platform: ${nav?.platform ?? "unknown"}`,

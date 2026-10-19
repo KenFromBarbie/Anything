@@ -434,13 +434,13 @@ function buzzOperationObject(operation: string) {
   if (isBuzzMessageSend(operation)) return "message";
   if (operation.includes(".")) {
     const [group] = operation.split(".");
-    return group ? group.replace(/[-_]+/g, " ") : "Kenn’s Harness";
+    return group ? group.replace(/[-_]+/g, " ") : "Anything";
   }
   const object = operation.replace(
     /^(add|approve|archive|create|delete|edit|get|hide|join|leave|list|open|publish|remove|search|send|set|trigger|unarchive|update|vote)_/,
     "",
   );
-  return object ? object.replace(/[-_]+/g, " ") : "Kenn’s Harness";
+  return object ? object.replace(/[-_]+/g, " ") : "Anything";
 }
 
 function buzzCliTone(group: string, verb: string): AgentActivityTone {

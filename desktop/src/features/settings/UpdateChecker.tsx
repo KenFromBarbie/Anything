@@ -13,7 +13,7 @@ export function UpdateChecker() {
     <section className="min-w-0" data-testid="settings-updates">
       <SettingsSectionHeader
         title="Software Updates"
-        description="Keep Kenn’s Harness up to date with the latest features and fixes."
+        description="Keep Anything up to date with the latest features and fixes."
       />
 
       <SettingsOptionGroup title="Update status">

@@ -99,8 +99,8 @@ function ConnectForMyTasks({ connected }: { connected: boolean }) {
       <div className="space-y-1">
         <p className="font-medium">Your task sheet lives in Notion</p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Connect Notion and Kenn’s Harness sets up a “My tasks” database you
-          can work from here or in Notion.
+          Connect Notion and Anything sets up a “My tasks” database you can work
+          from here or in Notion.
         </p>
       </div>
       <Button onClick={() => setOpen(true)} size="sm">

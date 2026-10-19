@@ -124,15 +124,15 @@ function IdentityKeyHelpBody() {
   return (
     <>
       <p>
-        Kenn’s Harness will create a Nostr identity with two parts: a private
-        key that signs you in and a public key you can safely share. You can
-        find your public identity anytime in Kenn’s Harness settings.
+        Anything will create a Nostr identity with two parts: a private key that
+        signs you in and a public key you can safely share. You can find your
+        public identity anytime in Anything settings.
       </p>
       <p>
-        This identity belongs to you, not Kenn’s Harness, and can move with you
-        to another device or compatible Nostr app. Because only you control the
-        private key, Kenn’s Harness can’t reset or recover it. Keep a backup
-        somewhere safe, and never share it.
+        This identity belongs to you, not Anything, and can move with you to
+        another device or compatible Nostr app. Because only you control the
+        private key, Anything can’t reset or recover it. Keep a backup somewhere
+        safe, and never share it.
       </p>
     </>
   );

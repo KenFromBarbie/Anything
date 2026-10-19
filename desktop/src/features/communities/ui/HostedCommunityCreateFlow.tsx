@@ -314,8 +314,8 @@ export function HostedCommunityCreateFlow({
     return (
       <div className="space-y-5">
         <p className="text-sm leading-6 text-muted-foreground">
-          Sign in with Builderlab to create and host a community. Kenn’s Harness
-          will open your browser, then bring you back here.
+          Sign in with Builderlab to create and host a community. Anything will
+          open your browser, then bring you back here.
         </p>
         {errorBox}
         <div className="flex justify-end pt-1">

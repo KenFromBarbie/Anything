@@ -255,8 +255,7 @@ function RepositoryUnavailableIndicator({
   if (!reason) return null;
   const status = {
     authentication: {
-      description:
-        "Kenn’s Harness could not authenticate with this repository.",
+      description: "Anything could not authenticate with this repository.",
       label: "Access failed",
     },
     missing: {
@@ -282,7 +281,7 @@ function RepositoryUnavailableIndicator({
       label: "Branch missing",
     },
     unknown: {
-      description: "Kenn’s Harness could not load this repository.",
+      description: "Anything could not load this repository.",
       label: "Unavailable",
     },
   } satisfies Record<

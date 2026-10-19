@@ -162,7 +162,7 @@ export function SignOutSection() {
             <AlertDialogTitle>Sign out and wipe all data?</AlertDialogTitle>
             <AlertDialogDescription>
               This will delete your identity key, all agent settings, and cached
-              data from this device, then relaunch Kenn’s Harness into first-run
+              data from this device, then relaunch Anything into first-run
               setup. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

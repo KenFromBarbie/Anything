@@ -125,7 +125,7 @@ test("approval and needs-action titles match the home-feed conventions", () => {
     }),
     {
       title: "Needs Action",
-      body: "Something in Kenn’s Harness needs your attention.",
+      body: "Something in Anything needs your attention.",
     },
   );
 });
