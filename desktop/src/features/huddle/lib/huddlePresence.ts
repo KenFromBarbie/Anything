@@ -238,7 +238,7 @@ export async function fetchHuddleLifecycleHistory(
     if (!terminal) break;
     if (until === terminal.created_at && beforeId === terminal.id) {
       throw new Error(
-        "Could not load active huddles: pagination cursor did not advance.",
+        "Could not load active calls: pagination cursor did not advance.",
       );
     }
     until = terminal.created_at;

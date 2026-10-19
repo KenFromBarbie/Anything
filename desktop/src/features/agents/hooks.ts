@@ -730,7 +730,7 @@ export function useAttachManagedAgentToChannelMutation(
         channelId: effectiveChannelId,
         agentPubkeys: [result.agent.pubkey],
       }).catch((error) => {
-        console.warn("Could not sync attached agent into Huddle:", error);
+        console.warn("Could not sync attached agent into Call:", error);
       });
     },
     onSettled: (_data, _err, variables) => {

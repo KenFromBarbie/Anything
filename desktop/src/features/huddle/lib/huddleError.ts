@@ -1,7 +1,7 @@
 export type HuddleAction = "join" | "start";
 
 const HUDDLE_AUDIO_UNAVAILABLE_MESSAGE =
-  "Huddle audio isn’t available on this server. Ask an administrator to turn it on.";
+  "Call audio isn’t available on this server. Ask an administrator to turn it on.";
 
 function rawErrorMessage(error: unknown): string | null {
   if (error instanceof Error) {
@@ -32,6 +32,6 @@ export function formatHuddleActionError(
   }
 
   return action === "join"
-    ? "Couldn’t join the huddle."
-    : "Couldn’t start the huddle.";
+    ? "Couldn’t join the call."
+    : "Couldn’t start the call.";
 }

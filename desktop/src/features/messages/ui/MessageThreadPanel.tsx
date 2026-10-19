@@ -858,7 +858,7 @@ export function MessageThreadPanel({
               onSend={onSend}
               placeholder={
                 isHuddleTranscript
-                  ? "Message the huddle"
+                  ? "Message the call"
                   : `Reply in thread to ${threadHead.author}`
               }
               profiles={profiles}

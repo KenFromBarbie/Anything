@@ -849,7 +849,7 @@ export function useAddChannelMembersMutation(channelId: string | null) {
           channelId: effectiveChannelId,
           agentPubkeys: result.added,
         }).catch((error) => {
-          console.warn("Could not sync added agents into Huddle:", error);
+          console.warn("Could not sync added agents into Call:", error);
         });
       }
     },

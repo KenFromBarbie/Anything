@@ -376,7 +376,7 @@ export function SpeakerControls({
                 </p>
                 <p className="mt-1 text-xs leading-snug text-foreground/75">
                   If people are nearby, speakers can feed back into your mic.
-                  Headphones keep huddles clearer.
+                  Headphones keep calls clearer.
                 </p>
               </div>
               <div className="flex justify-end">
@@ -497,7 +497,7 @@ export function DeviceList({
       </ul>
       {showChangeHint && (
         <p className="mt-1 text-2xs text-muted-foreground">
-          Change takes effect on next huddle
+          Change takes effect on next call
         </p>
       )}
     </div>

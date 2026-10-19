@@ -54,7 +54,7 @@ test("buildHuddleChannelName names one-on-one DMs with current user first", () =
         member({ pubkey: OTHER, displayName: "Tyler Durden" }),
       ],
     }),
-    "Kenny <> Tyler huddle",
+    "Kenny <> Tyler call",
   );
 });
 
@@ -68,7 +68,7 @@ test("buildHuddleChannelName falls back to channel participant names", () => {
       }),
       currentPubkey: SELF,
     }),
-    "Self <> Other huddle",
+    "Self <> Other call",
   );
 });
 
@@ -82,7 +82,7 @@ test("buildHuddleChannelName keeps group DM participants readable", () => {
       }),
       currentPubkey: SELF,
     }),
-    "Self <> Other <> Third huddle",
+    "Self <> Other <> Third call",
   );
 });
 
@@ -92,6 +92,6 @@ test("buildHuddleChannelName names stream huddles after the channel", () => {
       channel: channel({ name: "engineering" }),
       currentPubkey: SELF,
     }),
-    "engineering huddle",
+    "engineering call",
   );
 });

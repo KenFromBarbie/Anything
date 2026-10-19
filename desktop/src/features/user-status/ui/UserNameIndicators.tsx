@@ -55,7 +55,7 @@ export function UserNameIndicators({
         <Tooltip disableHoverableContent>
           <TooltipTrigger asChild>
             <span
-              aria-label="🎧 In a huddle"
+              aria-label="🎧 In a call"
               className={cn(
                 "inline-flex cursor-default items-center justify-center leading-none",
                 indicatorTextClass,
@@ -66,7 +66,7 @@ export function UserNameIndicators({
               🎧
             </span>
           </TooltipTrigger>
-          <TooltipContent>In a huddle</TooltipContent>
+          <TooltipContent>In a call</TooltipContent>
         </Tooltip>
       ) : null}
       {status ? (

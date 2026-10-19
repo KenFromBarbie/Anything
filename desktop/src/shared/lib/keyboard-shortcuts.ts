@@ -189,9 +189,9 @@ export const KEYBOARD_SHORTCUTS: KeyboardShortcut[] = [
   },
   {
     id: "toggle-huddle",
-    label: "Start or leave huddle",
+    label: "Start or leave call",
     description:
-      "Start or join a huddle in the current channel; leave when connected",
+      "Start or join a call in the current channel; leave when connected",
     keys: "Ctrl+Shift+Space",
     keysWindows: "Ctrl+Shift+Space",
     category: "Messages",
@@ -199,7 +199,7 @@ export const KEYBOARD_SHORTCUTS: KeyboardShortcut[] = [
   {
     id: "push-to-talk",
     label: "Push to talk",
-    description: "Hold to unmute in a huddle",
+    description: "Hold to unmute in a call",
     keys: "Ctrl+Space",
     keysWindows: "Ctrl+Space",
     category: "Messages",

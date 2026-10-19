@@ -178,7 +178,7 @@ export function ChannelMembersBar({
           // available immediately if the huddle returns to the in-app drawer.
           void queryClient.invalidateQueries({ queryKey: ["channels"] });
         } catch (e) {
-          console.error("Failed to start huddle:", e);
+          console.error("Failed to start call:", e);
           toast.error(formatHuddleActionError(e, "start"));
         }
       }}

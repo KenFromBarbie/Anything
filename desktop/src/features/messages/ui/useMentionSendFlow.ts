@@ -517,9 +517,9 @@ export function useMentionSendFlow({
             if (isSendCancelled()) return restoreComposerAfterFailure();
           } catch (error) {
             if (isSendCancelled()) return restoreComposerAfterFailure();
-            const message = `Could not add mentioned agent to the Huddle: ${getErrorMessage(
+            const message = `Could not add mentioned agent to the Call: ${getErrorMessage(
               error,
-              "Huddle enrollment failed.",
+              "Call enrollment failed.",
             )}`;
             setNonMemberPromptError(message);
             toast.error(message);

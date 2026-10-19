@@ -4,7 +4,7 @@ import test from "node:test";
 import { formatHuddleActionError } from "./huddleError.ts";
 
 const AUDIO_UNAVAILABLE_MESSAGE =
-  "Huddle audio isn’t available on this server. Ask an administrator to turn it on.";
+  "Call audio isn’t available on this server. Ask an administrator to turn it on.";
 
 test("maps the relay deployment rejection to actionable copy", () => {
   assert.equal(
@@ -37,10 +37,10 @@ test("preserves other string and Error messages", () => {
 test("uses action-specific fallback copy for unknown errors", () => {
   assert.equal(
     formatHuddleActionError({ reason: "unknown" }, "join"),
-    "Couldn’t join the huddle.",
+    "Couldn’t join the call.",
   );
   assert.equal(
     formatHuddleActionError(null, "start"),
-    "Couldn’t start the huddle.",
+    "Couldn’t start the call.",
   );
 });

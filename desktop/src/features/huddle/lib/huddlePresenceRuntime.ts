@@ -427,7 +427,7 @@ export function startHuddlePresenceRuntime(
       }
       hydrated = false;
       dependencies.onPresence(new Set());
-      dependencies.onError?.("Huddle liveness refresh failed", error);
+      dependencies.onError?.("Call liveness refresh failed", error);
       scheduleRecovery(recover);
     }
   }
@@ -527,7 +527,7 @@ export function startHuddlePresenceRuntime(
       hydrated = false;
       pendingLiveEvents = [];
       dependencies.onPresence(new Set());
-      dependencies.onError?.("Huddle presence hydration failed", error);
+      dependencies.onError?.("Call presence hydration failed", error);
       scheduleRecovery(recover);
     } finally {
       reconciling = false;
@@ -573,7 +573,7 @@ export function startHuddlePresenceRuntime(
     } catch (error) {
       if (disposed) return;
       dependencies.onPresence(new Set());
-      dependencies.onError?.("Huddle presence subscription failed", error);
+      dependencies.onError?.("Call presence subscription failed", error);
       scheduleRecovery(recover);
     } finally {
       connecting = false;

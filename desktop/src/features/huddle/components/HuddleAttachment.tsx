@@ -243,9 +243,9 @@ export function HuddleAttachment({
           <Headphones />
         </AttachmentMedia>
         <AttachmentContent>
-          <AttachmentTitle>Huddle unavailable</AttachmentTitle>
+          <AttachmentTitle>Call unavailable</AttachmentTitle>
           <AttachmentDescription>
-            This huddle card is missing session details.
+            This call card is missing session details.
           </AttachmentDescription>
         </AttachmentContent>
       </Attachment>
@@ -268,7 +268,7 @@ export function HuddleAttachment({
       </AttachmentMedia>
       <AttachmentContent>
         <AttachmentTitle>
-          Huddle
+          Call
           <span aria-hidden="true"> · </span>
           {displayEnded ? "Ended" : "In progress"}
         </AttachmentTitle>
@@ -290,7 +290,7 @@ export function HuddleAttachment({
           </AttachmentAction>
         ) : isCurrentHuddle || displayEnded ? (
           <AttachmentAction
-            aria-label="View huddle"
+            aria-label="View call"
             onClick={() => {
               if (isCurrentHuddle) {
                 showHuddleInMainApp(ephemeralChannelId);

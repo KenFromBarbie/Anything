@@ -168,13 +168,13 @@ export function AgentVoiceMenu({
           <>
             <Separator />
             <Button
-              aria-label={`Remove ${displayName} from huddle`}
+              aria-label={`Remove ${displayName} from call`}
               className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
               onClick={onRemoveAgent}
               type="button"
               variant="ghost"
             >
-              Remove from huddle
+              Remove from call
             </Button>
           </>
         ) : null}

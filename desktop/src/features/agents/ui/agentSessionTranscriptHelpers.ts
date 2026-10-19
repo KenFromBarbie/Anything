@@ -334,7 +334,7 @@ function parseSemanticStandingSections(
     system: "System",
     "team-instructions": "Team Instructions",
     "core-memory": "Core Memory",
-    "huddle-instructions": "Huddle Instructions",
+    "huddle-instructions": "Call Instructions",
     "channel-canvas": "Channel Canvas",
   };
   const tags = Object.keys(titles).join("|");
@@ -376,7 +376,7 @@ function splitSemanticStandingPrefix(text: string): {
     system: "System",
     "team-instructions": "Team Instructions",
     "core-memory": "Core Memory",
-    "huddle-instructions": "Huddle Instructions",
+    "huddle-instructions": "Call Instructions",
     "channel-canvas": "Channel Canvas",
   };
   if (hasAmbiguousSemanticBoundary(text, Object.keys(titles))) {

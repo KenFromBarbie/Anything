@@ -346,7 +346,7 @@ test("parseSystemPromptSections reads paired standing-context tags", () => {
     { title: "Agent Instructions", body: "persona text" },
     { title: "Team Instructions", body: "team text" },
     { title: "Core Memory", body: "memory text" },
-    { title: "Huddle Instructions", body: "reply now" },
+    { title: "Call Instructions", body: "reply now" },
     { title: "Channel Canvas", body: "canvas text" },
   ]);
 });

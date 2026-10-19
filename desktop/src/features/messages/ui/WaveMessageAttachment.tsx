@@ -78,7 +78,7 @@ export function WaveMessageAttachment({
           />
         </AttachmentTitle>
         <AttachmentDescription>
-          Start a huddle to talk to them.
+          Start a call to talk to them.
         </AttachmentDescription>
       </AttachmentContent>
       <AttachmentActions>
@@ -88,7 +88,7 @@ export function WaveMessageAttachment({
           size="xs"
           type="button"
         >
-          Start huddle
+          Start call
         </AttachmentAction>
       </AttachmentActions>
     </Attachment>

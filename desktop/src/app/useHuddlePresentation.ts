@@ -67,7 +67,7 @@ export function useHuddlePresentation() {
     void invoke<HuddleTranscriptRouteState>("get_huddle_state")
       .then(syncRoute)
       .catch((error) => {
-        console.error("Failed to resolve huddle transcript route:", error);
+        console.error("Failed to resolve call transcript route:", error);
         if (!cancelled) {
           setHuddleTranscriptRoute({
             ephemeral_channel_id: huddleRoomChannelId,
@@ -234,7 +234,7 @@ export function useHuddlePresentation() {
     void invoke<HuddleTranscriptRouteState>("get_huddle_state")
       .then(returnMainWindowToHuddleParent)
       .catch((error) => {
-        console.error("Failed to restore the huddle parent channel:", error);
+        console.error("Failed to restore the call parent channel:", error);
       });
   }, [
     goChannel,
@@ -365,7 +365,7 @@ export function useHuddlePresentation() {
           showHuddleInMainApp(state.ephemeral_channel_id);
         })
         .catch((error) => {
-          console.error("Failed to open huddle in the main app:", error);
+          console.error("Failed to open call in the main app:", error);
         });
     }).then((cleanup) => {
       if (cancelled) cleanup();
@@ -409,7 +409,7 @@ export function useHuddlePresentation() {
       ) {
         void openHuddleCompanion(event.payload.ephemeral_channel_id).catch(
           (error) => {
-            console.error("Failed to open starting huddle window:", error);
+            console.error("Failed to open starting call window:", error);
           },
         );
       }

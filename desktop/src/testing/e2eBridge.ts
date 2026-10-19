@@ -11602,7 +11602,7 @@ export function maybeInstallE2eTauriMocks() {
     transcriptionEnabled,
   }) => {
     if (!mockHuddle) {
-      throw new Error("No mock huddle is configured.");
+      throw new Error("No mock call is configured.");
     }
     mockHuddle.members = structuredClone(members);
     mockHuddle.state.transcription_enabled = transcriptionEnabled;
@@ -12039,7 +12039,7 @@ export function maybeInstallE2eTauriMocks() {
       case "get_voice_input_mode":
         return mockHuddle?.state.voice_input_mode ?? "push_to_talk";
       case "set_voice_input_mode": {
-        if (!mockHuddle) throw new Error("No active mock huddle.");
+        if (!mockHuddle) throw new Error("No active mock call.");
         const mode = (payload as { mode?: unknown }).mode;
         if (mode !== "push_to_talk" && mode !== "voice_activity") {
           throw new Error("Missing voice input mode.");
@@ -12181,7 +12181,7 @@ export function maybeInstallE2eTauriMocks() {
         return null;
       case "set_huddle_transcription_enabled":
         if (!mockHuddle) {
-          throw new Error("No active mock huddle.");
+          throw new Error("No active mock call.");
         }
         mockHuddle.state.transcription_enabled = Boolean(
           (payload as { enabled?: boolean }).enabled,
@@ -12194,7 +12194,7 @@ export function maybeInstallE2eTauriMocks() {
         persistMockHuddle();
         return structuredClone(mockHuddle?.state.agent_voice_settings ?? {});
       case "set_huddle_agent_tts_enabled": {
-        if (!mockHuddle) throw new Error("No active mock huddle.");
+        if (!mockHuddle) throw new Error("No active mock call.");
         const request = payload as { agentPubkey?: string; enabled?: boolean };
         if (!request.agentPubkey || typeof request.enabled !== "boolean") {
           throw new Error("Missing agent text-to-speech setting.");
@@ -12202,14 +12202,14 @@ export function maybeInstallE2eTauriMocks() {
         refreshMockHuddleMembership(activeConfig);
         const settings =
           mockHuddle.state.agent_voice_settings[request.agentPubkey];
-        if (!settings) throw new Error("Agent is not in the active huddle.");
+        if (!settings) throw new Error("Agent is not in the active call.");
         settings.enabled = request.enabled;
         persistMockHuddle();
         await emitMockHuddleState();
         return structuredClone(settings);
       }
       case "set_huddle_agent_voice": {
-        if (!mockHuddle) throw new Error("No active mock huddle.");
+        if (!mockHuddle) throw new Error("No active mock call.");
         const request = payload as { agentPubkey?: string; voiceKey?: string };
         if (!request.agentPubkey || !request.voiceKey) {
           throw new Error("Missing agent voice setting.");
@@ -12217,7 +12217,7 @@ export function maybeInstallE2eTauriMocks() {
         refreshMockHuddleMembership(activeConfig);
         const settings =
           mockHuddle.state.agent_voice_settings[request.agentPubkey];
-        if (!settings) throw new Error("Agent is not in the active huddle.");
+        if (!settings) throw new Error("Agent is not in the active call.");
         settings.voice_key = request.voiceKey;
         persistMockHuddle();
         await emitMockHuddleState();
@@ -12288,14 +12288,14 @@ export function maybeInstallE2eTauriMocks() {
       case "remove_agent_from_huddle": {
         const agentPubkey = (payload as { agentPubkey?: string })?.agentPubkey;
         if (!mockHuddle || !agentPubkey) {
-          throw new Error("No active huddle agent to remove.");
+          throw new Error("No active call agent to remove.");
         }
         const initialCount = mockHuddle.members.length;
         mockHuddle.members = mockHuddle.members.filter(
           (member) => member.role !== "bot" || member.pubkey !== agentPubkey,
         );
         if (mockHuddle.members.length === initialCount) {
-          throw new Error("Agent is not in this huddle.");
+          throw new Error("Agent is not in this call.");
         }
         refreshMockHuddleMembership(activeConfig);
         persistMockHuddle();

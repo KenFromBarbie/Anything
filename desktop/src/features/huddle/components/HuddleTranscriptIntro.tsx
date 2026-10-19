@@ -11,9 +11,9 @@ export function HuddleTranscriptIntro() {
         <MessageCircle aria-hidden className="h-4 w-4" />
       </span>
       <div className="min-w-0">
-        <p className="text-base font-semibold text-foreground">Huddle chat</p>
+        <p className="text-base font-semibold text-foreground">Call chat</p>
         <p className="mt-0.5 max-w-xl text-sm leading-5 text-muted-foreground">
-          Chat with huddle participants and agents. The transcript appears here
+          Chat with call participants and agents. The transcript appears here
           too.
         </p>
       </div>

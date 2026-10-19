@@ -71,7 +71,9 @@ export function AddAgentDialog({
     (agent) =>
       !currentAgentPubkeys.some(
         (pubkey) => pubkey.toLowerCase() === agent.pubkey.toLowerCase(),
-      ),
+      ) &&
+      // Office agents join while they're on the floor (the Office runs them).
+      (!isOfficeAgent(agent) || agent.status === "deployed"),
   );
 
   async function handleAdd(agent: ManagedAgentSummary) {
@@ -82,9 +84,12 @@ export function AddAgentDialog({
     let startedForAdd = false;
     try {
       const isLocal = agent.backend.type === "local";
-      const needsStart = isLocal
-        ? agent.status !== "running"
-        : agent.status !== "deployed";
+      // The Office starts and stops its own agents; they're only added.
+      const needsStart = isOfficeAgent(agent)
+        ? false
+        : isLocal
+          ? agent.status !== "running"
+          : agent.status !== "deployed";
       if (needsStart && isLocal) {
         await invoke("start_managed_agent", { pubkey: agent.pubkey });
         startedForAdd = true;
@@ -98,8 +103,8 @@ export function AddAgentDialog({
             startError instanceof Error
               ? startError.message
               : String(startError);
-          setWarning(`Added to huddle, but could not start agent: ${msg}`);
-          console.error("Failed to start agent after huddle add:", startError);
+          setWarning(`Added to call, but could not start agent: ${msg}`);
+          console.error("Failed to start agent after call add:", startError);
           return;
         }
       }
@@ -118,14 +123,14 @@ export function AddAgentDialog({
           await invoke("stop_managed_agent", { pubkey: agent.pubkey });
         } catch (rollbackError: unknown) {
           console.error(
-            "Failed to stop agent after huddle add failed:",
+            "Failed to stop agent after call add failed:",
             rollbackError,
           );
         }
       }
       const msg = e instanceof Error ? e.message : String(e);
       setError(`Failed to add agent: ${msg}`);
-      console.error("Failed to add agent to huddle:", e);
+      console.error("Failed to add agent to call:", e);
     } finally {
       setAdding(null);
     }
@@ -141,7 +146,7 @@ export function AddAgentDialog({
       <ChooserDialogContent
         className="max-w-xl"
         data-testid="add-huddle-agent-dialog"
-        headerSubtitle="Choose an agent to join this huddle."
+        headerSubtitle="Choose an agent to join this call."
         scrollAreaClassName="space-y-5"
         title="Add agents"
       >
@@ -163,7 +168,7 @@ export function AddAgentDialog({
           </p>
         ) : availableAgents.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">
-            All available agents are already in this huddle.
+            All available agents are already in this call.
           </p>
         ) : (
           <ul className="flex flex-col gap-1">
@@ -186,6 +191,11 @@ export function AddAgentDialog({
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">
                       {agent.name}
                     </span>
+                    {isOfficeAgent(agent) ? (
+                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        Office
+                      </span>
+                    ) : null}
                     {isAdding ? (
                       <LoaderCircle
                         aria-label={`Adding ${agent.name}`}
@@ -201,6 +211,10 @@ export function AddAgentDialog({
       </ChooserDialogContent>
     </Dialog>
   );
+}
+
+function isOfficeAgent(agent: ManagedAgentSummary): boolean {
+  return agent.backend.type === "provider" && agent.backend.id === "office";
 }
 
 export type { AgentAddResult };

@@ -662,7 +662,7 @@ export function HuddleProvider({
         } catch (error) {
           // Opening the companion is presentation-only. Keep the connected
           // huddle alive if its window cannot be opened.
-          console.error("Failed to present newly started huddle:", error);
+          console.error("Failed to present newly started call:", error);
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -675,7 +675,7 @@ export function HuddleProvider({
         workletRef.current = null;
         await cleanupFailedStart(w, true);
         setHuddleError(formatHuddleActionError(e, "start"));
-        console.error("Failed to start huddle:", e);
+        console.error("Failed to start call:", e);
         throw e;
       } finally {
         onHuddleStartPendingChange?.(false);
@@ -740,7 +740,7 @@ export function HuddleProvider({
         } catch (error) {
           // Presentation failure must not disconnect a successfully joined
           // huddle; the user can still open its companion from the main app.
-          console.error("Failed to present joined huddle:", error);
+          console.error("Failed to present joined call:", error);
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -753,7 +753,7 @@ export function HuddleProvider({
         workletRef.current = null;
         await cleanupFailedStart(w, false);
         setHuddleError(formatHuddleActionError(e, "join"));
-        console.error("Failed to join huddle:", e);
+        console.error("Failed to join call:", e);
         throw e;
       } finally {
         setIsStarting(false);

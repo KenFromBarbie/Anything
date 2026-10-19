@@ -43,7 +43,7 @@ export function buildHuddleChannelName({
 }: BuildHuddleChannelNameInput): string {
   if (channel.channelType !== "dm") {
     const channelName = channel.name.trim();
-    return channelName ? `${channelName} huddle` : "huddle";
+    return channelName ? `${channelName} call` : "call";
   }
 
   const membersByPubkey = new Map(
@@ -70,8 +70,8 @@ export function buildHuddleChannelName({
     .filter(Boolean);
 
   if (names.length === 0) {
-    return "huddle";
+    return "call";
   }
 
-  return `${names.join(" <> ")} huddle`;
+  return `${names.join(" <> ")} call`;
 }

@@ -483,8 +483,8 @@ export function HuddleBar({
         });
         await relayClient.publishEvent(
           event,
-          "Timed out while sending huddle reaction.",
-          "Failed to send huddle reaction.",
+          "Timed out while sending call reaction.",
+          "Failed to send call reaction.",
         );
       })().catch((error) => {
         setReactionError("Reaction failed");
@@ -532,7 +532,7 @@ export function HuddleBar({
     } catch (e) {
       locallyLeavingChannelRef.current = null;
       stateGenerationRef.current += 1;
-      console.error("Failed to leave huddle:", e);
+      console.error("Failed to leave call:", e);
     } finally {
       setIsLeaving(false);
     }
@@ -549,7 +549,7 @@ export function HuddleBar({
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setTranscriptError(`Transcript failed: ${message}`);
-      console.error("Failed to toggle huddle transcript:", e);
+      console.error("Failed to toggle call transcript:", e);
     }
   }
 
@@ -559,7 +559,7 @@ export function HuddleBar({
       dismissHeadphonesHint();
       onOpenHuddleWindow?.();
     } catch (error) {
-      console.error("Failed to open huddle window:", error);
+      console.error("Failed to open call window:", error);
     }
   }
 
@@ -567,7 +567,7 @@ export function HuddleBar({
     try {
       await invoke("close_huddle_companion");
     } catch (error) {
-      console.error("Failed to return huddle to drawer:", error);
+      console.error("Failed to return call to drawer:", error);
     }
   }
 
@@ -716,7 +716,7 @@ export function HuddleBar({
               }}
               onRemoveAgent={async (pubkey) => {
                 const confirmed = window.confirm(
-                  "Remove this agent from the huddle?",
+                  "Remove this agent from the call?",
                 );
                 if (!confirmed) return;
                 try {
@@ -736,7 +736,7 @@ export function HuddleBar({
                     };
                   });
                 } catch (e) {
-                  console.error("Failed to remove agent from huddle:", e);
+                  console.error("Failed to remove agent from call:", e);
                 }
               }}
             />
@@ -806,7 +806,7 @@ export function HuddleBar({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                aria-label="Add agent to huddle"
+                aria-label="Add agent to call"
                 className="buzz-huddle-control-button h-12 w-12 shrink-0 rounded-md"
                 onClick={() => setShowAddAgent(true)}
                 size="icon"
@@ -828,7 +828,7 @@ export function HuddleBar({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                aria-label="Open huddle in a new window"
+                aria-label="Open call in a new window"
                 className="buzz-huddle-control-button h-12 w-12 shrink-0 rounded-md"
                 onClick={() => void handleOpenHuddleWindow()}
                 size="icon"
@@ -839,14 +839,14 @@ export function HuddleBar({
               </Button>
             </TooltipTrigger>
             <TooltipContent className="buzz-huddle-tooltip" side="top">
-              Open huddle window
+              Open call window
             </TooltipContent>
           </Tooltip>
         ) : (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                aria-label="Return huddle to drawer"
+                aria-label="Return call to drawer"
                 className="buzz-huddle-control-button h-12 w-12 shrink-0 rounded-md"
                 onClick={() => void handleReturnToDrawer()}
                 size="icon"
@@ -857,13 +857,13 @@ export function HuddleBar({
               </Button>
             </TooltipTrigger>
             <TooltipContent className="buzz-huddle-tooltip" side="top">
-              Return huddle to drawer
+              Return call to drawer
             </TooltipContent>
           </Tooltip>
         )}
 
         <Button
-          aria-label="Leave huddle"
+          aria-label="Leave call"
           className="h-12 gap-2 px-4"
           disabled={isLeaving}
           aria-busy={isLeaving}
@@ -879,8 +879,8 @@ export function HuddleBar({
       {/* Screen reader announcements for huddle state changes */}
       <output aria-live="polite" className="sr-only">
         {hasAvailableMic
-          ? "In huddle, microphone connected"
-          : "In huddle, no microphone"}
+          ? "In call, microphone connected"
+          : "In call, no microphone"}
         {`, voice input: ${isPttMode ? "push to talk, press Ctrl+Space to transmit" : "voice activity detection"}`}
         {modelStatus &&
           transcriptionEnabled &&

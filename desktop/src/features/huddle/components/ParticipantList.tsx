@@ -198,7 +198,7 @@ export function HuddleParticipantsControl({
         }
       })
       .catch((error) => {
-        console.error("Failed to load Huddle agent voices:", error);
+        console.error("Failed to load Call agent voices:", error);
       });
     return () => {
       disposed = true;
@@ -275,13 +275,13 @@ export function HuddleParticipantsControl({
                   {displayName}
                 </div>
                 <div className="truncate text-xs text-foreground/60">
-                  {isActive ? "Speaking" : isAgent ? "Agent" : "In huddle"}
+                  {isActive ? "Speaking" : isAgent ? "Agent" : "In call"}
                 </div>
               </div>
 
               {isAgent && onRemoveAgent && (
                 <Button
-                  aria-label={`Remove ${displayName} from huddle`}
+                  aria-label={`Remove ${displayName} from call`}
                   className="h-7 w-7 shrink-0 text-foreground/65 hover:bg-destructive/15 hover:text-destructive"
                   onClick={() => void onRemoveAgent(pubkey)}
                   size="icon"
@@ -406,7 +406,7 @@ export function HuddleParticipantsControl({
       {hiddenParticipantCount > 0 ? (
         <PopoverTrigger asChild>
           <Button
-            aria-label={`Show all huddle participants (${participants.length})`}
+            aria-label={`Show all call participants (${participants.length})`}
             className={cn(
               "relative z-10 shrink-0 px-1 text-2xs font-semibold shadow-none tabular-nums",
               appearance === "room"

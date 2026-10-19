@@ -87,7 +87,7 @@ export function HuddleIndicator({
       let huddle: ActiveHuddle | null = null;
       // Track ended ephemeral channels so late-arriving join/left events
       // (e.g. relay-emitted 48102 that lands 1s after a client-emitted 48103)
-      // don't resurrect a phantom huddle via the "infer huddle exists" fallback.
+      // don't resurrect a phantom huddle via the "infer call exists" fallback.
       const endedChannels = new Set<string>();
 
       for (const ev of sorted) {
@@ -240,7 +240,7 @@ export function HuddleIndicator({
             void queryClient.invalidateQueries({ queryKey: ["channels"] });
           })
           .catch((error) => {
-            console.error("Failed to join huddle:", error);
+            console.error("Failed to join call:", error);
             toast.error(formatHuddleActionError(error, "join"));
           })
           .finally(() => setIsJoining(false));
@@ -277,7 +277,7 @@ export function HuddleIndicator({
           onSelect={() => onStart()}
         >
           <Headphones />
-          <span>Start huddle</span>
+          <span>Start call</span>
         </DropdownMenuItem>
       );
     }
@@ -290,7 +290,7 @@ export function HuddleIndicator({
             data-testid="channel-huddle-tooltip-trigger"
           >
             <Button
-              aria-label="Start huddle"
+              aria-label="Start call"
               className={className}
               data-testid="channel-start-huddle-trigger"
               disabled={startDisabled || isStarting}
@@ -303,7 +303,7 @@ export function HuddleIndicator({
             </Button>
           </span>
         </TooltipTrigger>
-        <TooltipContent>Huddle</TooltipContent>
+        <TooltipContent>Call</TooltipContent>
       </Tooltip>
     );
   }
@@ -325,7 +325,7 @@ export function HuddleIndicator({
       // Refetch channels so the ephemeral channel appears in the sidebar.
       void queryClient.invalidateQueries({ queryKey: ["channels"] });
     } catch (e) {
-      console.error("Failed to join huddle:", e);
+      console.error("Failed to join call:", e);
       toast.error(formatHuddleActionError(e, "join"));
     } finally {
       setIsJoining(false);
@@ -341,7 +341,7 @@ export function HuddleIndicator({
         onSelect={() => void doJoin()}
       >
         <Headphones />
-        <span>Join huddle</span>
+        <span>Join call</span>
         <span className="ml-auto text-xs text-muted-foreground">
           {participantCount}
         </span>
@@ -353,7 +353,7 @@ export function HuddleIndicator({
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          aria-label={`Join active huddle (${participantCount} participant${participantCount !== 1 ? "s" : ""})`}
+          aria-label={`Join active call (${participantCount} participant${participantCount !== 1 ? "s" : ""})`}
           className={cn("relative", className)}
           disabled={isJoining || isStarting}
           onClick={() => void doJoin()}
@@ -372,7 +372,7 @@ export function HuddleIndicator({
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        {`Huddle active — ${participantCount} participant${participantCount !== 1 ? "s" : ""}`}
+        {`Call active — ${participantCount} participant${participantCount !== 1 ? "s" : ""}`}
       </TooltipContent>
     </Tooltip>
   );

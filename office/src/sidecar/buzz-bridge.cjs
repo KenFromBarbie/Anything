@@ -340,6 +340,11 @@ class BuzzBridge {
     const list = Array.isArray(channels) ? channels : [];
     who.knownChannels = new Set(list.map((c) => c.channel_id));
     who.dmChannels = new Set(list.filter((c) => c.name === 'DM').map((c) => c.channel_id));
+    // Voice calls are channels named "… call" ("… huddle" before the rename);
+    // what an agent says there is read aloud.
+    who.callChannels = new Set(
+      list.filter((c) => /(^|\s)(call|huddle)$/i.test(String(c.name ?? '').trim())).map((c) => c.channel_id)
+    );
     who.dmCheckedAt = Date.now();
   }
 
@@ -399,13 +404,21 @@ class BuzzBridge {
     // In channels the agent answers in the thread; in a DM it answers inline.
     const threaded = route.why !== 'dm';
     const root = route.root ?? ev.id;
-    const where = route.why === 'dm' ? 'a direct message' : route.why === 'followup' ? 'a follow-up in a Buzz thread you are in' : 'a Buzz channel mention';
+    const inCall = !!channel && who.callChannels?.has(channel);
+    const where = inCall
+      ? 'a live voice call (what the owner said, transcribed)'
+      : route.why === 'dm' ? 'a direct message' : route.why === 'followup' ? 'a follow-up in a Buzz thread you are in' : 'a Buzz channel mention';
     const from = fromAgent ? `from ${fromAgent.name}, one of the office's agents` : 'from the office owner';
     const body = [
       `[BUZZ ${fromAgent ? 'MESSAGE' : 'REQUEST'} — ${where}, ${from}. No one is watching this terminal.]`,
       fromAgent
         ? 'Help with what they ask if it is yours to do; otherwise say so in the thread.'
         : 'Handle it as you would any request from the human: do it yourself or route it to the right agent.',
+      ...(inCall
+        ? [
+          'You are in a voice call: your reply is read aloud straight away. Answer in one to three short spoken sentences, plain words only (no markdown, lists, links or code), and reply quickly; do longer work afterwards and say so.'
+        ]
+        : []),
       'When you have a substantive answer (or need a decision), post it back to Buzz:',
       '  1. write the reply as markdown to a file',
       `  2. run: ${this.replyCommand()} --reply-to ${ev.id} --text-file "<that file>"`,

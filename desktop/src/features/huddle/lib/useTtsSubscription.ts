@@ -54,7 +54,7 @@ export function useTtsSubscription(
     //
     // FAIL-CLOSED: agentsLoaded starts false. Until the fetch succeeds and
     // populates agentPubkeys, NO messages are spoken. An empty set after a
-    // successful fetch means "no agents in the huddle" → still mute.
+    // successful fetch means "no agents in the call" → still mute.
     let agentsLoaded = false;
     const agentPubkeys = new Set<string>();
 

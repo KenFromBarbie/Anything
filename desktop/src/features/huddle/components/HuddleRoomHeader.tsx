@@ -54,7 +54,7 @@ export function HuddleRoomHeader() {
     return levels;
   }, [currentPubkey, isMuted, micConnected, micLevel, speakerLevels]);
   const handleRemoveAgent = React.useCallback(async (pubkey: string) => {
-    if (!window.confirm("Remove this agent from the huddle?")) return;
+    if (!window.confirm("Remove this agent from the call?")) return;
     try {
       await invoke("remove_agent_from_huddle", {
         agentPubkey: pubkey,
@@ -73,7 +73,7 @@ export function HuddleRoomHeader() {
           : current,
       );
     } catch (error) {
-      console.error("Failed to remove agent from huddle:", error);
+      console.error("Failed to remove agent from call:", error);
     }
   }, []);
 

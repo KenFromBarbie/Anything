@@ -128,7 +128,7 @@ export function ProfilePrimaryActions({
           disabled={huddlePending}
           icon={Headphones}
           isLoading={huddlePending}
-          label="Huddle"
+          label="Call"
           onClick={onHuddle}
           testId="user-profile-huddle"
         />

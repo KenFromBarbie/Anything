@@ -42,12 +42,12 @@ export const KIND_GROUPS: ReadonlyArray<KindGroup> = [
     })),
   },
   {
-    label: "Huddle events",
+    label: "Call events",
     items: [
-      { kind: KIND_HUDDLE_STARTED, label: "Huddle started" },
+      { kind: KIND_HUDDLE_STARTED, label: "Call started" },
       { kind: KIND_HUDDLE_PARTICIPANT_JOINED, label: "Participant joined" },
       { kind: KIND_HUDDLE_PARTICIPANT_LEFT, label: "Participant left" },
-      { kind: KIND_HUDDLE_ENDED, label: "Huddle ended" },
+      { kind: KIND_HUDDLE_ENDED, label: "Call ended" },
     ],
   },
   {
