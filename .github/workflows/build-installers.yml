@@ -161,7 +161,7 @@ jobs:
           cd studio/frontend
           npm ci
           cd apps/artcraft
-          npx vite build --outDir ../../../../desktop/studio-dist/studio-app --emptyOutDir
+          npx vite build --outDir "$GITHUB_WORKSPACE/desktop/studio-dist/studio-app" --emptyOutDir
       - name: Package it
         run: |
           version=$(node -p "require('./desktop/package.json').version")
