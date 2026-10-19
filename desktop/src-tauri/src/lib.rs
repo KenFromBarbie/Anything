@@ -552,6 +552,7 @@ pub fn run() {
             studio::studio_theme,
             local_servers::local_server_create,
             local_servers::local_servers_available,
+            local_servers::server_work_folder,
             studio::studio_status,
             studio::studio_install,
             studio::studio_set_tools,

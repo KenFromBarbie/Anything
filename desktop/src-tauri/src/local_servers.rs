@@ -258,6 +258,27 @@ pub async fn local_server_create(app: AppHandle, name: String) -> Result<Created
     .map_err(|e| format!("local server task failed: {e}"))?
 }
 
+/// A work folder for a new server's agents: `~/Anything/<name>` (made if
+/// missing; a name that can't be a folder becomes "Server").
+#[tauri::command]
+pub fn server_work_folder(app: AppHandle, name: String) -> Result<String, String> {
+    let home = app
+        .path()
+        .home_dir()
+        .map_err(|e| format!("no home folder: {e}"))?;
+    let cleaned: String = name
+        .trim()
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { ' ' })
+        .collect();
+    let cleaned = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    let folder = home
+        .join("Anything")
+        .join(if cleaned.is_empty() { "Server".to_string() } else { cleaned });
+    std::fs::create_dir_all(&folder).map_err(|e| format!("make {}: {e}", folder.display()))?;
+    Ok(folder.to_string_lossy().into_owned())
+}
+
 /// Whether servers can be made on this computer (the local relay is there).
 #[tauri::command]
 pub fn local_servers_available() -> bool {

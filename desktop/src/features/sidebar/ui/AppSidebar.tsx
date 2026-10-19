@@ -1,5 +1,6 @@
 // biome-ignore format: keep compact to stay within file size limit
 import * as React from "react";
+import { ChevronDown } from "lucide-react";
 import { FeatureGate } from "@/shared/features";
 import { SidebarDndContext } from "@/features/sidebar/ui/SidebarDnd";
 
@@ -9,6 +10,7 @@ import {
   SidebarThreadsSection,
 } from "@/features/sidebar/ui/SidebarThreadsAndFiles";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
+import { cn } from "@/shared/lib/cn";
 import { useDeferredLoad } from "@/shared/hooks/useDeferredStartup";
 import {
   useChannelSections,
@@ -153,6 +155,7 @@ export function AppSidebar({
   const canShowSidebarUpdateCard = shouldShowSidebarUpdateCard(updateStatus);
   const { open: sidebarOpen, openMobile } = useSidebar();
   const isMobile = useIsMobile();
+  const [serverMenuCollapsed, toggleServerMenu] = useServerMenuCollapsed();
   const [isSidebarUpdateCardDismissed, setIsSidebarUpdateCardDismissed] =
     React.useState(false);
   const showSidebarUpdateCard =
@@ -569,24 +572,39 @@ export function AppSidebar({
               data-testid="sidebar-scroll-content"
             >
               {activeCommunity ? (
-                <div
-                  className="truncate px-2 pt-1 text-sm font-semibold text-sidebar-foreground"
+                <button
+                  aria-expanded={!serverMenuCollapsed}
+                  className="group/server-name flex min-w-0 items-center gap-1 rounded-md px-2 pt-1 text-left text-sm font-semibold text-sidebar-foreground"
                   data-testid="sidebar-server-name"
-                  title={activeCommunity.name}
+                  onClick={toggleServerMenu}
+                  title={
+                    serverMenuCollapsed
+                      ? `Show ${activeCommunity.name}'s menu`
+                      : `Hide ${activeCommunity.name}'s menu`
+                  }
+                  type="button"
                 >
-                  {activeCommunity.name}
-                </div>
+                  <span className="truncate">{activeCommunity.name}</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 transition-transform",
+                      serverMenuCollapsed && "-rotate-90",
+                    )}
+                  />
+                </button>
               ) : null}
-              <AppSidebarPrimaryMenu
-                homeBadgeCount={homeBadgeCount}
-                onSelectAgents={onSelectAgents}
-                onSelectHome={onSelectHome}
-                onSelectProjects={onSelectProjects}
-                onSelectPulse={onSelectPulse}
-                onSelectWorkflows={onSelectWorkflows}
-                projectsOverviewActive={projectsOverviewActive}
-                selectedView={selectedView}
-              />
+              {serverMenuCollapsed && activeCommunity ? null : (
+                <AppSidebarPrimaryMenu
+                  homeBadgeCount={homeBadgeCount}
+                  onSelectAgents={onSelectAgents}
+                  onSelectHome={onSelectHome}
+                  onSelectProjects={onSelectProjects}
+                  onSelectPulse={onSelectPulse}
+                  onSelectWorkflows={onSelectWorkflows}
+                  projectsOverviewActive={projectsOverviewActive}
+                  selectedView={selectedView}
+                />
+              )}
 
               {isLoading ? (
                 <SidebarLoadingContent shape={sidebarLoadingShape} />
@@ -973,4 +991,30 @@ export function AppSidebar({
       <SidebarRail />
     </Sidebar>
   );
+}
+
+const SERVER_MENU_KEY = "anything.server-menu-collapsed";
+
+/** Whether the server's menu (Inbox, Tasks, Agents…) is folded under its
+ *  name; remembered across launches. */
+function useServerMenuCollapsed(): [boolean, () => void] {
+  const [collapsed, setCollapsed] = React.useState(() => {
+    try {
+      return localStorage.getItem(SERVER_MENU_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggle = React.useCallback(() => {
+    setCollapsed((value) => {
+      const next = !value;
+      try {
+        localStorage.setItem(SERVER_MENU_KEY, next ? "1" : "0");
+      } catch {
+        // Not remembered without storage.
+      }
+      return next;
+    });
+  }, []);
+  return [collapsed, toggle];
 }

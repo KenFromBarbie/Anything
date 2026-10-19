@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useServerSetupRunner } from "@/features/communities/lib/serverSetup";
 import { useOpenQuestionCount } from "@/features/tasks/ui/AgentQuestions";
 import { ProtectedGlobalOverlay } from "@protected-feature-components";
 import { useQueryClient } from "@tanstack/react-query";
@@ -462,6 +463,8 @@ export function AppShell() {
 
   // The agents' questions sit at the top of the Inbox, so they count on it.
   const openQuestions = useOpenQuestionCount();
+  // A server made here carries out its setup once the app is on it.
+  useServerSetupRunner(communitiesHook.activeCommunity?.relayUrl);
   const { homeBadgeCount, homeBadgeCountExcludingHighPriority } =
     useHomeFeedNotificationState(
       homeFeedQuery.data,
