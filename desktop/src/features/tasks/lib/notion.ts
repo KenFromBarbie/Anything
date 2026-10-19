@@ -184,14 +184,97 @@ export function dateValue(
     : { [`date:${name}:start`]: null };
 }
 
-/** Every row of a data source (up to Notion's 100 per query). */
+// Reading rows goes through a database view: Notion's "rows" and SQL queries
+// share a small hourly allowance per workspace (the board syncs every 30
+// seconds, so it ran out and every sync failed), while view queries have none.
+
+const VIEWS_KEY = "kenns-harness.notion-views";
+const VIEW_ENTRY =
+  /<view url="\{*(view:\/\/[0-9a-f-]{36})\}*">\s*(\{[^\n]*\})/gi;
+
+function loadViews(): Record<string, string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(VIEWS_KEY) ?? "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveView(dataSource: string, view: string) {
+  try {
+    localStorage.setItem(
+      VIEWS_KEY,
+      JSON.stringify({ ...loadViews(), [dataSource]: view }),
+    );
+  } catch {
+    // Without storage the view is looked up again next time.
+  }
+}
+
+/** Notes the views listed in a database's fetch text, by data source. */
+function rememberViews(text: string): void {
+  for (const match of text.matchAll(VIEW_ENTRY)) {
+    const source = COLLECTION.exec(match[2])?.[0];
+    if (source && !loadViews()[source]) saveView(source, match[1]);
+  }
+}
+
+/** A view of this data source (found once, then remembered). */
+async function viewOf(dataSource: string): Promise<string | null> {
+  const known = loadViews()[dataSource];
+  if (known) return known;
+  const sourceText = textOf(
+    await callNotion("notion-fetch", { id: dataSource }),
+  );
+  const title = /The title of this Data Source is:\s*(.+)/.exec(
+    sourceText,
+  )?.[1];
+  if (!title) return null;
+  const databases = (await searchPages(title.trim(), "database")).slice(0, 8);
+  for (const database of databases) {
+    const text = textOf(await callNotion("notion-fetch", { id: database.id }));
+    rememberViews(text);
+    const found = loadViews()[dataSource];
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Every row of a data source. */
 export async function queryRows(dataSource: string): Promise<NotionRow[]> {
-  const result = await callNotion("notion-query-data-sources", {
-    data: { mode: "rows", data_source_url: dataSource, limit: 100 },
-  });
-  return rowsOf(result)
-    .map(toRow)
-    .filter((row): row is NotionRow => row !== null);
+  const view = await viewOf(dataSource).catch(() => null);
+  const raw: unknown[] = [];
+  if (view) {
+    let cursor: string | undefined;
+    for (let page = 0; page < 10; page++) {
+      const result = asObject(
+        await callNotion("notion-query-data-sources", {
+          data: {
+            mode: "view",
+            view_url: view,
+            page_size: 100,
+            ...(cursor ? { start_cursor: cursor } : {}),
+          },
+        }),
+      );
+      raw.push(...rowsOf(result));
+      cursor =
+        result?.has_more && typeof result.next_cursor === "string"
+          ? result.next_cursor
+          : undefined;
+      if (!cursor) break;
+    }
+  } else {
+    raw.push(
+      ...rowsOf(
+        await callNotion("notion-query-data-sources", {
+          data: { mode: "rows", data_source_url: dataSource, limit: 100 },
+        }),
+      ),
+    );
+  }
+  return raw.map(toRow).filter((row): row is NotionRow => row !== null);
 }
 
 /** Add a row; returns its page id. */
@@ -297,16 +380,50 @@ function textOf(value: unknown): string {
   return typeof text === "string" ? text : JSON.stringify(value);
 }
 
-/** The data source of a database (from a create or fetch result). */
-async function dataSourceOf(created: unknown): Promise<string> {
+const DATA_SOURCE_ID =
+  /data[_-]?source[_-]?(?:id|url)?["'\s:=]+(?:collection:\/\/)?([0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12})/i;
+const DATABASE_ID =
+  /(?:database[_-]?id|<database\s+url)["'\s:=]+[^0-9a-f]*?([0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12})/i;
+
+/** Every Notion id in some text, in order. */
+function allIds(text: string): string[] {
+  const ids: string[] = [];
+  const pattern = new RegExp(ID_PATTERN.source, "gi");
+  for (const match of text.matchAll(pattern)) {
+    const id = notionId(match[0]);
+    if (id && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * The data source of a database (from a create or fetch result). `exclude`
+ * is the parent page: its id appears in a create result too, and fetching it
+ * would find some other database on that page (the owner's own), never the
+ * new one.
+ */
+async function dataSourceOf(
+  created: unknown,
+  exclude: string[] = [],
+): Promise<string> {
   const text = textOf(created);
+  rememberViews(text);
   const direct = COLLECTION.exec(text);
   if (direct) return direct[0];
-  const id = notionId(text);
-  if (!id) throw new Error("Notion didn't say which database it created.");
-  const found = COLLECTION.exec(
-    textOf(await callNotion("notion-fetch", { id })),
+  const named = DATA_SOURCE_ID.exec(text);
+  if (named) return `collection://${notionId(named[1])}`;
+  const skip = exclude.map((id) => notionId(id));
+  const database =
+    notionId(DATABASE_ID.exec(text)?.[1]) ??
+    allIds(text).find((id) => !skip.includes(id)) ??
+    null;
+  if (!database)
+    throw new Error("Notion didn't say which database it created.");
+  const databaseText = textOf(
+    await callNotion("notion-fetch", { id: database }),
   );
+  rememberViews(databaseText);
+  const found = COLLECTION.exec(databaseText);
   if (!found) {
     throw new Error(
       "That database's rows can't be reached through Notion's tools (linked views and the Home \"My tasks\" widget can't be used). Pick the original database.",
@@ -328,6 +445,7 @@ export async function createTaskDatabases(
         title,
         schema,
       }),
+      [parentPageId],
     );
   const officeDb = await create(
     "Office tasks",
