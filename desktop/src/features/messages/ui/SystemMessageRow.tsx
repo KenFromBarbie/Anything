@@ -616,6 +616,11 @@ function describeSystemEvent(
         title: actorName,
         action: "created this channel",
       };
+    case "dm_created":
+      return {
+        title: actorName,
+        action: "started this conversation",
+      };
     case "channel_archived":
       return {
         title: actorName,

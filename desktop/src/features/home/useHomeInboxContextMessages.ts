@@ -8,7 +8,7 @@ import {
 import { formatTimelineMessages } from "@/features/messages/lib/formatTimelineMessages";
 import type { UserProfileLookup } from "@/features/profile/lib/identity";
 import type { Channel, RelayEvent } from "@/shared/api/types";
-import { KIND_REACTION } from "@/shared/constants/kinds";
+import { KIND_REACTION, KIND_SYSTEM_MESSAGE } from "@/shared/constants/kinds";
 
 type UseHomeInboxContextMessagesOptions = {
   channelMessages?: RelayEvent[];
@@ -66,14 +66,18 @@ export function useHomeInboxContextMessages({
       ownerProfiles,
     );
 
-    return timelineMessages.map((message) =>
-      toInboxContextMessage(message, {
-        eventById,
-        fallbackAuthorPubkey: selectedItem.item.pubkey,
-        profiles,
-        selectedItemId: selectedEventId ?? selectedItem.id,
-      }),
-    );
+    // Membership and other system events (kind 40099) are channel history,
+    // drawn as system lines in channels; here they'd read as raw JSON posts.
+    return timelineMessages
+      .filter((message) => message.kind !== KIND_SYSTEM_MESSAGE)
+      .map((message) =>
+        toInboxContextMessage(message, {
+          eventById,
+          fallbackAuthorPubkey: selectedItem.item.pubkey,
+          profiles,
+          selectedItemId: selectedEventId ?? selectedItem.id,
+        }),
+      );
   }, [
     channelMessages,
     currentPubkey,
