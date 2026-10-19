@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { planSync, rowFingerprint, taskFingerprint } from "./notionSyncPlan.ts";
+import {
+  planInbound,
+  planSync,
+  rowFingerprint,
+  taskFingerprint,
+} from "./notionSyncPlan.ts";
 
 const names = {
   nameOf: (id) => ({ god: "Michael", "jim-1": "Jim" })[id],
@@ -137,4 +142,60 @@ test("a row paired before its Task ID was written isn't imported twice", () => {
   const r = row({ taskId: null });
   const actions = planSync([t], [r], synced(t, r), names);
   assert.deepEqual(kinds(actions), ["update-row"]);
+});
+
+test("one way: a board task never gets a Notion row", () => {
+  assert.deepEqual(kinds(planInbound([task()], [], { tasks: {} }, names)), []);
+});
+
+test("one way: a new Notion row becomes a task", () => {
+  const actions = planInbound(
+    [],
+    [row({ taskId: null, pageId: "p9" })],
+    { tasks: {} },
+    names,
+  );
+  assert.deepEqual(kinds(actions), ["import-row"]);
+});
+
+test("one way: a row written out by the board is never imported", () => {
+  const actions = planInbound(
+    [],
+    [row({ taskId: "gone" })],
+    { tasks: {} },
+    names,
+  );
+  assert.deepEqual(kinds(actions), []);
+});
+
+test("one way: an edit in Notion updates the task", () => {
+  const t = task();
+  const r = row();
+  const actions = planInbound(
+    [t],
+    [row({ status: "Doing" })],
+    synced(t, r),
+    names,
+  );
+  assert.deepEqual(kinds(actions), ["update-task"]);
+  assert.equal(actions[0].patch.status, "doing");
+});
+
+test("one way: an agent's change to the task isn't written to Notion", () => {
+  const t = task();
+  const r = row();
+  const actions = planInbound(
+    [task({ status: "done" })],
+    [r],
+    synced(t, r),
+    names,
+  );
+  assert.deepEqual(kinds(actions), ["in-sync"]);
+});
+
+test("one way: a row whose task is gone stays paired, not re-imported", () => {
+  const t = task();
+  const r = row({ taskId: null });
+  const actions = planInbound([], [r], synced(t, r), names);
+  assert.deepEqual(kinds(actions), ["in-sync"]);
 });

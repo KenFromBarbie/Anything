@@ -14,7 +14,7 @@ import {
 import {
   type BoardTask,
   type Names,
-  planSync,
+  planInbound,
   rowFingerprint,
   type SyncEntry,
   type SyncState,
@@ -24,8 +24,8 @@ import {
 } from "@/features/tasks/lib/notionSyncPlan";
 
 /**
- * Carries out `planSync` between the Office's board (through the Office's API)
- * and the "Office tasks" database. One run at a time; writes are spaced to stay
+ * Carries out `planInbound`: the owner's rows in the "Office tasks" database
+ * become (and update) tasks on the Office's board, one way. One run at a time; writes are spaced to stay
  * under Notion's rate limit. A failed write keeps its last good bookkeeping, so
  * the next run retries it.
  */
@@ -111,7 +111,7 @@ async function runSync(officeDb: string): Promise<SyncResult> {
     }
     return true;
   });
-  const actions = planSync(
+  const actions = planInbound(
     tasks,
     rows.filter((r) => !archivedPages.has(r.pageId)),
     {
@@ -201,17 +201,14 @@ async function runSync(officeDb: string): Promise<SyncResult> {
               : "",
             description: row.description,
           });
-          // Pair them before writing the Task ID, so a failed write can't
-          // import the row twice.
+          // Paired here (nothing is written back to Notion), so the row
+          // isn't imported again.
           next.tasks[task.id] = {
             pageId: row.pageId,
             localFp: taskFingerprint(task, names),
             notionFp: rowFingerprint(row),
           };
           result.imported++;
-          await write(() =>
-            updateRow(row.pageId, { [OFFICE_DB.taskId]: task.id }),
-          );
           break;
         }
         case "archive-row":

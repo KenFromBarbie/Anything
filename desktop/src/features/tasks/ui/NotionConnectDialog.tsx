@@ -79,8 +79,9 @@ function SignInStep() {
       <DialogHeader>
         <DialogTitle>Connect Notion</DialogTitle>
         <DialogDescription>
-          Sign in with your Notion account. Your own task sheet lives there, and
-          the agents' board syncs with it both ways.
+          Sign in with your Notion account. Your own task sheet lives there,
+          and rows you add to "Office tasks" become work for the agents (their
+          own board isn't written back to Notion).
         </DialogDescription>
       </DialogHeader>
       <ol className="grid list-decimal gap-2 pl-5 text-sm text-muted-foreground">

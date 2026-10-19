@@ -200,3 +200,60 @@ export function planSync(
   }
   return actions;
 }
+
+/**
+ * One way, Notion to the board: the owner hands agents work by adding rows to
+ * "Office tasks". New rows (no Task ID, not seen before) become tasks; edits
+ * to a row in Notion update its task. Nothing on the board is written to
+ * Notion: the agents' own workflow stays theirs, the owner's stays in Notion.
+ */
+export function planInbound(
+  tasks: BoardTask[],
+  rows: TaskRow[],
+  state: SyncState,
+  names: Names,
+): SyncAction[] {
+  const actions: SyncAction[] = [];
+  const taskById = new Map(tasks.map((task) => [task.id, task]));
+  const taskIdByPage = new Map(
+    Object.entries(state.tasks).map(([taskId, entry]) => [
+      entry.pageId,
+      taskId,
+    ]),
+  );
+  for (const row of rows) {
+    const taskId =
+      taskIdByPage.get(row.pageId) ??
+      (row.taskId && taskById.has(row.taskId) ? row.taskId : null);
+    if (!taskId) {
+      // A row that names a task no longer on the board was the board's own
+      // (written out before this went one way): never brought back.
+      if (!row.taskId) actions.push({ kind: "import-row", row });
+      continue;
+    }
+    const task = taskById.get(taskId);
+    const entry = state.tasks[taskId];
+    const notionFp = rowFingerprint(row);
+    if (!task) {
+      // Its task is done with and gone; remember the row so it isn't redone.
+      if (entry) actions.push({ kind: "in-sync", taskId, entry });
+      continue;
+    }
+    const localFp = taskFingerprint(task, names);
+    if (entry && notionFp !== entry.notionFp) {
+      actions.push({
+        kind: "update-task",
+        taskId,
+        patch: patchFromRow(row, names, task),
+        row,
+      });
+      continue;
+    }
+    actions.push({
+      kind: "in-sync",
+      taskId,
+      entry: { pageId: row.pageId, localFp, notionFp },
+    });
+  }
+  return actions;
+}
