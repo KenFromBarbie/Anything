@@ -111,7 +111,58 @@ fn office_scope(app: &AppHandle) -> Result<(OfficeScope, PathBuf), String> {
             .map_err(|e| format!("save office folders: {e}"))?;
     }
     let legacy = folder == LEGACY_DIR;
-    Ok((OfficeScope { community, legacy }, base.join(folder)))
+    let user_data = base.join(&folder);
+    if !legacy {
+        if let Err(error) = seed_office_settings(&base, &user_data) {
+            eprintln!("buzz-desktop: new office settings: {error}");
+        }
+    }
+    Ok((OfficeScope { community, legacy }, user_data))
+}
+
+/// A community's Office the first time it starts: its data folder has no
+/// settings, or the Office's first-run defaults. It takes the original
+/// Office's settings (providers, models, preferences) so it opens straight
+/// onto its floor, with its own hive (`<folder>/hive`) and none of the
+/// original's server-specific state (missions, webhooks, seeded routines).
+fn seed_office_settings(base: &Path, user_data: &Path) -> Result<(), String> {
+    let target = user_data.join("config.json");
+    let current: serde_json::Value = std::fs::read(&target)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    if current.get("onboardingComplete").and_then(|v| v.as_bool()) == Some(true) {
+        return Ok(());
+    }
+    let Some(original) = std::fs::read(base.join(LEGACY_DIR).join("config.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+    else {
+        return Ok(()); // no Office set up yet: the first-run setup runs as usual
+    };
+    let (Some(original), Some(current)) = (original.as_object(), current.as_object()) else {
+        return Ok(());
+    };
+    let mut merged = current.clone();
+    for (key, value) in original {
+        merged.insert(key.clone(), value.clone());
+    }
+    let hive = user_data.join("hive");
+    std::fs::create_dir_all(&hive).map_err(|e| format!("make {}: {e}", hive.display()))?;
+    let hive = serde_json::Value::String(hive.to_string_lossy().into_owned());
+    merged.insert("harnessHome".into(), hive.clone());
+    merged.insert("recentHives".into(), serde_json::Value::Array(vec![hive]));
+    merged.insert("missions".into(), serde_json::json!([]));
+    merged.insert("webhookTriggers".into(), serde_json::json!([]));
+    merged.insert("opsStandupSeeded".into(), serde_json::Value::Bool(false));
+    merged.insert("heartbeatSeeded".into(), serde_json::Value::Bool(false));
+    merged.insert("onboardingComplete".into(), serde_json::Value::Bool(true));
+    std::fs::create_dir_all(user_data).map_err(|e| e.to_string())?;
+    let json = serde_json::to_vec_pretty(&serde_json::Value::Object(merged))
+        .map_err(|e| e.to_string())?;
+    let staging = user_data.join("config.json.seed");
+    std::fs::write(&staging, json).map_err(|e| format!("write office settings: {e}"))?;
+    std::fs::rename(&staging, &target).map_err(|e| format!("save office settings: {e}"))
 }
 
 /// The active community's scope without recording anything (for filtering
@@ -583,5 +634,51 @@ mod scope_tests {
             normalize_community(" WSS://Relay.Example/ "),
             normalize_community("wss://relay.example")
         );
+    }
+}
+
+#[cfg(test)]
+mod seed_tests {
+    use super::*;
+
+    #[test]
+    fn a_new_office_takes_the_original_settings_with_its_own_hive() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        std::fs::create_dir_all(base.join(LEGACY_DIR)).unwrap();
+        std::fs::write(
+            base.join(LEGACY_DIR).join("config.json"),
+            r#"{"onboardingComplete":true,"harnessHome":"C:/old/hive","godModel":"opus","missions":[{"id":1}],"heartbeatSeeded":true}"#,
+        )
+        .unwrap();
+        let user_data = base.join("office-abc");
+        std::fs::create_dir_all(&user_data).unwrap();
+        std::fs::write(user_data.join("config.json"), r#"{"onboardingComplete":false,"autoMode":false}"#).unwrap();
+
+        seed_office_settings(base, &user_data).unwrap();
+        let seeded: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(user_data.join("config.json")).unwrap()).unwrap();
+        assert_eq!(seeded["onboardingComplete"], true);
+        assert_eq!(seeded["godModel"], "opus");
+        assert_eq!(seeded["autoMode"], false);
+        assert_eq!(seeded["missions"], serde_json::json!([]));
+        assert_eq!(seeded["heartbeatSeeded"], false);
+        let hive = seeded["harnessHome"].as_str().unwrap();
+        assert!(hive.ends_with("hive") && !hive.contains("old"));
+        assert!(user_data.join("hive").is_dir());
+    }
+
+    #[test]
+    fn a_set_up_office_is_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        std::fs::create_dir_all(base.join(LEGACY_DIR)).unwrap();
+        std::fs::write(base.join(LEGACY_DIR).join("config.json"), r#"{"godModel":"opus"}"#).unwrap();
+        let user_data = base.join("office-abc");
+        std::fs::create_dir_all(&user_data).unwrap();
+        let mine = r#"{"onboardingComplete":true,"godModel":"sonnet"}"#;
+        std::fs::write(user_data.join("config.json"), mine).unwrap();
+        seed_office_settings(base, &user_data).unwrap();
+        assert_eq!(std::fs::read_to_string(user_data.join("config.json")).unwrap(), mine);
     }
 }
