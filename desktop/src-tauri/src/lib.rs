@@ -251,9 +251,10 @@ pub fn run() {
             // The office never outlives Buzz; clear a stale "deployed" left by
             // an unclean exit.
             commands::set_office_agent_deployed(&app_handle, false);
-            // ArtCraft's background work, without a window of its own; its UI
-            // opens with the Studio page (`studio::studio_place`).
-            artcraft_startup.start_embedded(&app_handle);
+            // ArtCraft's background work, without a window of its own, once
+            // the Studio is installed; its UI opens with the Studio page
+            // (`studio::studio_place`).
+            studio::start_if_installed(&app_handle, artcraft_startup);
             #[cfg(target_os = "macos")]
             {
                 tray_menu::init(&app_handle)?;
@@ -544,6 +545,10 @@ pub fn run() {
         })
         .invoke_handler(studio::with_artcraft_commands(tauri::generate_handler![
             studio::studio_place,
+            studio::studio_status,
+            studio::studio_install,
+            studio::studio_set_tools,
+            studio::studio_uninstall,
             notion::notion_status,
             notion::notion_connect,
             notion::notion_disconnect,

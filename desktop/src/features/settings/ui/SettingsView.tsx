@@ -72,6 +72,7 @@ export const settingsNavGroups: Array<{
     sections: [
       "agents",
       "ai-accounts",
+      "studio",
       "compute",
       "experimental",
       "mobile",

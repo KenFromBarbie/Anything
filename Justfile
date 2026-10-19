@@ -852,14 +852,15 @@ office-web:
     cd "$office_dir"
     npx vite build --config sidecar.web.vite.config.ts --outDir "$out" --emptyOutDir
 
-# Build ArtCraft's UI (the Studio) into the desktop app's public dir, served
-# from the app's own origin under /studio-app/ (studio/, or BUZZ_ARTCRAFT_DIR; run
-# `npm ci` in studio/frontend first).
+# Build the Studio's UI (ArtCraft) into desktop/studio-dist. It isn't part of
+# the app bundle: release builds publish it as a separate download that the app
+# installs on demand, and development builds use it via BUZZ_STUDIO_DIR. Uses
+# studio/ (or BUZZ_ARTCRAFT_DIR); run `npm ci` in studio/frontend first.
 studio-web:
     #!/usr/bin/env bash
     set -euo pipefail
     artcraft_dir="${BUZZ_ARTCRAFT_DIR:-studio}"
-    out="$(pwd)/{{desktop_dir}}/public/studio-app"
+    out="$(pwd)/{{desktop_dir}}/studio-dist/studio-app"
     cd "$artcraft_dir/frontend/apps/artcraft"
     # MSYS2_ENV_CONV_EXCL: Git Bash would otherwise rewrite /studio-app/ into a
     # Windows path before node sees it.

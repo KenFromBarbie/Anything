@@ -17,8 +17,12 @@
 - **Research**: projects as folders. Describe a project (and attach files) and
   Michael researches it in its own chat, saving what he finds into the folder.
   Pin projects and give them covers.
-- **Studio**: local creative tools (image editor, 3D stage, video editor,
-  frame extractor, storyboard, moodboard), with nothing that spends AI credits.
+- **Studio** (optional): local creative tools (image editor, 3D stage, video
+  editor, frame extractor, storyboard, moodboard), with nothing that spends AI
+  credits. Not included in the installers: install it from the Studio page or
+  Settings → Studio and pick the tools you want.
+- **Office background**: the live Office floor, faded behind every page
+  (Settings → Appearance).
 - **AI accounts** (Settings): several Claude, ChatGPT and Gemini sign-ins or
   API keys, their usage, and which one the agents run on.
 - Channels, direct messages and agents from Buzz, which this is built on.

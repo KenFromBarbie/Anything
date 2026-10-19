@@ -18,9 +18,28 @@ export const LOCAL_APP_IDS: ReadonlySet<string> = new Set([
   "MOODBOARD",
 ]);
 
-/** Whether a tool may be opened here. */
-export const isAppAllowed = (action?: string): boolean =>
-  !IsLocalOnlyStudio() || (!!action && LOCAL_APP_IDS.has(action));
+/** The tools the owner installed (set by the host before the page loads). */
+const installedTools = (): ReadonlySet<string> | null => {
+  const tools =
+    typeof window !== "undefined"
+      ? (window as { __ARTCRAFT_TOOLS__?: unknown }).__ARTCRAFT_TOOLS__
+      : undefined;
+  return Array.isArray(tools) ? new Set(tools.map(String)) : null;
+};
+
+/** Whether a tool may be opened here: in the Studio, a local tool the owner
+ *  installed. */
+export const isAppAllowed = (action?: string): boolean => {
+  if (!IsLocalOnlyStudio()) return true;
+  if (!action || !LOCAL_APP_IDS.has(action)) return false;
+  const installed = installedTools();
+  return installed === null || installed.has(action);
+};
+
+/** In the Studio, the owner picked Storyboard explicitly, so it shows
+ *  without ArtCraft's experimental switch. */
+export const storyboardInstalled = (): boolean =>
+  IsLocalOnlyStudio() && (installedTools()?.has("STORYBOARD") ?? false);
 
 export type AppId =
   | "IMAGE"
@@ -407,7 +426,8 @@ export const useVisibleApps = (): FullAppItem[] => {
         if (app.action === "BACKGROUND_CHANGE") return false;
         // In the Studio: local tools only ("Edit Image" is inpainting).
         if (!isAppAllowed(app.action) || app.id === "edit-image") return false;
-        if (app.action === "STORYBOARD") return storyboardEnabled;
+        if (app.action === "STORYBOARD")
+          return storyboardEnabled || storyboardInstalled();
         return true;
       }),
     [storyboardEnabled],
@@ -471,7 +491,7 @@ export const goToApp = (action?: string) => {
     if (action === "STORYBOARD") {
       const { enabled, storyboardPageEnabled } =
         useExperimentalStore.getState();
-      if (!enabled || !storyboardPageEnabled) return;
+      if ((!enabled || !storyboardPageEnabled) && !storyboardInstalled()) return;
     }
     useTabStore.getState().setActiveTab(action as TabId);
   }

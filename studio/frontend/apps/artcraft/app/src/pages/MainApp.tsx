@@ -56,7 +56,7 @@ import { useTabStore } from "./Stores/TabState";
 import { useTextToImageStore } from "./PageImage/TextToImageStore";
 
 import { AppsIndexPage } from "./PageApps/AppsIndexPage";
-import { isAppAllowed } from "~/config/appMenu";
+import { isAppAllowed, storyboardInstalled } from "~/config/appMenu";
 import PageDraw from "./PageDraw/PageDraw";
 import {
   topNavMediaId,
@@ -329,7 +329,7 @@ const TabBody = ({ sceneToken }: { sceneToken?: string }) => {
         </div>
       );
     case "STORYBOARD":
-      return storyboardPageEnabled ? (
+      return storyboardPageEnabled || storyboardInstalled() ? (
         <div>
           <Storyboard />
         </div>

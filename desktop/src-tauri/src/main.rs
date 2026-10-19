@@ -1,5 +1,6 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// No console window next to the app on Windows, in development builds too.
+// DO NOT REMOVE!!
+#![windows_subsystem = "windows"]
 
 fn main() {
     if buzz_lib::print_agent_access_owner_only_probe_if_requested() {

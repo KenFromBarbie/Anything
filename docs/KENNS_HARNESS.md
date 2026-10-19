@@ -490,3 +490,24 @@ BUZZ_OFFICE_DIR=../munder-difflin desktop/src-tauri/target/debug/buzz-desktop.ex
 Repo stays Apache-2.0. Munder Difflin code keeps its MIT notice. Office tilesets
 are LimeZu "Modern Interiors" (credit required, see Munder's `LICENSE-ASSETS`
 and `src/renderer/src/assets/ATTRIBUTION.md`); M5 must ship that credit.
+
+## Optional Studio, Office background, no console (as built)
+
+- **The Studio is installed on demand.** Its UI isn't in the installers: the
+  `studio` CI job builds it and attaches `studio-app-<version>.zip` (+ `.sha256`)
+  to each release. Settings → Studio (or the Studio page) downloads the zip for
+  the running version, checks the checksum, unpacks it to
+  `<app data>/studio/app` and records the picked tools. `studio://` serves the
+  files to the Studio view (custom protocols count as local, so its
+  capability applies); the picked tools reach ArtCraft as
+  `window.__ARTCRAFT_TOOLS__` and its app menu shows only those. ArtCraft's
+  background services start only once the Studio is installed. Removing it
+  moves the files to the Recycle Bin / Trash. Development:
+  `BUZZ_STUDIO_DIR=desktop/studio-dist` (output of `just studio-web`).
+- **Office background.** When no page shows the Office itself, its live frame
+  sits behind the whole window (view: floor; its own top bar and bottom badges
+  pushed off-screen), click-through, under a wash of the app's background and
+  a see-through content panel, both faded by the strength in Settings →
+  Appearance. It starts the Office with the app.
+- **No console window.** The app is a Windows GUI program in every build
+  (`windows_subsystem = "windows"`), so no terminal opens next to it.

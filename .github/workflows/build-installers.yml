@@ -1,4 +1,5 @@
-# Builds Kenn's Harness installers for Windows, macOS and Linux.
+# Builds Kenn's Harness installers for Windows, macOS and Linux, and the
+# Studio's separate download.
 #
 # - Every push to main and every manual run: builds all three and uploads the
 #   installers as workflow artifacts (Actions → the run → Artifacts).
@@ -107,18 +108,6 @@ jobs:
           cd ..
           node scripts/stage-office-runtime.mjs
 
-      - name: Studio UI
-        shell: bash
-        env:
-          ARTCRAFT_BASE: /studio-app/
-          # Git Bash on Windows would rewrite /studio-app/ into a Windows path.
-          MSYS2_ENV_CONV_EXCL: ARTCRAFT_BASE
-        run: |
-          cd studio/frontend
-          npm ci
-          cd apps/artcraft
-          npx vite build --outDir ../../../../desktop/public/studio-app --emptyOutDir
-
       - name: Helper binaries
         shell: bash
         run: |
@@ -135,16 +124,61 @@ jobs:
           cd desktop
           pnpm tauri build --ci --bundles ${{ matrix.bundles }} --config src-tauri/tauri.release.conf.json
 
+      # Plain names for downloads (the product name has a ’, awkward in a
+      # terminal): kenns-harness_<version>_<arch>.<ext>.
+      - name: Name the installers
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for f in desktop/src-tauri/target/release/bundle/*/Kenn*Harness_*; do
+            [[ -f "$f" ]] || continue
+            base="$(basename "$f")"
+            mv "$f" "$(dirname "$f")/kenns-harness_${base#*Harness_}"
+          done
+          ls desktop/src-tauri/target/release/bundle/*/
+
       - uses: actions/upload-artifact@v4
         with:
           name: kenns-harness-${{ runner.os }}
           path: ${{ matrix.artifacts }}
           if-no-files-found: error
 
+  # The Studio's UI is not in the installers: the app downloads it on demand
+  # from the release (studio-app-<version>.zip, checked against its .sha256).
+  studio:
+    name: Studio download
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Build the Studio UI
+        env:
+          ARTCRAFT_BASE: /studio-app/
+        run: |
+          cd studio/frontend
+          npm ci
+          cd apps/artcraft
+          npx vite build --outDir ../../../../desktop/studio-dist/studio-app --emptyOutDir
+      - name: Package it
+        run: |
+          version=$(node -p "require('./desktop/package.json').version")
+          mkdir -p out
+          (cd desktop/studio-dist && zip -qr "../../out/studio-app-${version}.zip" studio-app)
+          (cd out && sha256sum "studio-app-${version}.zip" > "studio-app-${version}.zip.sha256")
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kenns-harness-studio
+          path: out/*
+          if-no-files-found: error
+
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build, studio]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -155,5 +189,5 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: dist/**/*
           generate_release_notes: true

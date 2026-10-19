@@ -513,7 +513,7 @@ fn open_login_terminal(engine: Engine, home: Option<&Path>, label: &str) -> Resu
 }
 
 /// Move a folder to the Recycle Bin / Trash rather than deleting it.
-fn move_to_trash(dir: &Path) -> Result<(), String> {
+pub(crate) fn move_to_trash(dir: &Path) -> Result<(), String> {
     if !dir.exists() {
         return Ok(());
     }

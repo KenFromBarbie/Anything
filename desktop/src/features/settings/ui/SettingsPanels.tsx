@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   Gauge,
+  Palette,
   Archive,
   BellRing,
   Bot,
@@ -62,6 +63,7 @@ import {
   ProminentActiveTabSetting,
   ThreadLayoutSetting,
 } from "./AppearanceSettingsControls";
+import { OfficeBackdropSetting } from "./OfficeBackdropSetting";
 import { ChannelTemplatesSettingsCard } from "./ChannelTemplatesSettingsCard";
 import { ExperimentalFeaturesCard } from "./ExperimentalFeaturesCard";
 import { KeyboardShortcutsCard } from "./KeyboardShortcutsCard";
@@ -82,6 +84,7 @@ import { UpdateChecker } from "../UpdateChecker";
 import { SettingsSectionHeader } from "./SettingsSectionHeader";
 import { VoiceSettingsCard } from "./VoiceSettingsCard";
 import { AiAccountsSettingsCard } from "./AiAccountsSettingsCard";
+import { StudioSettingsCard } from "./StudioSettingsCard";
 
 export type SettingsSection =
   | "profile"
@@ -90,6 +93,7 @@ export type SettingsSection =
   | "experimental"
   | "agents"
   | "ai-accounts"
+  | "studio"
   | "channel-templates"
   | "compute"
   | "appearance"
@@ -111,6 +115,7 @@ const SETTINGS_SECTION_VALUES: readonly SettingsSection[] = [
   "experimental",
   "agents",
   "ai-accounts",
+  "studio",
   "channel-templates",
   "compute",
   "appearance",
@@ -190,6 +195,11 @@ export const settingsSections: SettingsSectionDescriptor[] = [
     value: "ai-accounts",
     label: "AI accounts",
     icon: Gauge,
+  },
+  {
+    value: "studio",
+    label: "Studio",
+    icon: Palette,
   },
   {
     value: "channel-templates",
@@ -792,6 +802,7 @@ function ThemeSettingsCard() {
           )}
 
           <GlassBackgroundSetting />
+          <OfficeBackdropSetting />
           {buzzThemeSelected ? <ProminentActiveTabSetting /> : null}
         </SettingsOptionGroup>
 
@@ -845,6 +856,8 @@ export function renderSettingsSection(
       return <AgentsSettingsPanel />;
     case "ai-accounts":
       return <AiAccountsSettingsCard />;
+    case "studio":
+      return <StudioSettingsCard />;
     case "channel-templates":
       return <ChannelTemplatesSettingsCard />;
     case "compute":
