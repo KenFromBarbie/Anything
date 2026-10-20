@@ -18,7 +18,6 @@ import {
 } from "@/features/sidebar/lib/useChannelSections";
 import { useActiveWorkingChannelsById } from "@/features/sidebar/lib/useActiveWorkingChannelsById";
 import { useDmSidebarMetadata } from "@/features/sidebar/useDmSidebarMetadata";
-import { sortDmChannelsForSidebar } from "@/features/sidebar/lib/dmSidebarSort";
 import {
   sectionSortGroupKey,
   sortChannelsForSidebar,
@@ -47,12 +46,9 @@ import {
   MoreUnreadButton,
   preferredUnreadTarget,
 } from "@/features/sidebar/ui/MoreUnreadButton";
-import { SidebarSection } from "@/features/sidebar/ui/SidebarSection";
 import {
   ChannelGroupSection,
   CustomChannelSection,
-  SectionActionsMenu,
-  SectionQuickAction,
 } from "@/features/sidebar/ui/CustomChannelSection";
 import { CreateChannelDialog } from "@/features/sidebar/ui/CreateChannelDialog";
 import { SidebarProfileCard } from "@/features/sidebar/ui/SidebarProfileCard";
@@ -102,7 +98,6 @@ export function AppSidebar({
   errorMessage,
   selectedChannelId,
   selectedView,
-  unreadChannelCounts,
   unreadChannelIds,
   highPriorityUnreadChannelIds,
   previewActivityChannelIds,
@@ -113,7 +108,6 @@ export function AppSidebar({
   onCreateForum,
   onOpenAddCommunity,
   onSendFeedback,
-  onHideDm,
   onMarkChannelUnread,
   onMarkChannelRead,
   onMarkAllChannelsRead,
@@ -138,7 +132,6 @@ export function AppSidebar({
   onSwitchCommunity,
   selfUserStatus,
   isPresencePending,
-  onNewMessage,
   isCreateChannelOpen: isCreateChannelOpenProp,
   isHuddleCompanionOpen = false,
   onHuddleEnded,
@@ -160,7 +153,6 @@ export function AppSidebar({
     React.useState(false);
   const showSidebarUpdateCard =
     canShowSidebarUpdateCard && !isSidebarUpdateCardDismissed;
-  const [dmActionsMenuOpen, setDmActionsMenuOpen] = React.useState(false);
   const allDirectMessages = React.useMemo(
     () => channels.filter((channel) => channel.channelType === "dm"),
     [channels],
@@ -396,23 +388,13 @@ export function AppSidebar({
     immediate: isSelectedDirectMessage,
     timeoutMs: 400,
   });
-  const { dmChannelLabels, dmParticipantsByChannelId, dmPresenceByChannelId } =
-    useDmSidebarMetadata({
-      currentPubkey,
-      directMessages,
-      enabled: shouldLoadDmMetadata,
-      fallbackDisplayName,
-      profileDisplayName: profile?.displayName,
-    });
-  const sortedDirectMessages = React.useMemo(
-    () =>
-      sortDmChannelsForSidebar(
-        directMessages,
-        dmChannelLabels,
-        sortModeFor("dms"),
-      ),
-    [directMessages, dmChannelLabels, sortModeFor],
-  );
+  const { dmChannelLabels, dmParticipantsByChannelId } = useDmSidebarMetadata({
+    currentPubkey,
+    directMessages,
+    enabled: shouldLoadDmMetadata,
+    fallbackDisplayName,
+    profileDisplayName: profile?.displayName,
+  });
   const unreadDmPreviewsBelow = React.useMemo(
     () =>
       unreadMessageBelowChannelIds.flatMap((channelId) => {
@@ -788,50 +770,7 @@ export function AppSidebar({
                   </FeatureGate>
                   <SidebarThreadsSection />
                   <SidebarFilesSection />
-                  <SidebarSection
-                    action={
-                      <div className="absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-0.5">
-                        <SectionQuickAction
-                          label="New message"
-                          onClick={onNewMessage}
-                          testId="section-actions-dms-quick-create"
-                        />
-                        <SectionActionsMenu
-                          sectionLabel="direct messages"
-                          testId="section-actions-dms"
-                          onOpenChange={setDmActionsMenuOpen}
-                          onNewMessage={onNewMessage}
-                          sortMode={sortModeFor("dms")}
-                          onSortModeChange={(mode) =>
-                            setSortModeFor("dms", mode)
-                          }
-                        />
-                      </div>
-                    }
-                    dmParticipantsByChannelId={dmParticipantsByChannelId}
-                    isCollapsed={collapsedGroups.directMessages}
-                    isActiveChannel={selectedView === "channel"}
-                    activeWorkingByChannelId={activeWorkingByChannelId}
-                    items={sortedDirectMessages}
-                    channelLabels={dmChannelLabels}
-                    onHideDm={onHideDm}
-                    onMarkChannelRead={onMarkChannelRead}
-                    onMarkChannelUnread={onMarkChannelUnread}
-                    onSelectChannel={onSelectChannel}
-                    onToggleCollapsed={() =>
-                      toggleCollapsedGroup("directMessages")
-                    }
-                    presenceByChannelId={dmPresenceByChannelId}
-                    selectedChannelId={selectedChannelId}
-                    testId="dm-list"
-                    title="Direct messages"
-                    sectionActionsOpen={dmActionsMenuOpen}
-                    unreadChannelCounts={unreadChannelCounts}
-                    unreadChannelIds={unreadChannelIds}
-                    mutedChannelIds={mutedChannelIds}
-                    onMuteChannel={onMuteChannel}
-                    onUnmuteChannel={onUnmuteChannel}
-                  />
+                  {/* Direct messages live in the Inbox (InboxDirectMessages). */}
                 </>
               ) : null}
 

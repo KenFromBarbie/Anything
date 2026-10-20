@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Bot, UserRound } from "lucide-react";
+import { BookOpen, Bot, ListChecks, UserRound } from "lucide-react";
 
 import { useAppNavigation } from "@/app/navigation/useAppNavigation";
 import { useOfficeAgents } from "@/features/office/lib/officeLink";
@@ -13,6 +13,8 @@ import { SegmentedControl } from "@/shared/ui/segmented-control";
 
 import { AgentsBoard } from "./AgentsBoard";
 import { DispatchCard } from "./DispatchCard";
+import { NotionPage } from "@/features/notion/ui/NotionPage";
+
 import { MyTasksSheet } from "./MyTasksSheet";
 import { NotionConnectDialog } from "./NotionConnectDialog";
 import { NotionMark, NotionSyncControl } from "./NotionSyncControl";
@@ -33,6 +35,10 @@ function readSheet(): Sheet {
  * Michael) and your own task sheet. With Notion connected the board syncs both
  * ways with "Office tasks" and your sheet is the "My tasks" database.
  */
+/** Under My tasks: your task list, or your Notion pages to read. */
+type MineView = "list" | "notion";
+const MINE_KEY = "anything.tasks-mine-view";
+
 export function TasksPage() {
   const [sheet, setSheet] = React.useState<Sheet>(readSheet);
   const { agents } = useOfficeAgents();
@@ -40,6 +46,22 @@ export function TasksPage() {
   const { data: notion } = useNotionStatus();
   const { goHome } = useAppNavigation();
   const myDb = notion?.connected ? notion.config.myDb : null;
+
+  const [mine, setMine] = React.useState<MineView>(() => {
+    try {
+      return localStorage.getItem(MINE_KEY) === "notion" ? "notion" : "list";
+    } catch {
+      return "list";
+    }
+  });
+  const chooseMine = (next: MineView) => {
+    setMine(next);
+    try {
+      localStorage.setItem(MINE_KEY, next);
+    } catch {
+      // A convenience only.
+    }
+  };
 
   const choose = (next: Sheet) => {
     setSheet(next);
@@ -82,10 +104,29 @@ export function TasksPage() {
             tasks={tasks}
           />
         </>
-      ) : myDb ? (
-        <MyTasksSheet myDb={myDb} />
       ) : (
-        <ConnectForMyTasks connected={!!notion?.connected} />
+        <>
+          {notion?.connected ? (
+            <SegmentedControl<MineView>
+              legend="My tasks"
+              onValueChange={chooseMine}
+              optionTestIdPrefix="tasks-mine"
+              options={[
+                { value: "list", label: "Task list", Icon: ListChecks },
+                { value: "notion", label: "Notion pages", Icon: BookOpen },
+              ]}
+              testId="tasks-mine"
+              value={mine}
+            />
+          ) : null}
+          {notion?.connected && mine === "notion" ? (
+            <NotionPage embedded />
+          ) : myDb ? (
+            <MyTasksSheet myDb={myDb} />
+          ) : (
+            <ConnectForMyTasks connected={!!notion?.connected} />
+          )}
+        </>
       )}
     </div>
   );

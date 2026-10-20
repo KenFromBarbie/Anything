@@ -38,11 +38,11 @@ function KindIcon({
 }
 
 /**
- * Notion, read in the app: search your workspace (recent pages when the box
+ * Notion, read in the app (Tasks → My tasks → Notion pages): search your workspace (recent pages when the box
  * is empty) and open any page or database — its content, the pages inside
  * it, a database's rows, and the path back up. Each opens in Notion too.
  */
-export function NotionPage() {
+export function NotionPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { data: status } = useNotionStatus();
   const [query, setQuery] = React.useState("");
   const [debounced, setDebounced] = React.useState("");
@@ -69,20 +69,25 @@ export function NotionPage() {
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-6 sm:px-6"
+      className={cn(
+        "flex min-h-0 flex-1 flex-col gap-4",
+        !embedded && "px-4 py-6 sm:px-6",
+      )}
       data-testid="notion-page"
     >
-      <PageHeader
-        description={
-          status?.workspace
-            ? `Your Notion workspace, ${status.workspace}.`
-            : "Your Notion pages and databases."
-        }
-        title="Notion"
-      />
+      {embedded ? null : (
+        <PageHeader
+          description={
+            status?.workspace
+              ? `Your Notion workspace, ${status.workspace}.`
+              : "Your Notion pages and databases."
+          }
+          title="Notion"
+        />
+      )}
       {!connected ? (
         <div className="rounded-2xl border border-dashed border-border/70 px-6 py-12 text-center text-sm text-muted-foreground">
-          Notion isn't connected. Connect it from the Tasks page (Notion), then
+          Notion isn't connected. Connect it with the Notion button above, then
           your pages show here.
         </div>
       ) : (

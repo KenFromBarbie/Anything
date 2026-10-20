@@ -1,23 +1,8 @@
-import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { ViewLoadingFallback } from "@/shared/ui/ViewLoadingFallback";
-
-const NotionPage = React.lazy(async () => {
-  const module = await import("@/features/notion/ui/NotionPage");
-  return { default: module.NotionPage };
-});
-
+/** Notion is read under Tasks → My tasks; old links land there. */
 export const Route = createFileRoute("/notion")({
-  component: NotionRouteComponent,
+  beforeLoad: () => {
+    throw redirect({ to: "/tasks" });
+  },
 });
-
-function NotionRouteComponent() {
-  return (
-    <React.Suspense
-      fallback={<ViewLoadingFallback includeHeader kind="pulse" />}
-    >
-      <NotionPage />
-    </React.Suspense>
-  );
-}

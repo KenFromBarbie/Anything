@@ -18,6 +18,7 @@ import {
 import { buildInboxListRows } from "@/features/home/lib/inboxListRows";
 import { hasRenderedVideoAttachment } from "@/features/messages/lib/videoReviewContext";
 import { getThreadReference } from "@/features/messages/lib/threading";
+import { InboxDirectMessages } from "@/features/home/ui/InboxDirectMessages";
 import { InboxFilterMenu } from "@/features/home/ui/InboxFilterMenu";
 import { AgentQuestionsInbox } from "@/features/tasks/ui/AgentQuestions";
 import {
@@ -706,6 +707,7 @@ export function InboxListPane({
           data-testid="home-inbox-list"
           ref={scrollRef}
         >
+          {filter === "all" ? <InboxDirectMessages /> : null}
           {filter === "all" || filter === "needs_action" ? (
             <AgentQuestionsInbox />
           ) : null}
