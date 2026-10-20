@@ -1,4 +1,7 @@
-import { loadCommunities } from "@/features/communities/communityStorage";
+import {
+  loadActiveCommunityId,
+  loadCommunities,
+} from "@/features/communities/communityStorage";
 import { invokeTauri } from "@/shared/api/tauri";
 import type {
   Profile,
@@ -81,20 +84,47 @@ export async function updateProfile(
   input: UpdateProfileInput,
 ): Promise<Profile> {
   const profile = await invokeTauri<RawProfile>("update_profile", input);
+  const active = loadCommunities().find(
+    (community) => community.id === loadActiveCommunityId(),
+  );
+  if (active) rememberProfileHome(active.relayUrl);
   void syncProfileEverywhere();
   return fromRawProfile(profile);
 }
 
+const PROFILE_HOME_KEY = "anything.profile-home";
+
+/** The server where you last edited your profile: the one to copy from. */
+function rememberProfileHome(relayUrl: string) {
+  try {
+    localStorage.setItem(PROFILE_HOME_KEY, relayUrl);
+  } catch {
+    // Without storage the first server stays the source.
+  }
+}
+
 /**
- * Your profile lives on each server's relay; this copies the newest one to
- * every server you're in that has an older one or none (see
- * `sync_profile_to_relays`). Resolves to how many were updated; never throws.
+ * Your profile lives on each server's relay; this copies it from where you
+ * last edited it (your first server until then) to every server you're in
+ * whose profile differs or is missing (see `sync_profile_to_relays`).
+ * Resolves to how many were updated; never throws.
  */
 export async function syncProfileEverywhere(): Promise<number> {
-  const relayUrls = loadCommunities().map((community) => community.relayUrl);
-  if (relayUrls.length < 2) return 0;
+  const communities = loadCommunities();
+  if (communities.length < 2) return 0;
+  const relayUrls = communities.map((community) => community.relayUrl);
+  let home: string | null = null;
   try {
-    return await invokeTauri<number>("sync_profile_to_relays", { relayUrls });
+    home = localStorage.getItem(PROFILE_HOME_KEY);
+  } catch {
+    home = null;
+  }
+  const sourceRelayUrl = home && relayUrls.includes(home) ? home : relayUrls[0];
+  try {
+    return await invokeTauri<number>("sync_profile_to_relays", {
+      sourceRelayUrl,
+      relayUrls,
+    });
   } catch {
     return 0;
   }
@@ -110,6 +140,7 @@ export async function updateProfileAtRelay(input: {
     "update_profile_at_relay",
     input,
   );
+  rememberProfileHome(input.relayUrl);
   void syncProfileEverywhere();
   return fromRawProfile(profile);
 }

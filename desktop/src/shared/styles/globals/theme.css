@@ -320,13 +320,10 @@
  * gradient, or the flat sidebar colour in other themes), faded in OfficeBackdrop. */
 /* Under the composer, the page's own colour hides messages scrolling past
  * (a fade into it, a solid strip, corner masks). Over the see-through page
- * that drew a solid band, so the fade frosts the messages instead. */
+ * those drew a band (solid, or blurred with a hard edge at the pane's side),
+ * so they're clear there. */
 :root[data-office-backdrop] [class*="before:to-background"]::before {
   background: transparent !important;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, black 65%);
-  mask-image: linear-gradient(to bottom, transparent, black 65%);
 }
 
 :root[data-office-backdrop] [class*="before:to-background"]::after,

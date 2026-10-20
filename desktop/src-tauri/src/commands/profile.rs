@@ -487,63 +487,83 @@ mod tests {
 mod presence_tests;
 
 /// Your profile is kept per relay, and each server is its own relay. This
-/// makes it the same everywhere: the newest profile among `relay_urls` (the
-/// servers you're in) is copied, unchanged and with its own timestamp, to
-/// each one holding an older profile or none. Servers that can't be reached
-/// are skipped. Returns how many were updated.
+/// makes it the same everywhere: the profile on `source_relay_url` (where you
+/// last edited it) is copied to each of `relay_urls` whose profile differs or
+/// is missing, as a fresh event (relays refuse old timestamps). Servers that
+/// can't be reached are skipped. Returns how many were updated.
 #[tauri::command]
 pub async fn sync_profile_to_relays(
+    source_relay_url: String,
     relay_urls: Vec<String>,
     state: State<'_, AppState>,
 ) -> Result<usize, String> {
     let signer = state.signing_keys()?;
     let me = signer.public_key().to_hex();
     let filter = serde_json::json!({ "kinds": [0], "authors": [me], "limit": 1 });
+    let lookup = |base: String| {
+        let filter = filter.clone();
+        let signer = signer.clone();
+        let state = &state;
+        async move {
+            let query = query_relay_at_with_keys(
+                state,
+                &base,
+                std::slice::from_ref(&filter),
+                &signer,
+                None,
+            );
+            match tokio::time::timeout(std::time::Duration::from_secs(8), query).await {
+                Ok(Ok(events)) => Ok(events.into_iter().next()),
+                Ok(Err(error)) => Err(error),
+                Err(_) => Err("timed out".to_string()),
+            }
+        }
+    };
 
-    let mut seen: Vec<String> = Vec::new();
-    let mut found: Vec<(String, Option<nostr::Event>)> = Vec::new();
+    let source = relay_http_base_url(&source_relay_url);
+    let Some(profile) = lookup(source.clone()).await? else {
+        return Ok(0); // nothing set up on the source yet
+    };
+    let wanted = profile_fields(&profile.content);
+
+    let mut seen = vec![source];
+    let mut updated = 0;
     for relay_url in relay_urls {
         let base = relay_http_base_url(&relay_url);
         if seen.contains(&base) {
             continue;
         }
         seen.push(base.clone());
-        let lookup = query_relay_at_with_keys(
-            &state,
-            &base,
-            std::slice::from_ref(&filter),
-            &signer,
-            None,
-        );
-        match tokio::time::timeout(std::time::Duration::from_secs(8), lookup).await {
-            Ok(Ok(events)) => found.push((base, events.into_iter().next())),
-            _ => {} // unreachable or refused: left as it is
-        }
-    }
-
-    let Some(newest) = found
-        .iter()
-        .filter_map(|(_, event)| event.as_ref())
-        .max_by_key(|event| event.created_at.as_secs())
-        .cloned()
-    else {
-        return Ok(0); // no profile anywhere yet
-    };
-
-    let mut updated = 0;
-    for (base, event) in &found {
-        let behind = event
-            .as_ref()
-            .is_none_or(|e| e.created_at.as_secs() < newest.created_at.as_secs());
-        if !behind {
+        let Ok(current) = lookup(base.clone()).await else {
+            continue; // unreachable or refused: left as it is
+        };
+        if current.as_ref().map(|e| profile_fields(&e.content)) == Some(wanted.clone()) {
             continue;
         }
-        let builder = nostr::EventBuilder::new(nostr::Kind::Metadata, newest.content.clone())
-            .custom_created_at(newest.created_at);
-        match submit_event_at_with_keys(builder, &state, base, &signer).await {
+        let builder = nostr::EventBuilder::new(nostr::Kind::Metadata, profile.content.clone())
+            .custom_created_at(monotonic_created_at(
+                current.as_ref().map(|e| e.created_at.as_secs() as i64),
+            ));
+        match submit_event_at_with_keys(builder, &state, &base, &signer).await {
             Ok(_) => updated += 1,
             Err(error) => eprintln!("buzz-desktop: profile sync to {base}: {error}"),
         }
     }
     Ok(updated)
+}
+
+/// The parts of a profile that make it yours (name, picture, bio, address).
+fn profile_fields(content: &str) -> Vec<Option<String>> {
+    let value: Value = serde_json::from_str(content).unwrap_or(Value::Null);
+    ["display_name", "name", "picture", "about", "nip05", "banner"]
+        .iter()
+        .map(|key| {
+            value
+                .get(*key)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .map(str::to_string)
+        })
+        .collect()
 }
