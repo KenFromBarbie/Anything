@@ -1,4 +1,6 @@
+import { useLocation } from "@tanstack/react-router";
 import {
+  BookOpen,
   Microscope,
   Activity,
   Bot,
@@ -11,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { useAppNavigation } from "@/app/navigation/useAppNavigation";
+import { useNotionStatus } from "@/features/tasks/lib/useTasksData";
 
 import { TopbarSearch } from "@/features/search/ui/TopbarSearch";
 import { PinnedResearchProjects } from "@/features/research/ui/PinnedResearchProjects";
@@ -116,7 +119,10 @@ export function AppSidebarPrimaryMenu({
   projectsOverviewActive,
   selectedView,
 }: AppSidebarPrimaryMenuProps) {
-  const { goOffice, goResearch, goStudio, goTasks } = useAppNavigation();
+  const { goNotion, goOffice, goResearch, goStudio, goTasks } =
+    useAppNavigation();
+  const notionActive = useLocation().pathname === "/notion";
+  const { data: notion } = useNotionStatus();
   return (
     <>
       <SidebarHeader
@@ -239,6 +245,21 @@ export function AppSidebarPrimaryMenu({
               <SidebarMenuLabel>Studio</SidebarMenuLabel>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {notion?.connected ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                className="data-[active=true]:font-normal"
+                data-testid="open-notion-view"
+                isActive={notionActive}
+                onClick={() => void goNotion()}
+                tooltip="Notion"
+                type="button"
+              >
+                <BookOpen className="h-4 w-4" />
+                <SidebarMenuLabel>Notion</SidebarMenuLabel>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : null}
           <ProtectedBestieSidebarEntry />
           <FeatureGate feature="workflows">
             <SidebarMenuItem>

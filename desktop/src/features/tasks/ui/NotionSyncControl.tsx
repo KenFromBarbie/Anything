@@ -13,11 +13,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { notionDisconnect } from "@/features/tasks/lib/notion";
+import {
+  notionDatabaseUrl,
+  notionDisconnect,
+} from "@/features/tasks/lib/notion";
 import { syncOfficeTasks } from "@/features/tasks/lib/notionSync";
 import {
   NOTION_STATUS_KEY,
-  notionUrl,
   useNotionStatus,
   useSyncStatus,
 } from "@/features/tasks/lib/useTasksData";
@@ -126,13 +128,21 @@ export function NotionSyncControl() {
             <RefreshCw />
             Sync now
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void openUrl(notionUrl(officeDb))}>
+          <DropdownMenuItem
+            onSelect={() =>
+              void notionDatabaseUrl(officeDb).then((url) => openUrl(url))
+            }
+          >
             <ExternalLink />
             Open the agents' board in Notion
           </DropdownMenuItem>
           {status.config.myDb ? (
             <DropdownMenuItem
-              onSelect={() => void openUrl(notionUrl(status.config.myDb ?? ""))}
+              onSelect={() =>
+                void notionDatabaseUrl(status.config.myDb ?? "").then((url) =>
+                  openUrl(url),
+                )
+              }
             >
               <ExternalLink />
               Open my tasks in Notion

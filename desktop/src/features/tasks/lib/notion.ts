@@ -212,8 +212,41 @@ function saveView(dataSource: string, view: string) {
   }
 }
 
+const DATABASES_KEY = "anything.notion-databases";
+
+function loadDatabases(): Record<string, string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DATABASES_KEY) ?? "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Notes which database (its page id, what Notion links open) a data source
+ *  belongs to. */
+function saveDatabase(dataSource: string, databaseId: string) {
+  try {
+    localStorage.setItem(
+      DATABASES_KEY,
+      JSON.stringify({ ...loadDatabases(), [dataSource]: databaseId }),
+    );
+  } catch {
+    // Looked up again next time.
+  }
+}
+
 /** Notes the views listed in a database's fetch text, by data source. */
 function rememberViews(text: string): void {
+  const database = /<database url="\{*([^"}]+)\}*"/.exec(text)?.[1];
+  const databaseId = notionId(database);
+  if (databaseId) {
+    for (const match of text.matchAll(
+      /<data-source url="\{*(collection:\/\/[0-9a-f-]{36})\}*"/gi,
+    )) {
+      saveDatabase(match[1], databaseId);
+    }
+  }
   for (const match of text.matchAll(VIEW_ENTRY)) {
     const source = COLLECTION.exec(match[2])?.[0];
     if (source && !loadViews()[source]) saveView(source, match[1]);
@@ -235,6 +268,9 @@ async function viewOf(dataSource: string): Promise<string | null> {
   for (const database of databases) {
     const text = textOf(await callNotion("notion-fetch", { id: database.id }));
     rememberViews(text);
+    if (COLLECTION.test(text) && text.includes(dataSource)) {
+      saveDatabase(dataSource, database.id);
+    }
     const found = loadViews()[dataSource];
     if (found) return found;
   }
@@ -552,6 +588,21 @@ export const DEFAULT_MY_MAP: MyMap = {
   notes: MY_DB.notes,
   statuses: { todo: "To do", doing: "Doing", done: "Done", archived: ARCHIVED },
 };
+
+/**
+ * The link that opens a data source's database in Notion. A data source
+ * (`collection://…`) isn't a page, so its id alone lands on "page not found";
+ * the database it belongs to is looked up (once) instead.
+ */
+export async function notionDatabaseUrl(dataSource: string): Promise<string> {
+  if (!dataSource.startsWith("collection://")) return notionUrl(dataSource);
+  let databaseId = loadDatabases()[dataSource];
+  if (!databaseId) {
+    await viewOf(dataSource).catch(() => null);
+    databaseId = loadDatabases()[dataSource];
+  }
+  return notionUrl(databaseId ?? dataSource);
+}
 
 /** A Notion page or database link from an id or data source URL. */
 export function notionUrl(idOrUrl: string): string {

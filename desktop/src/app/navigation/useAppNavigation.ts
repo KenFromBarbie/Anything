@@ -151,6 +151,17 @@ export function useAppNavigation() {
     [commitNavigation],
   );
 
+  const goNotion = React.useCallback(
+    (behavior?: NavigationBehavior) =>
+      commitNavigation(
+        {
+          to: "/notion",
+        },
+        behavior,
+      ),
+    [commitNavigation],
+  );
+
   const goPulse = React.useCallback(
     (behavior?: NavigationBehavior) =>
       commitNavigation(
@@ -522,6 +533,7 @@ export function useAppNavigation() {
     goResearch,
     goStudio,
     goFiles,
+    goNotion,
     goChannel,
     goDuplicateWorkflow,
     goEditWorkflow,

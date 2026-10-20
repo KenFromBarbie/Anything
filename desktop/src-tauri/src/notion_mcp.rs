@@ -49,11 +49,15 @@ const ALLOWED_TOOLS: &[&str] = &[
     "notion-update-data-source",
     "notion-query-data-sources",
     "notion-move-pages",
+    // Browsing Notion in the app (read-only).
+    "notion-list-recent-pages",
+    "notion-list-private-pages",
+    "notion-list-shared-pages",
 ];
 
-const SIGNED_IN_HTML: &str = "<!doctype html><meta charset=utf-8><title>Buzz</title>\
+const SIGNED_IN_HTML: &str = "<!doctype html><meta charset=utf-8><title>Anything</title>\
 <body style=\"font-family:system-ui;padding:48px;text-align:center\">\
-<h2>Signed in to Notion</h2><p>You can close this window and return to Buzz.</p></body>";
+<h2>Signed in to Notion</h2><p>You can close this window and return to Anything.</p></body>";
 
 #[derive(Clone, Serialize, Deserialize)]
 struct ClientReg {
@@ -734,7 +738,7 @@ pub async fn notion_mcp_tools() -> Result<Value, String> {
 #[tauri::command]
 pub async fn notion_mcp_call(name: String, arguments: Value) -> Result<Value, String> {
     if !ALLOWED_TOOLS.contains(&name.as_str()) {
-        return Err(format!("{name} isn't available to the Tasks page"));
+        return Err(format!("{name} isn't available in Anything"));
     }
     call_tool(&name, arguments).await
 }
