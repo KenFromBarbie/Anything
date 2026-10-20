@@ -76,6 +76,8 @@ interface Runtime {
   run?: CoffeeRun;
   /** When the current busy stretch (working/thinking/compacting) began. */
   busySince?: number;
+  /** In a meeting: the conference-table chair it holds (meetSeats index). */
+  meetSeat?: number;
 }
 
 /** Only a busy stretch at least this long earns a cheer on finishing. Short
@@ -384,6 +386,34 @@ export function OfficeFloor() {
         }
       };
       addZoneSeats('boardroom');       // conference room overflow
+
+      // Meetings (a call in the app's meeting room) gather their members at
+      // the conference table: the boardroom's walkable tiles beside the table,
+      // facing it (chairs above face down, below face up), left to right.
+      const meetSeats: Array<{ tile: Tile; face: 'up' | 'down' }> = [];
+      {
+        const z = mapRenderer.getZone('boardroom');
+        if (z) {
+          const inZone = (x: number, y: number) =>
+            x >= z.x && x < z.x + z.width && y >= z.y && y < z.y + z.height;
+          const chairs: Array<{ tile: Tile; face: 'up' | 'down' }> = [];
+          const rest: Array<{ tile: Tile; face: 'up' | 'down' }> = [];
+          for (let y = z.y; y < z.y + z.height; y++) {
+            for (let x = z.x; x < z.x + z.width; x++) {
+              if (!mapRenderer.isWalkable(x, y)) continue;
+              const tableBelow = inZone(x, y + 1) && !mapRenderer.isWalkable(x, y + 1);
+              const tableAbove = inZone(x, y - 1) && !mapRenderer.isWalkable(x, y - 1);
+              if (tableBelow) chairs.push({ tile: { x, y }, face: 'down' });
+              else if (tableAbove) chairs.push({ tile: { x, y }, face: 'up' });
+              else rest.push({ tile: { x, y }, face: 'down' });
+            }
+          }
+          chairs.sort((a, b) => a.tile.x - b.tile.x || a.tile.y - b.tile.y);
+          meetSeats.push(...chairs, ...rest);
+        }
+      }
+      const meetTaken = new Map<number, string>();
+      const inMeeting = (id: string) => useStore.getState().meetingAgentIds.includes(id);
       // The bottom-right open area is the cafeteria (break room) — see the
       // coffee-break director below. It is deliberately NOT added as overflow
       // desk seating, so the café tables stay free for breaks.
@@ -760,6 +790,7 @@ export function OfficeFloor() {
 
       const breakEligible = (agent: Agent, rt: Runtime): boolean => {
         if (agent.isGod || rt.brk || rt.err || rt.run || rt.cupCarryHome) return false;
+        if (rt.meetSeat !== undefined || inMeeting(agent.id)) return false;
         if (agent.status !== 'idle' && agent.status !== 'success') return false;
         return !rt.character.isSitting();   // already parked at a desk → leave it
       };
@@ -1073,6 +1104,33 @@ export function OfficeFloor() {
         st.requestCommandCenterTab('tasks');
       });
       charLayer.addChild(boardG);
+
+      // The conference table: clicking it opens the app's meeting room (who to
+      // meet with). Invisible, over the table's tiles; characters stay on top.
+      {
+        const z = mapRenderer.getZone('boardroom');
+        if (z && hostedInBuzz) {
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+          for (let y = z.y; y < z.y + z.height; y++) {
+            for (let x = z.x; x < z.x + z.width; x++) {
+              if (mapRenderer.isWalkable(x, y)) continue;
+              x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+            }
+          }
+          if (x0 <= x1) {
+            const tableG = new Graphics();
+            tableG.rect(x0 * tsB, y0 * tsB, (x1 - x0 + 1) * tsB, (y1 - y0 + 1) * tsB).fill({ color: 0xffffff, alpha: 0.001 });
+            tableG.eventMode = 'static';
+            tableG.cursor = 'pointer';
+            tableG.zIndex = y0 * tsB;
+            tableG.on('pointertap', (ev) => {
+              ev.stopPropagation();
+              useStore.getState().requestCommandCenterTab('meeting');
+            });
+            charLayer.addChild(tableG);
+          }
+        }
+      }
       // One small Graphics per desk currently holding a taken note.
       const deskNoteG = new Map<string, Graphics>();
       const clearDeskNotes = (): void => {
@@ -1463,6 +1521,7 @@ export function OfficeFloor() {
         releaseBreak(rt);                // free any café seat it was holding
         releaseErrand(rt);               // and any idle errand it was running
         releaseRun(rt);                  // and any coffee run in progress
+        if (rt.meetSeat !== undefined) meetTaken.delete(rt.meetSeat); // and its meeting chair
         // Facilities collects an abandoned mug (carried or parked on the desk)
         // back onto the sideboard, so the finite cup stock can never leak away.
         if (rt.character.isCarryingCup() || rt.character.hasCupOnDesk()) {
@@ -1508,6 +1567,32 @@ export function OfficeFloor() {
 
         const c = rt.character;
         c.setBaseAlpha(agent.status === 'ghost' ? 0.5 : 1);
+
+        // In a meeting: at the conference table whatever it's doing, until the
+        // meeting ends (then the normal handling below sends it back).
+        if (inMeeting(agent.id) && meetSeats.length) {
+          if (rt.brk) releaseBreak(rt);
+          if (rt.err) releaseErrand(rt);
+          if (rt.run) releaseRun(rt);
+          if (rt.meetSeat === undefined) {
+            let idx = meetSeats.findIndex((_, i) => !meetTaken.has(i));
+            if (idx < 0) idx = 0;
+            meetTaken.set(idx, agent.id);
+            rt.meetSeat = idx;
+            const seat = meetSeats[idx];
+            c.walkToAndThen(seat.tile, () => {
+              if (rt.meetSeat === idx) c.sitInPlace(seat.face);
+            });
+          }
+          c.setStatusGlyph('none');
+          const busyNow = agent.status === 'working' || agent.status === 'thinking';
+          c.showThought(busyNow ? liveActivity(agent) : t('office.activity.inMeeting', { defaultValue: 'In a meeting' }));
+          return;
+        }
+        if (rt.meetSeat !== undefined) {
+          meetTaken.delete(rt.meetSeat);
+          rt.meetSeat = undefined;
+        }
 
         // While an agent is on a coffee break the director owns its avatar — a
         // mere idle/success refresh must not yank it back to wandering. Any
@@ -1626,6 +1711,16 @@ export function OfficeFloor() {
       let lastSelected: string | null = useStore.getState().selectedId;
       const unsubscribe = useStore.subscribe((s, prev) => {
         if (s.agents !== prev.agents) syncAgents();
+        // Joining or leaving a meeting re-places those agents (the mirror gets a
+        // fresh array every snapshot, so compare who, not the array).
+        if (s.meetingAgentIds.join() !== prev.meetingAgentIds.join()) {
+          const was = new Set(prev.meetingAgentIds);
+          const now = new Set(s.meetingAgentIds);
+          for (const a of s.agents) {
+            const rt = runtimes.get(a.id);
+            if (rt && was.has(a.id) !== now.has(a.id)) applyState(a, rt, true);
+          }
+        }
         if (s.selectedId !== lastSelected) {
           lastSelected = s.selectedId;
           const rt = s.selectedId ? runtimes.get(s.selectedId) : undefined;

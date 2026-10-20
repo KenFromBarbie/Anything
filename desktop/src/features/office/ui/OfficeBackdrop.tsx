@@ -1,6 +1,7 @@
 import * as React from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
+import { openMeetingDialog } from "@/features/office/lib/meetingRoom";
 import { useOfficeBackdrop } from "@/features/office/lib/officeBackdrop";
 import { useOfficeStage } from "@/features/office/lib/officeAnchor";
 import {
@@ -102,6 +103,7 @@ export function OfficeBackdrop() {
         return;
       }
       if (msg.type === "navigate" && msg.page === "tasks") openFloorTasks();
+      if (msg.type === "navigate" && msg.page === "meeting") openMeetingDialog();
       if (msg.type === "navigate" && msg.page === "settings") {
         window.location.hash = "#/settings?section=ai-accounts";
       }

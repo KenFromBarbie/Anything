@@ -417,6 +417,18 @@ const ops: Record<string, Op> = {
       useStore.getState().agents.map((x) => window.cth.controlAutoDelivery(x.id, paused).catch(() => null))
     );
     return { paused };
+  },
+  /** Who is in the app's meeting room call, by name (case-insensitive):
+   *  they gather at the conference table; [] ends the meeting. */
+  'floor.meeting': async (a) => {
+    const names = new Set(
+      (Array.isArray(a.names) ? a.names : []).map((n: unknown) => String(n).trim().toLowerCase())
+    );
+    const ids = useStore.getState().agents
+      .filter((x) => names.has(x.name.trim().toLowerCase()))
+      .map((x) => x.id);
+    useStore.getState().setMeeting(ids);
+    return { ids };
   }
 };
 

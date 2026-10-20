@@ -409,6 +409,29 @@ class BuzzBridge {
     const threaded = route.why !== 'dm';
     const root = route.root ?? ev.id;
     const inCall = !!channel && who.callChannels?.has(channel);
+    // A meeting: a call with several of the office's agents (each transcript
+    // p-tags all of them). Only who is asked answers, so they don't all talk
+    // at once — and the rest aren't woken at all.
+    const attendees = inCall
+      ? this.identities().filter((i) => i.pubkey && ev.tags.some((t) => t[0] === 'p' && t[1] === i.pubkey))
+      : [];
+    let meetingNote = null;
+    if (attendees.length > 1 && !fromAgent) {
+      const text = String(ev.content ?? '').toLowerCase();
+      const escape = (w) => w.replace(/[^a-z0-9 ]/g, (c) => String.fromCharCode(92) + c);
+      const word = (w) => new RegExp('(^|[^a-z0-9])' + escape(w) + '([^a-z0-9]|$)').test(text);
+      const named = attendees.filter((i) => word(i.name.toLowerCase()));
+      const everyone = /(^|[^a-z])(everyone|everybody|all of you|team|guys|y'?all)([^a-z]|$)/.test(text);
+      const chair = attendees.find((i) => i === this.michael) ?? attendees[0];
+      const answering = named.length ? named : everyone ? attendees : [chair];
+      if (!answering.includes(who)) return true; // not asked: stays quiet
+      const others = attendees.filter((i) => i !== who).map((i) => i.name).join(', ');
+      meetingNote = named.length
+        ? `You are in a meeting with ${others}, and you were asked by name: answer for yourself.`
+        : everyone
+          ? `You are in a meeting with ${others}; the owner asked everyone: give your part in one short sentence.`
+          : `You are chairing a meeting with ${others}: the owner did not name anyone, so you answer (or say who should, by name).`;
+    }
     const where = inCall
       ? 'a live voice call (what the owner said, transcribed)'
       : route.why === 'dm' ? 'a direct message' : route.why === 'followup' ? 'a follow-up in a Buzz thread you are in' : 'a Buzz channel mention';
@@ -421,6 +444,8 @@ class BuzzBridge {
       ...(inCall
         ? [
           'You are in a voice call: your reply is read aloud straight away. Answer in one to three short spoken sentences, plain words only (no markdown, lists, links or code), and reply quickly with --in-channel (in the call, not a thread); do longer work afterwards and say so.'
+,
+          ...(meetingNote ? [meetingNote] : [])
         ]
         : []),
       'When you have a substantive answer (or need a decision), post it back:',

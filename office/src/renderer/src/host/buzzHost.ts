@@ -58,7 +58,7 @@ export const mirrorRole =
 /** What the floor draws, copied from the main frame to the mirror. */
 function mirrorSnapshot() {
   const s = useStore.getState();
-  return { agents: s.agents, selectedId: s.selectedId, officeTheme: s.officeTheme };
+  return { agents: s.agents, selectedId: s.selectedId, officeTheme: s.officeTheme, meetingAgentIds: s.meetingAgentIds };
 }
 
 /** The main frame broadcasts the floor's state for the background mirror:
@@ -74,7 +74,7 @@ function startMirrorBroadcast(): void {
     }
   };
   useStore.subscribe((s, prev) => {
-    if (s.agents === prev.agents && s.selectedId === prev.selectedId && s.officeTheme === prev.officeTheme) return;
+    if (s.agents === prev.agents && s.selectedId === prev.selectedId && s.officeTheme === prev.officeTheme && s.meetingAgentIds === prev.meetingAgentIds) return;
     if (!timer) timer = setTimeout(send, 150);
   });
   setInterval(send, 2000);
@@ -266,6 +266,7 @@ if (mirrorRole) {
         agents: m.snapshot.agents,
         selectedId: m.snapshot.selectedId ?? null,
         officeTheme: m.snapshot.officeTheme ?? useStore.getState().officeTheme,
+        ...(Array.isArray(m.snapshot.meetingAgentIds) ? { meetingAgentIds: m.snapshot.meetingAgentIds } : {}),
       });
     }
     if (m.type === 'locate-agent' && typeof m.id === 'string') {
@@ -297,7 +298,7 @@ if (mirrorRole) {
   useStore.subscribe((st, prev) => {
     const req = st.ccTabRequest;
     if (!req || req === prev.ccTabRequest) return;
-    const page = req.tab === 'tasks' ? 'tasks' : req.tab === 'human' ? 'askme' : null;
+    const page = req.tab === 'tasks' ? 'tasks' : req.tab === 'human' ? 'askme' : req.tab === 'meeting' ? 'meeting' : null;
     if (page) post({ type: 'navigate', page });
   });
   window.parent.postMessage({ source: 'buzz-office', type: 'mirror-ready' }, window.location.origin);
@@ -342,7 +343,7 @@ if (mirrorRole) {
   useStore.subscribe((s, prev) => {
     const req = s.ccTabRequest;
     if (!req || req === prev.ccTabRequest) return;
-    const page = req.tab === 'tasks' ? 'tasks' : req.tab === 'human' ? 'askme' : null;
+    const page = req.tab === 'tasks' ? 'tasks' : req.tab === 'human' ? 'askme' : req.tab === 'meeting' ? 'meeting' : null;
     if (page) window.parent.postMessage({ source: 'buzz-office', type: 'navigate', page }, window.location.origin);
   });
   // Tell Buzz when the floor's agents change (a hire, a removal, the floor

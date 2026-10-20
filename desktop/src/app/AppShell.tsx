@@ -80,6 +80,10 @@ import {
   isSettingsSection,
 } from "@/features/settings/ui/SettingsPanels";
 import { OfficeBackdrop } from "@/features/office/ui/OfficeBackdrop";
+import {
+  MeetingDialog,
+  MeetingFloorSync,
+} from "@/features/office/ui/MeetingRoom";
 import { OfficeHost } from "@/features/office/ui/OfficeHost";
 import { NotionSyncRunner } from "@/features/tasks/ui/NotionSyncRunner";
 import { useDueReminderBadgeCount } from "@/features/reminders/hooks";
@@ -983,6 +987,8 @@ export function AppShell() {
                     </div>
                   )}
                   {!isHuddleRoom ? <OfficeBackdrop /> : null}
+                  {!isHuddleRoom ? <MeetingDialog /> : null}
+                  {!isHuddleRoom ? <MeetingFloorSync /> : null}
                   {!isHuddleRoom ? (
                     <OfficeHost
                       active={

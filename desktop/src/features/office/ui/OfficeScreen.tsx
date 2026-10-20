@@ -2,6 +2,7 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
+import { openMeetingDialog } from "@/features/office/lib/meetingRoom";
 import { managedAgentsQueryKey } from "@/features/agents/hooks";
 import { useOfficeAnchor } from "@/features/office/lib/officeAnchor";
 import {
@@ -182,6 +183,10 @@ export function OfficeScreen() {
       }
       if (msg.type === "navigate") {
         if (msg.page === "tasks" && openFloorTasks()) return;
+        if (msg.page === "meeting") {
+          openMeetingDialog();
+          return;
+        }
         const to = {
           tasks: "#/tasks",
           askme: "#/",

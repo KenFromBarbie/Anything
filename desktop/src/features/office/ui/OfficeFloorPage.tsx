@@ -7,8 +7,10 @@ import {
   MessageSquare,
   Pencil,
   Plus,
+  Users,
   X,
 } from "lucide-react";
+import { openMeetingDialog } from "@/features/office/lib/meetingRoom";
 import { toast } from "sonner";
 
 import { accentDotClass } from "@/features/office/lib/agentAccent";
@@ -120,6 +122,16 @@ export function OfficeFloorPage() {
       {createPortal(
         <>
           <div className="pointer-events-none fixed right-4 top-14 z-40 flex gap-2">
+            <Button
+              className="pointer-events-auto shadow-md"
+              data-testid="office-open-meeting"
+              onClick={openMeetingDialog}
+              size="sm"
+              variant="outline"
+            >
+              <Users />
+              Meeting room
+            </Button>
             <Button
               className="pointer-events-auto shadow-md"
               data-testid="office-open-tasks"

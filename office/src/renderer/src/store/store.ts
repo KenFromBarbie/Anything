@@ -245,6 +245,10 @@ interface State {
   requestCommandCenterTab: (tab: string) => void;
   /** The task whose detail overlay is open (rendered app-wide over the office
    *  floor — the card content grows: contracts, deps, the human Q&A trail). */
+  /** Agents in a meeting (a call in the app's meeting room): they sit at the
+   *  conference table until it ends. Set by the app, not persisted. */
+  meetingAgentIds: string[];
+  setMeeting: (ids: string[]) => void;
   taskDetailId: string | null;
   openTaskDetail: (id: string) => void;
   closeTaskDetail: () => void;
@@ -862,6 +866,8 @@ export const useStore = create<State>((set, get) => ({
       persistAgents(agents, s.selectedId);
       return { agents };
     }),
+  meetingAgentIds: [],
+  setMeeting: (ids) => set({ meetingAgentIds: [...new Set(ids)].sort() }),
   taskDetailId: null,
   openTaskDetail: (id) => set({ taskDetailId: id }),
   closeTaskDetail: () => set({ taskDetailId: null }),
