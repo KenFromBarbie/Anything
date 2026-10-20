@@ -416,12 +416,17 @@ class BuzzBridge {
         : 'Handle it as you would any request from the human: do it yourself or route it to the right agent.',
       ...(inCall
         ? [
-          'You are in a voice call: your reply is read aloud straight away. Answer in one to three short spoken sentences, plain words only (no markdown, lists, links or code), and reply quickly; do longer work afterwards and say so.'
+          'You are in a voice call: your reply is read aloud straight away. Answer in one to three short spoken sentences, plain words only (no markdown, lists, links or code), and reply quickly with --in-channel (in the call, not a thread); do longer work afterwards and say so.'
         ]
         : []),
-      'When you have a substantive answer (or need a decision), post it back to Buzz:',
+      'When you have a substantive answer (or need a decision), post it back:',
       '  1. write the reply as markdown to a file',
       `  2. run: ${this.replyCommand()} --reply-to ${ev.id} --text-file "<that file>"`,
+      ...(threaded
+        ? [
+          '     That answers in the thread under the message. For a quick answer to a simple question, or when they ask you to reply in the channel (not a thread), add --in-channel to post in the channel itself.'
+        ]
+        : []),
       'If you delegate, pass that exact command on so the agent can reply itself. Never post a bare "done".',
       `If this becomes board work, record where it came from on every card you make for it: "buzz": {"replyTo": "${ev.id}"}. Questions for the owner about that work are asked in this thread (the command above), not on the card.`,
       ...this.buzzToolsNote(who),
@@ -452,11 +457,12 @@ class BuzzBridge {
   /** How an agent reaches the rest of the floor through Buzz channels. */
   buzzToolsNote(who) {
     const others = this.identities().filter((i) => i !== who && i.pubkey).map((i) => `@${i.name}`);
-    if (others.length === 0) return [];
     return [
       '',
-      `Other office agents on Buzz: ${others.join(', ')}. Mention one with @Name in a Buzz message to bring them in;`,
-      `to start a new conversation in a channel run: ${this.postCommand()} --channel general --text-file "<file>"`
+      `You can post in any channel (by name or id; you join it if needed): ${this.postCommand()} --channel <name> --text-file "<file>"`,
+      ...(others.length > 0
+        ? [`Other office agents: ${others.join(', ')}. Mention one with @Name in a message to bring them in.`]
+        : [])
     ];
   }
 
@@ -494,7 +500,10 @@ class BuzzBridge {
       await this.run(['channels', 'join', '--channel', thread.channel], undefined, who).catch(() => {});
     }
     const args = ['messages', 'send', '--channel', thread.channel, '--content', '-', ...this.mentionArgs(text, who)];
-    if (thread.threaded) args.push('--reply-to', thread.root);
+    // In a channel the answer goes in the thread, unless the agent answers in
+    // the channel itself (--in-channel: a quick answer, or when asked to).
+    const inChannel = msg.inChannel === true;
+    if (thread.threaded && !inChannel) args.push('--reply-to', thread.root);
     const r = await this.run(args, text, who);
     // Replying to the agent's own message counts as a follow-up in this thread.
     if (r?.event_id) {

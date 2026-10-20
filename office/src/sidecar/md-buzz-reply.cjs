@@ -5,6 +5,7 @@
  *
  *   buzz-reply --reply-to <event id> --text-file reply.md
  *   buzz-reply --reply-to <event id> --text "short reply"
+ *   buzz-reply --reply-to <event id> --in-channel --text-file reply.md  (answer in the channel itself, not the thread)
  *   echo "reply" | buzz-reply --reply-to <event id>
  *   buzz-post --channel general --text-file message.md     (new conversation)
  *
@@ -49,7 +50,8 @@ async function readText() {
 
   const as = process.env.AGENT_ID || undefined;
   const path = replyTo ? '/reply' : '/post';
-  const body = JSON.stringify(replyTo ? { replyTo, text, as } : { channel, text, as });
+  const inChannel = process.argv.includes('--in-channel');
+  const body = JSON.stringify(replyTo ? { replyTo, text, as, inChannel } : { channel, text, as });
   const req = http.request({
     host: '127.0.0.1',
     port: config.port,
