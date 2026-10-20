@@ -7,18 +7,10 @@ import test from "node:test";
 // slip past the existing test).
 const { validateSettingsSearch } = await import("./settings.tsx");
 
-test("?section=moderation migrates to relay-admin", () => {
-  const result = validateSettingsSearch({ section: "moderation" });
-  assert.equal(
-    result.section,
-    "relay-admin",
-    "legacy ?section=moderation must redirect to relay-admin, not fall through to undefined",
-  );
-});
-
-test("?section=relay-admin is accepted as-is", () => {
-  const result = validateSettingsSearch({ section: "relay-admin" });
-  assert.equal(result.section, "relay-admin");
+test("removed sections fall back to the default", () => {
+  for (const section of ["moderation", "relay-admin", "compute", "updates"]) {
+    assert.equal(validateSettingsSearch({ section }).section, undefined);
+  }
 });
 
 test("?section=doctor still migrates to agents", () => {

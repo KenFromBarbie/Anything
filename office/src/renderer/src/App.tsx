@@ -100,6 +100,11 @@ export function App() {
   // between, matching the existing `cth:` CustomEvent convention.
   useEffect(() => {
     const onOpenSettings = (e: Event): void => {
+      // Inside Anything, settings are the app's own (AI accounts holds the keys).
+      if (hostedInBuzz) {
+        window.parent.postMessage({ source: 'buzz-office', type: 'navigate', page: 'settings' }, window.location.origin);
+        return;
+      }
       const section = (e as CustomEvent<{ section?: SettingsSection }>).detail?.section;
       setSettingsSection(section);
       setSettingsOpen(true);
@@ -523,7 +528,7 @@ export function App() {
         />
       )}
 
-      {settingsOpen && (
+      {settingsOpen && !hostedInBuzz && (
         <SettingsModal
           config={config}
           initialSection={settingsSection}

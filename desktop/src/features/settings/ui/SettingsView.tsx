@@ -58,25 +58,17 @@ export const settingsNavGroups: Array<{
       "profile",
       "appearance",
       "notifications",
-      "voice",
       "shortcuts",
       "custom-emoji",
-      "local-archive",
       "channel-templates",
     ],
   },
-  // Anything runs one local community, so the hosted-community and
-  // relay-admin sections are left out of the menu.
   {
     label: "App",
     sections: [
       "agents",
       "ai-accounts",
-      "studio",
-      "compute",
       "experimental",
-      "mobile",
-      "updates",
     ],
   },
 ];
@@ -154,13 +146,6 @@ export function SettingsView({
       // Open relays have no membership snapshot or invite controls.
       if (s.value === "community-members") {
         return canManageCommunityMembers(myMembershipQuery.data);
-      }
-      // Relay admin surfaces the relay admin console. Always reachable so an
-      // operator can enter a manual origin even when NIP-11 discovery is
-      // absent, invalid, or pending — hiding the entry would lock them out of
-      // the only place to configure one. Auth still gates the panel itself.
-      if (s.value === "relay-admin") {
-        return true;
       }
       return true;
     });

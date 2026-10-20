@@ -102,6 +102,9 @@ export function OfficeBackdrop() {
         return;
       }
       if (msg.type === "navigate" && msg.page === "tasks") openFloorTasks();
+      if (msg.type === "navigate" && msg.page === "settings") {
+        window.location.hash = "#/settings?section=ai-accounts";
+      }
     }
     const post = (message: Record<string, unknown>) =>
       frameRef.current?.contentWindow?.postMessage(

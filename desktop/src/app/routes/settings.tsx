@@ -16,10 +16,6 @@ export function validateSettingsSearch(
     return { section: "agents" };
   }
 
-  if (search.section === "moderation") {
-    return { section: "relay-admin" };
-  }
-
   return {
     section: isSettingsSection(search.section) ? search.section : undefined,
   };

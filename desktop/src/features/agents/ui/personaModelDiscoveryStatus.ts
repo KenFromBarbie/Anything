@@ -35,6 +35,7 @@ function isEmptySharedComputeError(message: string): boolean {
   return (
     normalized.includes("shared compute status is not published") ||
     normalized.includes("no buzz shared compute serving members") ||
+    normalized.includes("no shared compute serving members") ||
     normalized.includes("no live buzz shared compute models") ||
     normalized.includes("no live member is serving") ||
     normalized.includes("requires a live serving member")
@@ -60,7 +61,7 @@ export function formatModelDiscoveryErrorStatus(
     if (isEmptySharedComputeError(message)) {
       return {
         message:
-          "No members are sharing compute right now. On a member machine, open Settings > Compute, choose a model, and turn on Share this machine.",
+          "No members are sharing compute right now. Choose another provider.",
         tone: "warning",
       };
     }

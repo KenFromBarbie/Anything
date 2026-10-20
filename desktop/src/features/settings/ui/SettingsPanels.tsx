@@ -2,27 +2,19 @@ import { useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   Gauge,
-  Palette,
-  Archive,
   BellRing,
   Bot,
   ChevronDown,
-  Cpu,
-  Download,
   FlaskConical,
   Keyboard,
   LayoutTemplate,
-  MessagesSquare,
   MonitorCog,
   Moon,
-  ServerCog,
-  Smartphone,
   Smile,
   Sun,
   SunMoon,
   Ticket,
   UserRound,
-  Volume2,
   type LucideIcon,
 } from "lucide-react";
 import type {
@@ -32,7 +24,6 @@ import type {
 import type { SoundName, SoundSlot } from "@/features/notifications/lib/sound";
 import { CommunityMembersSettingsCard } from "@/features/community-members/ui/CommunityMembersSettingsCard";
 import { CustomEmojiSettingsCard } from "@/features/custom-emoji/ui/CustomEmojiSettingsCard";
-import { LocalArchiveSettingsCard } from "@/features/local-archive/ui/LocalArchiveSettingsCard";
 import { cn } from "@/shared/lib/cn";
 import { useCommunities } from "@/features/communities/useCommunities";
 import { Badge } from "@/shared/ui/badge";
@@ -67,12 +58,8 @@ import { OfficeBackdropSetting } from "./OfficeBackdropSetting";
 import { ChannelTemplatesSettingsCard } from "./ChannelTemplatesSettingsCard";
 import { ExperimentalFeaturesCard } from "./ExperimentalFeaturesCard";
 import { KeyboardShortcutsCard } from "./KeyboardShortcutsCard";
-import { MeshComputeSettingsCard } from "@/features/mesh-compute/ui/MeshComputeSettingsCard";
-import { MobilePairingCard } from "./MobilePairingCard";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
 import { AgentsSettingsPanel } from "./AgentsSettingsPanel";
-import { HostedCommunitiesSettingsCard } from "./HostedCommunitiesSettingsCard";
-import { AdminConsoleSettingsCard } from "@/features/admin-console/AdminConsoleSettingsCard";
 import {
   SettingsOptionGroup,
   SettingsOptionGroupList,
@@ -80,53 +67,34 @@ import {
 } from "./SettingsOptionGroup";
 import { SegmentedControl } from "@/shared/ui/segmented-control";
 import { ProfileSettingsCard } from "./ProfileSettingsCard";
-import { UpdateChecker } from "../UpdateChecker";
 import { SettingsSectionHeader } from "./SettingsSectionHeader";
-import { VoiceSettingsCard } from "./VoiceSettingsCard";
 import { AiAccountsSettingsCard } from "./AiAccountsSettingsCard";
-import { StudioSettingsCard } from "./StudioSettingsCard";
 
 export type SettingsSection =
   | "profile"
   | "notifications"
-  | "voice"
   | "experimental"
   | "agents"
   | "ai-accounts"
-  | "studio"
   | "channel-templates"
-  | "compute"
   | "appearance"
   | "shortcuts"
-  | "hosted-communities"
   | "community-members"
-  | "relay-admin"
-  | "custom-emoji"
-  | "local-archive"
-  | "mobile"
-  | "updates";
+  | "custom-emoji";
 
 export const DEFAULT_SETTINGS_SECTION: SettingsSection = "profile";
 
 const SETTINGS_SECTION_VALUES: readonly SettingsSection[] = [
   "profile",
   "notifications",
-  "voice",
   "experimental",
   "agents",
   "ai-accounts",
-  "studio",
   "channel-templates",
-  "compute",
   "appearance",
   "shortcuts",
-  "hosted-communities",
   "community-members",
-  "relay-admin",
   "custom-emoji",
-  "local-archive",
-  "mobile",
-  "updates",
 ];
 
 export function isSettingsSection(value: unknown): value is SettingsSection {
@@ -176,11 +144,6 @@ export const settingsSections: SettingsSectionDescriptor[] = [
     icon: BellRing,
   },
   {
-    value: "voice",
-    label: "Voice",
-    icon: Volume2,
-  },
-  {
     value: "experimental",
     label: "Experiments",
     icon: FlaskConical,
@@ -197,20 +160,10 @@ export const settingsSections: SettingsSectionDescriptor[] = [
     icon: Gauge,
   },
   {
-    value: "studio",
-    label: "Studio",
-    icon: Palette,
-  },
-  {
     value: "channel-templates",
     label: "Channel templates",
     icon: LayoutTemplate,
     featureGate: "channel-templates",
-  },
-  {
-    value: "compute",
-    label: "Compute",
-    icon: Cpu,
   },
   {
     value: "shortcuts",
@@ -218,40 +171,15 @@ export const settingsSections: SettingsSectionDescriptor[] = [
     icon: Keyboard,
   },
   {
-    value: "hosted-communities",
-    label: "Hosted communities",
-    icon: MessagesSquare,
-  },
-  {
     value: "community-members",
     label: "Invites",
     icon: Ticket,
-  },
-  {
-    value: "relay-admin",
-    label: "Admin",
-    icon: ServerCog,
   },
   {
     value: "custom-emoji",
     label: "Custom emoji",
     icon: Smile,
     featureGate: "custom-emoji",
-  },
-  {
-    value: "local-archive",
-    label: "Local archive",
-    icon: Archive,
-  },
-  {
-    value: "mobile",
-    label: "Mobile",
-    icon: Smartphone,
-  },
-  {
-    value: "updates",
-    label: "Updates",
-    icon: Download,
   },
 ];
 
@@ -856,40 +784,24 @@ export function renderSettingsSection(
           onSetSoundForSlot={props.onSetSoundForSlot}
         />
       );
-    case "voice":
-      return <VoiceSettingsCard />;
     case "experimental":
       return <ExperimentalFeaturesCard />;
     case "agents":
       return <AgentsSettingsPanel />;
     case "ai-accounts":
       return <AiAccountsSettingsCard />;
-    case "studio":
-      return <StudioSettingsCard />;
     case "channel-templates":
       return <ChannelTemplatesSettingsCard />;
-    case "compute":
-      return <MeshComputeSettingsCard />;
     case "appearance":
       return <ThemeSettingsCard />;
     case "shortcuts":
       return <KeyboardShortcutsCard />;
-    case "hosted-communities":
-      return <HostedCommunitiesSettingsCard />;
     case "community-members":
       return (
         <CommunityMembersSettingsCard currentPubkey={props.currentPubkey} />
       );
-    case "relay-admin":
-      return <AdminConsoleSettingsCard />;
     case "custom-emoji":
       return <CustomEmojiSettingsCard />;
-    case "local-archive":
-      return <LocalArchiveSettingsCard />;
-    case "mobile":
-      return <MobilePairingCard currentPubkey={props.currentPubkey} />;
-    case "updates":
-      return <UpdateChecker />;
     default: {
       const exhaustiveCheck: never = section;
       return exhaustiveCheck;

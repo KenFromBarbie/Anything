@@ -188,25 +188,19 @@ test("relay-admin-nav-hidden: Anything leaves relay admin out of the Settings me
   }
 });
 
-test("relay-admin-section-not-redirected: section=relay-admin is not normalized away after discovery", async () => {
-  // Old code deferred section normalization until moderationNav resolved, then
-  // redirected to appearance when origin was none.
+test("relay-admin-section-removed: section=relay-admin redirects to a real section", async () => {
+  // Admin was removed from Anything; an old link lands on the first section.
   stubNoOrigin();
   const redirectedTo = [];
   const { doRender, unmount } = mountSettingsView({
     section: "relay-admin",
-    onSectionChange: (s) => {
-      if (s !== "relay-admin") redirectedTo.push(s);
-    },
+    onSectionChange: (s) => redirectedTo.push(s),
   });
   try {
     await doRender();
     await settle(80);
-    assert.deepEqual(
-      redirectedTo,
-      [],
-      `section=relay-admin must not be redirected; got redirects to: ${JSON.stringify(redirectedTo)}`,
-    );
+    assert.ok(redirectedTo.length > 0, "section=relay-admin must redirect");
+    assert.notEqual(redirectedTo.at(-1), "relay-admin");
   } finally {
     await unmount();
   }

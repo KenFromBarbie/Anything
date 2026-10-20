@@ -34,7 +34,7 @@ test("Shared compute names the empty state and next action", () => {
 
   assert.equal(status?.tone, "warning");
   assert.match(status?.message ?? "", /No members are sharing compute/);
-  assert.match(status?.message ?? "", /Settings > Compute/);
+  assert.match(status?.message ?? "", /Choose another provider/);
 });
 
 test("Shared compute distinguishes relay lookup failures", () => {

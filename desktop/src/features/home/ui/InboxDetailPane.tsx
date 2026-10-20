@@ -46,7 +46,6 @@ import { handleTimelineMentionCopy } from "@/features/messages/lib/timelineMenti
 import { MessageComposer } from "@/features/messages/ui/MessageComposer";
 import { useAnchoredScroll } from "@/features/messages/ui/useAnchoredScroll";
 import { useComposerHeightPadding } from "@/features/messages/ui/useComposerHeightPadding";
-import { UpdateIndicator } from "@/features/settings/UpdateIndicator";
 import type { Channel, UserProfileSummary } from "@/shared/api/types";
 import { TopChromeInsetHeader } from "@/shared/layout/TopChromeInsetHeader";
 import { cn } from "@/shared/lib/cn";
@@ -601,7 +600,6 @@ function InboxMessageDetailPane({
 
               <TooltipProvider>
                 <div className="flex shrink-0 items-center gap-1">
-                  <UpdateIndicator />
                   {reopenPending || reopenErrored ? (
                     <div
                       aria-live="polite"

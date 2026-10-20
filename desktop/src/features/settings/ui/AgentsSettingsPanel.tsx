@@ -1,4 +1,3 @@
-import { AgentDefaultsSettingsCard } from "./AgentDefaultsSettingsCard";
 import {
   setKeepMentionedAgentsPinned,
   useKeepMentionedAgentsPinned,
@@ -50,7 +49,6 @@ export function AgentsSettingsPanel() {
         </SettingsOptionGroup>
         <PreventSleepSettingsCard />
         <HarnessesSettingsPanel />
-        <AgentDefaultsSettingsCard />
       </SettingsOptionGroupList>
     </section>
   );
