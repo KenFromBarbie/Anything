@@ -1,3 +1,4 @@
+import { loadCommunities } from "@/features/communities/communityStorage";
 import { invokeTauri } from "@/shared/api/tauri";
 import type {
   Profile,
@@ -80,7 +81,23 @@ export async function updateProfile(
   input: UpdateProfileInput,
 ): Promise<Profile> {
   const profile = await invokeTauri<RawProfile>("update_profile", input);
+  void syncProfileEverywhere();
   return fromRawProfile(profile);
+}
+
+/**
+ * Your profile lives on each server's relay; this copies the newest one to
+ * every server you're in that has an older one or none (see
+ * `sync_profile_to_relays`). Resolves to how many were updated; never throws.
+ */
+export async function syncProfileEverywhere(): Promise<number> {
+  const relayUrls = loadCommunities().map((community) => community.relayUrl);
+  if (relayUrls.length < 2) return 0;
+  try {
+    return await invokeTauri<number>("sync_profile_to_relays", { relayUrls });
+  } catch {
+    return 0;
+  }
 }
 
 export async function updateProfileAtRelay(input: {
@@ -93,6 +110,7 @@ export async function updateProfileAtRelay(input: {
     "update_profile_at_relay",
     input,
   );
+  void syncProfileEverywhere();
   return fromRawProfile(profile);
 }
 

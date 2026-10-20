@@ -485,3 +485,65 @@ mod tests {
 #[cfg(test)]
 #[path = "profile_presence_tests.rs"]
 mod presence_tests;
+
+/// Your profile is kept per relay, and each server is its own relay. This
+/// makes it the same everywhere: the newest profile among `relay_urls` (the
+/// servers you're in) is copied, unchanged and with its own timestamp, to
+/// each one holding an older profile or none. Servers that can't be reached
+/// are skipped. Returns how many were updated.
+#[tauri::command]
+pub async fn sync_profile_to_relays(
+    relay_urls: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<usize, String> {
+    let signer = state.signing_keys()?;
+    let me = signer.public_key().to_hex();
+    let filter = serde_json::json!({ "kinds": [0], "authors": [me], "limit": 1 });
+
+    let mut seen: Vec<String> = Vec::new();
+    let mut found: Vec<(String, Option<nostr::Event>)> = Vec::new();
+    for relay_url in relay_urls {
+        let base = relay_http_base_url(&relay_url);
+        if seen.contains(&base) {
+            continue;
+        }
+        seen.push(base.clone());
+        let lookup = query_relay_at_with_keys(
+            &state,
+            &base,
+            std::slice::from_ref(&filter),
+            &signer,
+            None,
+        );
+        match tokio::time::timeout(std::time::Duration::from_secs(8), lookup).await {
+            Ok(Ok(events)) => found.push((base, events.into_iter().next())),
+            _ => {} // unreachable or refused: left as it is
+        }
+    }
+
+    let Some(newest) = found
+        .iter()
+        .filter_map(|(_, event)| event.as_ref())
+        .max_by_key(|event| event.created_at.as_secs())
+        .cloned()
+    else {
+        return Ok(0); // no profile anywhere yet
+    };
+
+    let mut updated = 0;
+    for (base, event) in &found {
+        let behind = event
+            .as_ref()
+            .is_none_or(|e| e.created_at.as_secs() < newest.created_at.as_secs());
+        if !behind {
+            continue;
+        }
+        let builder = nostr::EventBuilder::new(nostr::Kind::Metadata, newest.content.clone())
+            .custom_created_at(newest.created_at);
+        match submit_event_at_with_keys(builder, &state, base, &signer).await {
+            Ok(_) => updated += 1,
+            Err(error) => eprintln!("buzz-desktop: profile sync to {base}: {error}"),
+        }
+    }
+    Ok(updated)
+}

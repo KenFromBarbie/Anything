@@ -1,4 +1,6 @@
 import * as React from "react";
+import { syncProfileEverywhere } from "@/shared/api/tauriProfiles";
+import { profileQueryKey } from "@/features/profile/hooks";
 import { useServerSetupRunner } from "@/features/communities/lib/serverSetup";
 import { useOpenQuestionCount } from "@/features/tasks/ui/AgentQuestions";
 import { ProtectedGlobalOverlay } from "@protected-feature-components";
@@ -463,6 +465,20 @@ export function AppShell() {
 
   // The agents' questions sit at the top of the Inbox, so they count on it.
   const openQuestions = useOpenQuestionCount();
+  // Your profile is the same on every server: on opening one, the newest
+  // profile is copied to any server that's behind (then shown fresh).
+  const profileSyncClient = useQueryClient();
+  React.useEffect(() => {
+    void syncProfileEverywhere().then((updated) => {
+      if (updated > 0) {
+        void profileSyncClient.invalidateQueries({ queryKey: profileQueryKey });
+        void profileSyncClient.invalidateQueries({
+          queryKey: ["user-profile"],
+        });
+        void profileSyncClient.invalidateQueries({ queryKey: ["users-batch"] });
+      }
+    });
+  }, [profileSyncClient]);
   // A server made here carries out its setup once the app is on it.
   useServerSetupRunner(communitiesHook.activeCommunity?.relayUrl);
   const { homeBadgeCount, homeBadgeCountExcludingHighPriority } =

@@ -638,6 +638,7 @@ pub fn run() {
             get_profile,
             update_profile,
             update_profile_at_relay,
+            sync_profile_to_relays,
             get_user_profile,
             get_users_batch,
             get_user_notes,
