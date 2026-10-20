@@ -316,6 +316,13 @@
   background-color: transparent;
 }
 
+/* The floor is bright pixel art in every theme, so in a dark theme the page
+ * takes a see-through coat of its own colour, keeping light text readable. */
+:root[data-office-backdrop].dark
+  [data-buzz-content-surface]:not([data-buzz-content-unframed]) {
+  background-color: hsl(var(--background) / 0.62);
+}
+
 /* The wash over the Office floor: the app's own background (the Buzz
  * gradient, or the flat sidebar colour in other themes), faded in OfficeBackdrop. */
 /* Under the composer, the page's own colour hides messages scrolling past
@@ -360,6 +367,43 @@
 :root[data-office-backdrop] .composer-overlay-corner-masks::before,
 :root[data-office-backdrop] .composer-overlay-corner-masks::after {
   display: none;
+}
+
+/* Every theme, not just Anything's: the shell, sidebar and rail are clear
+ * over the floor, so the wash below (the theme's own colour) is the tint.
+ * Other themes paint these solid, which hid the Office entirely. */
+:root[data-office-backdrop] .buzz-huddle-app-surface {
+  background-color: transparent;
+  background-image: none;
+  isolation: isolate;
+}
+
+:root[data-office-backdrop] .group\/sidebar-wrapper,
+:root[data-office-backdrop] [data-testid="app-sidebar"],
+:root[data-office-backdrop] [data-testid="settings-sidebar"],
+:root[data-office-backdrop] [data-buzz-glass-inset],
+:root[data-office-backdrop] [data-buzz-glass-footer-wrap],
+:root[data-office-backdrop]
+  .group\/sidebar-wrapper
+  .bg-sidebar:not([data-buzz-flat]),
+:root[data-office-backdrop] [data-testid="community-rail"].bg-sidebar,
+:root[data-office-backdrop]
+  [data-testid="app-sidebar"]
+  [data-testid="sidebar-pinned-header"],
+:root[data-office-backdrop]
+  [data-testid="app-sidebar"]
+  [data-sidebar="footer"] {
+  background-color: transparent;
+  background-image: none;
+}
+
+:root[data-office-backdrop]
+  [data-testid="app-sidebar"]
+  [data-testid="sidebar-pinned-header"]::before,
+:root[data-office-backdrop]
+  [data-testid="app-sidebar"]
+  [data-sidebar="footer"]::before {
+  background: none;
 }
 
 .office-backdrop-wash {
