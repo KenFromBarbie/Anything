@@ -50,6 +50,43 @@ pub fn set_title_bar_colors(
     Ok(())
 }
 
+/// Windows: drop the native title bar for the app's own (its buttons are
+/// `WindowControls` in the page). The window keeps its shadow and resizable
+/// edges.
+#[cfg(target_os = "windows")]
+pub fn use_app_title_bar(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    if let Some(window) = app.get_webview_window("main") {
+        // Dropping the frame un-maximizes the window; it opens maximized.
+        let maximized = window.is_maximized().unwrap_or(true);
+        let _ = window.set_decorations(false);
+        let _ = window.set_shadow(true);
+        if maximized {
+            let _ = window.maximize();
+        }
+    }
+}
+
+/// The app's window buttons: `minimize`, `maximize` (toggles), `close`, or
+/// `state`. Returns whether the window is maximized afterwards.
+#[tauri::command]
+pub fn window_control(window: tauri::WebviewWindow, action: String) -> Result<bool, String> {
+    match action.as_str() {
+        "minimize" => window.minimize().map_err(|e| e.to_string())?,
+        "maximize" => {
+            if window.is_maximized().unwrap_or(false) {
+                window.unmaximize().map_err(|e| e.to_string())?;
+            } else {
+                window.maximize().map_err(|e| e.to_string())?;
+            }
+        }
+        "close" => window.close().map_err(|e| e.to_string())?,
+        "state" => {}
+        other => return Err(format!("unknown window action {other}")),
+    }
+    Ok(window.is_maximized().unwrap_or(false))
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

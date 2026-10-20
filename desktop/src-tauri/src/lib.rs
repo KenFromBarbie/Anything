@@ -260,6 +260,9 @@ pub fn run() {
             // the Studio is installed; its UI opens with the Studio page
             // (`studio::studio_place`).
             studio::start_if_installed(&app_handle, artcraft_startup);
+            // Windows: the app draws its own title bar (WindowControls).
+            #[cfg(target_os = "windows")]
+            title_bar::use_app_title_bar(&app_handle);
             #[cfg(target_os = "macos")]
             {
                 tray_menu::init(&app_handle)?;
@@ -551,6 +554,7 @@ pub fn run() {
         .invoke_handler(studio::with_artcraft_commands(tauri::generate_handler![
             studio::studio_place,
             title_bar::set_title_bar_colors,
+            title_bar::window_control,
             studio::studio_theme,
             local_servers::local_server_create,
             local_servers::local_servers_available,

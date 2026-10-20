@@ -1748,6 +1748,9 @@ export function OfficeFloor() {
           if (width === 0 || height === 0) continue;
           app.renderer?.resize(width, height);
           camera.setViewSize(width, height);
+          // Resizing clears the canvas; draw now, not on the next frame, or
+          // it shows blank while the window is being resized.
+          if (app.renderer) app.render();
         }
       });
       resize.observe(host);

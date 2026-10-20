@@ -49,6 +49,13 @@ export class Camera {
     this.viewWidth = width;
     this.viewHeight = height;
     if (!this.manualOverride) this.fitToScreen();
+    else this.targetZoom = Math.max(this.getMinZoom(), this.targetZoom);
+    // Land on the new fit at once: easing toward it while the window is being
+    // resized left the map short of the view (its edges showing) every frame.
+    this.currentX = this.targetX;
+    this.currentY = this.targetY;
+    this.currentZoom = this.targetZoom;
+    this.update(0);
   }
 
   private getMinZoom(): number {

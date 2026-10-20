@@ -72,6 +72,7 @@ import {
   listenForDeepLinks,
 } from "@/shared/deep-link";
 import { AppMark } from "@/shared/ui/AppMark";
+import { WindowControls } from "@/shared/ui/WindowControls";
 import { cn } from "@/shared/lib/cn";
 import { StartupWindowDragRegion } from "@/shared/ui/StartupWindowDragRegion";
 
@@ -774,6 +775,7 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <MachineBootstrap sharedIdentity={sharedIdentity} />
+      <WindowControls />
     </QueryClientProvider>
   );
 }
