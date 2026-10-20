@@ -378,7 +378,7 @@ test("opening a tab keeps terminal ownership while its attachment is pending", a
   );
 
   attachResolver = () => {};
-  fireEvent.click(view.getByLabelText("New Buzz Term tab"));
+  fireEvent.click(view.getByLabelText("New Terminal tab"));
   await waitFor(() => assert.equal(typeof attachResolver, "function"));
   assert.equal(
     substrate.dataset.terminalOwner,

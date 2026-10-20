@@ -84,7 +84,7 @@ test("prompt footer contains current page details", () => {
   const footer = projectDetailAgentContextBlock(
     buildProjectDetailAgentContext(base),
   );
-  assert.match(footer, /Current Buzz project page:/);
+  assert.match(footer, /Current project page:/);
   assert.match(footer, /Repository: "Buzz" \(address: "owner:buzz"\)/);
   assert.match(footer, /View: Files/);
   assert.match(footer, /File: "src\/app\.tsx"/);
@@ -236,7 +236,7 @@ test("leaves ordinary messages unchanged without inventing context", () => {
 
 test("splits only the final appended context marker", () => {
   const userMessage =
-    "Discuss this literal example:\n---\nCurrent Buzz project page:\nnot appended";
+    "Discuss this literal example:\n---\nCurrent project page:\nnot appended";
   const payload = projectDetailAgentContextBlock(
     buildProjectDetailAgentContext(base),
   );

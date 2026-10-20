@@ -87,7 +87,7 @@ test("parseSupportedLinkPreview ignores unsupported GitHub URLs", () => {
 const BUZZ_OWNER =
   "71d67180ba17e749ee825fc8819c9c6ee7003617e1c126504f9b658070ab9224";
 
-test("parseSupportedLinkPreview parses Buzz relay git clone URLs", () => {
+test("parseSupportedLinkPreview parses relay git clone URLs", () => {
   // Must pass the active relay origin for host validation.
   assert.deepEqual(
     parseSupportedLinkPreview(

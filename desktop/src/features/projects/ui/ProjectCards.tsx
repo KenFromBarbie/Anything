@@ -259,7 +259,7 @@ function RepositoryUnavailableIndicator({
       label: "Access failed",
     },
     missing: {
-      description: "No git repository was found on the Buzz relay.",
+      description: "No git repository was found on the relay.",
       label: "Uninitialized",
     },
     access: {
@@ -273,7 +273,7 @@ function RepositoryUnavailableIndicator({
       label: "No access channel",
     },
     network: {
-      description: "The Buzz git service could not be reached.",
+      description: "The git service could not be reached.",
       label: "Unreachable",
     },
     ref: {

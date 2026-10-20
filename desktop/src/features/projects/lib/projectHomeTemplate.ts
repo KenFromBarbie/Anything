@@ -41,7 +41,7 @@ Everything about this project—decisions, tasks, code review, and releases—ha
 1. **Pick up:** Find or create an issue, self-assign it, and post a one-line “picked up” message in the channel.
 2. **Build:** Clone or reuse a checkout under \`REPOS/\`. Work on a branch, never the default branch. Follow the repository's configured commit and sign-off policy.
 3. **Verify:** Run the fullest relevant test suite before calling anything done.
-4. **Ship:** Open a review and post the returned Buzz link verbatim so it renders as a card. Mark the issue resolved when merged.
+4. **Ship:** Open a review and post the returned app link verbatim so it renders as a card. Mark the issue resolved when merged.
 5. **Report:** @mention whoever delegated the work in the message that delivers the result or blocker—not in acknowledgements.
 
 ## Norms

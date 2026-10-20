@@ -39,7 +39,7 @@ async function checkForNewAgent(): Promise<void> {
 
 /**
  * "New Office agent" from a channel: open the Add agent dialog on the Agents
- * page, and when the agent hired there gets its Buzz identity (Buzz
+ * page, and when the agent hired there gets its identity (Buzz
  * creates one for every agent on the floor), add it to the channel. Nothing is
  * hired until the form is confirmed; a newer request replaces an older one.
  */

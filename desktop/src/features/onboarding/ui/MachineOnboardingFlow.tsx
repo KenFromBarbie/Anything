@@ -1,4 +1,5 @@
 import * as React from "react";
+import { AppMark } from "@/shared/ui/AppMark";
 import type { QueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "motion/react";
 
@@ -24,7 +25,6 @@ import {
 } from "./IdentityKeyHelpDialog";
 import { IdentityKeyIntroduction } from "./IdentityKeyIntroduction";
 import { IdentityRecoveryPairing } from "./IdentityRecoveryPairing";
-import { LandingBees } from "./LandingBees";
 import {
   NostrKeyImportForm,
   type NostrKeyImportStage,
@@ -332,7 +332,6 @@ export function MachineOnboardingFlow({
         data-testid="machine-onboarding-gate"
       >
         <StartupWindowDragRegion />
-        <LandingBees />
         <OnboardingFooterProvider>
           <div className="relative my-auto flex w-full max-w-[1040px] flex-col items-center text-center">
             <OnboardingSlideTransition
@@ -340,11 +339,12 @@ export function MachineOnboardingFlow({
               direction={transitionDirection}
               transitionKey={`machine-identity-${transitionDirection}`}
             >
-              <img
-                alt="Anything"
-                className="w-full max-w-[600px]"
-                src="/landing/buzz-wordmark.png"
-              />
+              <div className="flex items-center gap-4">
+                <AppMark className="h-20 w-20" />
+                <h1 className="text-6xl font-semibold tracking-tight text-foreground">
+                  Anything
+                </h1>
+              </div>
               <p className="mt-2 max-w-[560px] text-center text-2xl font-normal leading-none text-foreground">
                 Your people, your agents, your projects —<br />
                 all in one place.

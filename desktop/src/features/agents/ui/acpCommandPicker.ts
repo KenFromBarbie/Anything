@@ -11,7 +11,7 @@ export function acpCommandPickerState(
   selectValue: string;
 } {
   const options: PersonaDropdownOption[] = [
-    { label: "Buzz ACP (default)", value: DEFAULT_ACP_COMMAND_VALUE },
+    { label: "Built-in ACP (default)", value: DEFAULT_ACP_COMMAND_VALUE },
     ...candidates.map((candidate) => ({
       label: candidate.command,
       value: candidate.command,

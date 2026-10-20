@@ -15,7 +15,7 @@ test("stock and discovered commands select discovered options", () => {
   const defaultState = acpCommandPickerState("buzz-acp", [candidate]);
   assert.equal(defaultState.selectValue, "buzz-acp");
   assert.deepEqual(defaultState.options, [
-    { label: "Buzz ACP (default)", value: "buzz-acp" },
+    { label: "Built-in ACP (default)", value: "buzz-acp" },
     { label: "buzz-janet-acp", value: "buzz-janet-acp" },
   ]);
 

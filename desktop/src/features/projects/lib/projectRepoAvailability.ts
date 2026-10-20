@@ -24,7 +24,7 @@ const PROJECT_REPO_UNAVAILABLE_PRESENTATIONS: Record<
   },
   missing: {
     description:
-      "The project announcement exists, but its git repository was not found on the Buzz relay.",
+      "The project announcement exists, but its git repository was not found on the relay.",
     title: "Repository not initialized",
   },
   access: {
@@ -39,7 +39,7 @@ const PROJECT_REPO_UNAVAILABLE_PRESENTATIONS: Record<
   },
   network: {
     description:
-      "The Buzz git service could not be reached. Check your connection and try again.",
+      "The git service could not be reached. Check your connection and try again.",
     title: "Couldn’t reach repository",
   },
   ref: {

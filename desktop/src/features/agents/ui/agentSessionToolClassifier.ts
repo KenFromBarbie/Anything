@@ -85,7 +85,7 @@ const BUZZ_CLI_READ_VERBS = new Set([
 
 const TOOL_CLASS_LABELS: Record<AgentActivityRenderClass, string> = {
   message: "Message",
-  "relay-op": "Buzz relay op",
+  "relay-op": "relay op",
   "file-edit": "File edit",
   "file-read": "File read",
   "skill-read": "Skill read",

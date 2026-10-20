@@ -184,7 +184,7 @@ test("no backend intent is byte-identical to the pre-intent mapping", async () =
   });
 });
 
-test("Buzz shared compute definition carries native provider and auto model", async () => {
+test("Shared compute definition carries native provider and auto model", async () => {
   const input = await buildInstanceInputForDefinition(
     persona({
       runtime: "buzz-agent",

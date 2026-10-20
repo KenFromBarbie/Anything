@@ -168,7 +168,7 @@ export function klipyGifFilename(gif: KlipyGif): string {
 /**
  * Represent a selected KLIPY GIF as externally hosted media. The empty hash
  * marks it as content-only media: the outgoing builder appends the image URL
- * to the message body but deliberately omits an imeta tag, since Buzz relays
+ * to the message body but deliberately omits an imeta tag, since relays
  * only accept verified local `/media/` entries in imeta.
  */
 export function klipyGifAttachment(gif: KlipyGif): ImetaMedia {

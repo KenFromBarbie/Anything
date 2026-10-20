@@ -161,8 +161,8 @@ export function getBuzzToolInfo(title: string): BuzzToolInfo | null {
     return {
       icon: Hash,
       label: isRead
-        ? "Reads channel context from the Buzz relay."
-        : "Changes channel state in the Buzz relay.",
+        ? "Reads channel context from the relay."
+        : "Changes channel state in the relay.",
       tone: isWrite ? "write" : "read",
     };
   }
@@ -174,8 +174,8 @@ export function getBuzzToolInfo(title: string): BuzzToolInfo | null {
     return {
       icon: Users,
       label: isRead
-        ? "Reads Buzz identity or presence data."
-        : "Updates Buzz identity or membership data.",
+        ? "Reads identity or presence data."
+        : "Updates identity or membership data.",
       tone: isWrite ? "write" : "admin",
     };
   }

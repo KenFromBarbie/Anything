@@ -255,7 +255,15 @@ export const settingsSections: SettingsSectionDescriptor[] = [
   },
 ];
 
+/** The app's own theme pair keeps its saved ids ("buzz", "buzz-dark") so
+ *  existing choices carry over; it's shown under the app's name. */
+const OWN_THEME_LABELS: Record<string, string> = {
+  buzz: "Anything",
+  "buzz-dark": "Anything Dark",
+};
+
 function formatThemeLabel(name: string): string {
+  if (OWN_THEME_LABELS[name]) return OWN_THEME_LABELS[name];
   return name
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))

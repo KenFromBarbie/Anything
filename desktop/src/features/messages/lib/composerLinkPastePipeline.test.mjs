@@ -184,7 +184,7 @@ test("mixed paragraph and code-block selection is replaced, never part-linked", 
   assert.ok(!editor.state.doc.textContent.includes("ordinary"));
 });
 
-test("mixed selection paste of a Buzz link becomes a chip, not a part-link", async () => {
+test("mixed selection paste of a app link becomes a chip, not a part-link", async () => {
   const editor = await mountComposerEditor();
   seedDocument(
     editor,

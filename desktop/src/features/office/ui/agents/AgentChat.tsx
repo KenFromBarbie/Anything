@@ -24,7 +24,7 @@ import { Textarea } from "@/shared/ui/textarea";
 
 import { QueueComposer } from "./QueueComposer";
 
-/** The Buzz identity of an agent on the floor (each one gets one), if it has
+/** The identity of an agent on the floor (each one gets one), if it has
  *  been made yet. */
 function useAgentPubkey(agent: OfficeAgent) {
   return useQuery({
@@ -75,7 +75,7 @@ function time(seconds: number): string {
 /**
  * Chatting with one of the floor's agents from the Agents page: their direct
  * messages with you, inline. Replies come back here as the agent answers.
- * Before an agent has its Buzz identity, messages go into its terminal queue.
+ * Before an agent has its identity, messages go into its terminal queue.
  */
 export function AgentChat({
   agent,

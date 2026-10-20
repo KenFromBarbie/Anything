@@ -209,7 +209,7 @@ export async function deleteManagedAgentWithRules({
   skipRemoteDeleteConfirm?: boolean;
 } & ManagedAgentActionContext): Promise<ManagedAgentActionResult> {
   if (isOfficeWorker(agent)) {
-    // Only its Buzz identity goes; the agent stays on the floor, and gets a
+    // Only its identity goes; the agent stays on the floor, and gets a
     // new identity while it's there. Removing it in the Office retires it.
     await deleteManagedAgent({ pubkey: agent.pubkey });
     return {
