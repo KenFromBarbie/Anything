@@ -326,6 +326,25 @@
   background: transparent !important;
 }
 
+/* …and the messages fade out where the composer sits instead, so nothing
+ * (a highlighted message, text) shows under or beside the box. */
+:root[data-office-backdrop]
+  *:has(> [class*="before:to-background"])
+  [class*="overflow-y-auto"][class*="overscroll-contain"]:not(
+    [class*="before:to-background"] *
+  ) {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black calc(100% - var(--composer-overlay-height, 6rem) - 1rem),
+    transparent calc(100% - var(--composer-overlay-height, 6rem) + 0.75rem)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    black calc(100% - var(--composer-overlay-height, 6rem) - 1rem),
+    transparent calc(100% - var(--composer-overlay-height, 6rem) + 0.75rem)
+  );
+}
+
 :root[data-office-backdrop] [class*="before:to-background"]::after,
 :root[data-office-backdrop] .composer-dock-rail-mask {
   background: transparent !important;
