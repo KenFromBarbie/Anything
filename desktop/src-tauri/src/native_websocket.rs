@@ -11,7 +11,6 @@ use tauri::{
 use crate::native_websocket_batch::{is_auth_challenge, FrameBatch, BATCH_MAX_SERIALIZED_BYTES};
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio_tungstenite::{
-    connect_async,
     tungstenite::protocol::{frame::coding::CloseCode, CloseFrame, Message},
 };
 use tokio_util::sync::CancellationToken;
@@ -135,7 +134,8 @@ async fn open_connection(
     let connect_cancel = manager.connect_cancel.lock().await.clone();
     let (socket, _) = tokio::select! {
         _ = connect_cancel.cancelled() => return Err("WebSocket connection cancelled".to_string()),
-        result = tokio::time::timeout(CONNECT_TIMEOUT, connect_async(url)) => result
+        // A local relay is dialled at 127.0.0.1 (no ~2s IPv6 detour on Windows).
+        result = tokio::time::timeout(CONNECT_TIMEOUT, buzz_ws_client_pkg::connect_ws(url)) => result
             .map_err(|_| "WebSocket connection timed out".to_string())?
             .map_err(|error| error.to_string())?,
     };

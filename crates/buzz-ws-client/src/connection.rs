@@ -30,6 +30,34 @@ pub struct NostrWsConnection {
     relay_url: String,
 }
 
+/// `connect_async`, except a plain `ws://localhost` relay is dialled at
+/// 127.0.0.1. A local relay listens on IPv4, and `localhost` tries IPv6
+/// first: on Windows a refused connection there costs ~2s before the
+/// fallback. The request (its Host header, which picks the relay's
+/// community) still says localhost.
+pub async fn connect_ws(
+    url: &str,
+) -> Result<
+    (
+        WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>,
+        tokio_tungstenite::tungstenite::handshake::client::Response,
+    ),
+    tokio_tungstenite::tungstenite::Error,
+> {
+    let local_port = url::Url::parse(url).ok().and_then(|parsed| {
+        (parsed.scheme() == "ws" && parsed.host_str() == Some("localhost"))
+            .then(|| parsed.port_or_known_default())
+            .flatten()
+    });
+    if let Some(port) = local_port {
+        if let Ok(stream) = tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
+            let _ = stream.set_nodelay(true);
+            return tokio_tungstenite::client_async(url, MaybeTlsStream::Plain(stream)).await;
+        }
+    }
+    connect_async(url).await
+}
+
 impl NostrWsConnection {
     /// Connects to the relay at `url` and performs NIP-42 authentication with `keys`.
     ///
@@ -50,7 +78,7 @@ impl NostrWsConnection {
             .parse::<url::Url>()
             .map_err(|e| WsClientError::Url(e.to_string()))?;
 
-        let (ws, _response) = connect_async(parsed.as_str())
+        let (ws, _response) = connect_ws(parsed.as_str())
             .await
             .map_err(WsClientError::WebSocket)?;
 

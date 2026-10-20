@@ -328,12 +328,8 @@ pub async fn apply_workspace(
         }
     }
 
-    // Each community has its own Office: one left running for the community
-    // just left stops (the next connect starts this one's).
-    let office_app = restore_app.clone();
-    tauri::async_runtime::spawn(async move {
-        crate::office::stop_if_other_community(&office_app).await;
-    });
+    // Each community has its own Office; the one just left keeps running
+    // (switching back is instant), and the next connect starts this one's.
 
     let restore_pending = state
         .managed_agent_restore_pending

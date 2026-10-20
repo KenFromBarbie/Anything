@@ -1045,7 +1045,7 @@ pub async fn stop_managed_agent(
     }
     if is_office_michael(&app, &pubkey) {
         let handle = app.clone();
-        tokio::task::spawn_blocking(move || crate::office::shutdown(&handle))
+        tokio::task::spawn_blocking(move || crate::office::shutdown_current(&handle))
             .await
             .map_err(|e| format!("office stop failed: {e}"))?;
     }

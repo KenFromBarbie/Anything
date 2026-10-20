@@ -10,9 +10,10 @@
 //! SIGTERM for child processes); a hard kill is the fallback.
 //!
 //! Each community (server) has its own Office: its own data folder (floor,
-//! hive, Michael's key) and its own agent records. The Office running is the
-//! active community's; switching community stops it, and the next connect
-//! starts the new community's (see `OfficeScope`).
+//! hive, Michael's key) and its own agent records (see `OfficeScope`). Each
+//! one starts the first time its community opens it and keeps running when
+//! you switch away, so switching back is instant and its agents keep working;
+//! all of them stop with Buzz.
 //!
 //! Its Buzz bridge reports the floor's agents on stdout (`MD_OFFICE_ROSTER`);
 //! Buzz gives each one an owner-attested identity and sends the identities
@@ -177,7 +178,8 @@ pub(crate) fn active_office_scope(app: &AppHandle) -> Option<OfficeScope> {
 
 #[derive(Default)]
 pub struct OfficeState {
-    running: Mutex<Option<Running>>,
+    /// One per community that has opened its Office.
+    running: Mutex<Vec<Running>>,
     /// Held across check-and-spawn so concurrent `office_connect` calls (React
     /// runs effects twice in development) share one sidecar instead of each
     /// starting their own: two sidecars racing on first start would each mint
@@ -459,8 +461,8 @@ fn send_to_sidecar(app: &AppHandle, scope: &OfficeScope, line: &str) -> bool {
         return false;
     };
     let Some(stdin) = guard
-        .as_mut()
-        .filter(|r| &r.scope == scope)
+        .iter_mut()
+        .find(|r| &r.scope == scope)
         .and_then(|r| r.stdin.as_mut())
     else {
         return false;
@@ -501,25 +503,13 @@ pub async fn office_connect(
 ) -> Result<OfficeConnection, String> {
     let _starting = state.start_lock.lock().await;
     let (scope, user_data) = office_scope(&app)?;
-    let stale = {
+    {
         let mut guard = state.running.lock().map_err(|_| "office state poisoned")?;
-        let alive = guard
-            .as_mut()
-            .is_some_and(|running| matches!(running.child.try_wait(), Ok(None)));
-        match guard.as_ref() {
-            Some(running) if alive && running.scope == scope => {
-                return Ok(running.conn.clone());
-            }
-            // Another community's Office: replace it.
-            Some(_) if alive => guard.take(),
-            _ => {
-                *guard = None; // exited (or never started); start one below
-                None
-            }
+        // Forget Offices that exited; this community's, if running, is ready.
+        guard.retain_mut(|running| matches!(running.child.try_wait(), Ok(None)));
+        if let Some(running) = guard.iter().find(|running| running.scope == scope) {
+            return Ok(running.conn.clone());
         }
-    };
-    if let Some(old) = stale {
-        stop_scoped(app.clone(), old).await;
     }
     // Michael as the owner's Buzz agent. Best-effort: without it the bridge
     // falls back to the identity the office keeps itself.
@@ -539,36 +529,13 @@ pub async fn office_connect(
     .await
     .map_err(|e| format!("office start task failed: {e}"))??;
     let conn = running.conn.clone();
-    *state.running.lock().map_err(|_| "office state poisoned")? = Some(running);
+    state
+        .running
+        .lock()
+        .map_err(|_| "office state poisoned")?
+        .push(running);
     crate::commands::set_office_agent_deployed(&app, Some(&scope), true);
     Ok(conn)
-}
-
-/// Stop an Office that was taken out of the state, off the async runtime.
-async fn stop_scoped(app: AppHandle, running: Running) {
-    let scope = running.scope.clone();
-    let _ = tauri::async_runtime::spawn_blocking(move || stop_running(running)).await;
-    crate::commands::set_office_agent_deployed(&app, Some(&scope), false);
-}
-
-/// After a community switch: stop the Office if it is another community's
-/// (the next connect starts this one's).
-pub(crate) async fn stop_if_other_community(app: &AppHandle) {
-    let Some(state) = app.try_state::<OfficeState>() else {
-        return;
-    };
-    let _starting = state.start_lock.lock().await;
-    let community = current_community(app);
-    let stale = state.running.lock().ok().and_then(|mut guard| {
-        if guard.as_ref().is_some_and(|r| r.scope.community != community) {
-            guard.take()
-        } else {
-            None
-        }
-    });
-    if let Some(old) = stale {
-        stop_scoped(app.clone(), old).await;
-    }
 }
 
 /// The running office's connection, or `None` if it isn't running. Never
@@ -576,30 +543,62 @@ pub(crate) async fn stop_if_other_community(app: &AppHandle) {
 /// launching the office as a side effect.
 #[tauri::command]
 pub async fn office_status(
+    app: AppHandle,
     state: State<'_, OfficeState>,
 ) -> Result<Option<OfficeConnection>, String> {
+    let community = current_community(&app);
     let mut guard = state.running.lock().map_err(|_| "office state poisoned")?;
-    let Some(running) = guard.as_mut() else {
+    let Some(running) = guard.iter_mut().find(|r| r.scope.community == community) else {
         return Ok(None);
     };
     let alive = matches!(running.child.try_wait(), Ok(None));
     Ok(alive.then(|| running.conn.clone()))
 }
 
-/// Stop the office sidecar (its agents' terminals stop with it).
+/// Stop the active community's Office (its agents' terminals stop with it).
 #[tauri::command]
 pub async fn office_stop(app: AppHandle) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || shutdown(&app))
+    tauri::async_runtime::spawn_blocking(move || shutdown_current(&app))
         .await
         .map_err(|e| format!("office stop task failed: {e}"))
 }
 
-/// Stop the office if it is running. Also Buzz's shutdown path.
+/// Stop the active community's Office (stopping its Michael); the others
+/// keep running.
+pub(crate) fn shutdown_current(app: &AppHandle) {
+    let community = current_community(app);
+    let Some(state) = app.try_state::<OfficeState>() else {
+        return;
+    };
+    let taken = state.running.lock().ok().and_then(|mut guard| {
+        let at = guard.iter().position(|r| r.scope.community == community)?;
+        Some(guard.remove(at))
+    });
+    if let Some(running) = taken {
+        let scope = running.scope.clone();
+        stop_running(running);
+        crate::commands::set_office_agent_deployed(app, Some(&scope), false);
+    }
+}
+
+/// Stop every running Office. Also Buzz's shutdown path.
 pub(crate) fn shutdown(app: &AppHandle) {
     if let Some(state) = app.try_state::<OfficeState>() {
-        if let Some(running) = state.running.lock().ok().and_then(|mut g| g.take()) {
-            let scope = running.scope.clone();
-            stop_running(running);
+        let all = state
+            .running
+            .lock()
+            .map(|mut g| std::mem::take(&mut *g))
+            .unwrap_or_default();
+        // Asked to stop together, so the grace periods overlap.
+        let stopping: Vec<_> = all
+            .into_iter()
+            .map(|running| {
+                let scope = running.scope.clone();
+                (scope, std::thread::spawn(move || stop_running(running)))
+            })
+            .collect();
+        for (scope, done) in stopping {
+            let _ = done.join();
             crate::commands::set_office_agent_deployed(app, Some(&scope), false);
         }
     }

@@ -216,7 +216,21 @@ export function OfficeFloor() {
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
-  const paused = !!fullscreenAgentId || ideOpen || docHidden;
+  // Inside Anything the app hides this frame while it isn't showing the
+  // Office (the background copy draws the floor then); a hidden frame still
+  // gets animation frames, so the floor stops drawing until it's shown.
+  const [frameHidden, setFrameHidden] = useState(false);
+  useEffect(() => {
+    if (!hostedInBuzz || mirrorRole) return;
+    const frame = window.frameElement as HTMLElement | null;
+    if (!frame) return;
+    const check = () =>
+      setFrameHidden(!frame.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
+    check();
+    const timer = setInterval(check, 300);
+    return () => clearInterval(timer);
+  }, []);
+  const paused = !!fullscreenAgentId || ideOpen || docHidden || frameHidden;
   // Read inside init(), which finishes asynchronously and would otherwise start a
   // ticker the effect below had already been asked to stop.
   const pausedRef = useRef(paused);
@@ -256,7 +270,9 @@ export function OfficeFloor() {
         // with. Render at the real device pixel density instead, floored at 2
         // so the half-scale-supersampled bubble text stays legible even at
         // 100% scaling. autoDensity keeps the canvas CSS size in logical px.
-        resolution: Math.max(window.devicePixelRatio || 1, 2),
+        // The background copy behind Anything is faded under the app, so
+        // the screen's own density is plenty there.
+        resolution: mirrorRole ? window.devicePixelRatio || 1 : Math.max(window.devicePixelRatio || 1, 2),
         autoDensity: true,
         width: host.clientWidth || 800,
         height: host.clientHeight || 600,
