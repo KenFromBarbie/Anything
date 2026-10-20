@@ -37,7 +37,7 @@ pub const TOOLS: &[&str] = &[
 ];
 
 const PROTOCOL: &str = "studio";
-const RELEASES_URL: &str = "https://github.com/KenFromBarbie/Kenns-Harness/releases/download";
+const RELEASES_URL: &str = "https://github.com/KenFromBarbie/Anything/releases/download";
 const MAX_DOWNLOAD_BYTES: u64 = 250 * 1024 * 1024;
 const PROGRESS_EVENT: &str = "studio-install-progress";
 

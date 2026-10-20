@@ -16,7 +16,7 @@ Bring the team something you are building, or give them a quick challenge to see
 
 ## Get help
 
-Ask the team a question here, or read the [Anything user guide](https://github.com/KenFromBarbie/Kenns-Harness#readme).
+Ask the team a question here, or read the [Anything user guide](https://github.com/KenFromBarbie/Anything#readme).
 `;
 
 type WelcomeCanvasClient = {
