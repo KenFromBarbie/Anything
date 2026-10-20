@@ -302,9 +302,17 @@ class BuzzBridge {
   // ─── inbound: Buzz messages → hive ─────────────────────────────────────────
   // `mentions` covers @Name in channels; `activity` covers everything else in
   // channels the agent belongs to, which is how DMs and thread follow-ups arrive.
+  /** Check every feed now (the app saw a message go out); if a check is
+   *  already running, run another right after it. */
+  pollNow() {
+    if (this.polling) { this.pollAgain = true; return; }
+    void this.poll();
+  }
+
   async poll() {
     if (this.polling) return;
     this.polling = true;
+    this.pollAgain = false;
     try {
       this.reportRoster();
       // Every agent at once: one after another, each CLI round trip added to
@@ -312,6 +320,7 @@ class BuzzBridge {
       await Promise.all(this.identities().map((who) => this.pollFor(who)));
     } finally {
       this.polling = false;
+      if (this.pollAgain) { this.pollAgain = false; setTimeout(() => { void this.poll(); }, 0); }
     }
   }
 

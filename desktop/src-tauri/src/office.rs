@@ -345,6 +345,8 @@ fn spawn_sidecar(
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("start office sidecar ({}): {e}", runtime.display()))?;
+    // The Office and its agents' terminals end with the app, even on a crash.
+    crate::app_job::tie_to_app(child.id());
     let stdin = child.stdin.take();
     let stdout = child.stdout.take().ok_or("sidecar stdout unavailable")?;
     let stderr = child.stderr.take().ok_or("sidecar stderr unavailable")?;
@@ -448,6 +450,36 @@ async fn sync_office_workers(app: AppHandle, scope: OfficeScope, roster: Vec<(St
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
     eprintln!("buzz-desktop: office sidecar did not take its agents' identities");
+}
+
+/// Set at startup, for nudging the Offices from places without an AppHandle.
+static APP: std::sync::OnceLock<AppHandle> = std::sync::OnceLock::new();
+
+pub(crate) fn remember_app(app: &AppHandle) {
+    let _ = APP.set(app.clone());
+}
+
+/// A message just went out (the owner typed one, or a call transcript was
+/// posted): tell every running Office to check its feeds now, instead of at
+/// its next poll, so agents start on it straight away.
+pub(crate) fn poll_now() {
+    let Some(app) = APP.get() else {
+        return;
+    };
+    let Some(state) = app.try_state::<OfficeState>() else {
+        return;
+    };
+    let Ok(mut guard) = state.running.lock() else {
+        return;
+    };
+    use std::io::Write;
+    for running in guard.iter_mut() {
+        if let Some(stdin) = running.stdin.as_mut() {
+            let _ = stdin
+                .write_all(b"{\"type\":\"poll-now\"}\n")
+                .and_then(|_| stdin.flush());
+        }
+    }
 }
 
 /// Write one line to the running sidecar's stdin. False if it isn't running

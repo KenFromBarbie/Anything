@@ -533,6 +533,8 @@ pub async fn send_channel_message(
         (Some(_), None) => 1,
     };
 
+    // Agents in the Office pick it up now, not at their next poll.
+    crate::office::poll_now();
     Ok(SendChannelMessageResponse {
         event_id: result.event_id,
         root_event_id: resolved_root,

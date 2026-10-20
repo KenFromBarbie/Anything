@@ -69,6 +69,9 @@ let pendingWorkers = null;
 function onShellMessage(line) {
   let msg;
   try { msg = JSON.parse(line); } catch { return; }
+  // The app saw a message go out (typed, or a call transcript): look now
+  // rather than at the next poll.
+  if (msg?.type === 'poll-now') { buzzBridge?.pollNow(); return; }
   if (msg?.type !== 'office-agents' || !Array.isArray(msg.agents)) return;
   if (buzzBridge) void buzzBridge.setWorkers(msg.agents);
   else pendingWorkers = msg.agents;

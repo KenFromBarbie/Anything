@@ -39,6 +39,7 @@ pub mod nostr_convert;
 mod notion;
 mod notion_mcp;
 mod observed_unread;
+mod app_job;
 mod local_servers;
 mod office;
 mod persona_catalog;
@@ -254,6 +255,7 @@ pub fn run() {
             // The office never outlives Buzz; clear a stale "deployed" left by
             // an unclean exit.
             commands::set_office_agent_deployed(&app_handle, None, false);
+            office::remember_app(&app_handle);
             // Servers on this computer start with the app.
             local_servers::start_all(&app_handle);
             // ArtCraft's background work, without a window of its own, once

@@ -192,6 +192,7 @@ fn start_server(app: &AppHandle, server: &LocalServer) -> Result<(), String> {
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("start the local server: {e}"))?;
+    crate::app_job::tie_to_app(child.id());
     let deadline = Instant::now() + READY_TIMEOUT;
     loop {
         if port_in_use(server.port) {

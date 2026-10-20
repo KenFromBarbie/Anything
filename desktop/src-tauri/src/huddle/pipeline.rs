@@ -720,7 +720,8 @@ pub(crate) fn spawn_transcription_task(
             };
 
             match response {
-                Ok(resp) if resp.status().is_success() => {}
+                // An agent in the call starts on it now, not at its next poll.
+                Ok(resp) if resp.status().is_success() => crate::office::poll_now(),
                 Ok(resp) => {
                     // Route through relay_error_message so a 429 arms the
                     // admission gate for subsequent relay sends.
