@@ -350,6 +350,13 @@
   background: transparent !important;
 }
 
+/* The dock's blur layer is 1rem taller than the box (the padding under it):
+ * over the floor it showed as a pale rounded band below the composer. The
+ * box has its own tinted fill, so it goes. */
+:root[data-office-backdrop] [data-testid="composer-dock-backdrop"] {
+  display: none;
+}
+
 :root[data-office-backdrop] .composer-overlay-corner-masks::before,
 :root[data-office-backdrop] .composer-overlay-corner-masks::after {
   display: none;
