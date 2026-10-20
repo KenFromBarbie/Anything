@@ -100,7 +100,7 @@ export const sectionOps: Record<string, Op> = {
   /** One allowlisted preload call. */
   cth: async (a) => {
     const method = typeof a.method === 'string' ? a.method : '';
-    if (!CTH_ALLOWED.has(method)) throw new Error(`not available to Buzz: ${method}`);
+    if (!CTH_ALLOWED.has(method)) throw new Error(`not available in Anything: ${method}`);
     const fn = (window.cth as unknown as Record<string, unknown>)[method];
     if (typeof fn !== 'function') throw new Error(`not in this build: ${method}`);
     const args = Array.isArray(a.args) ? a.args : [];
