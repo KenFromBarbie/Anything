@@ -172,10 +172,15 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
                 recentTextTs: Date.now()
             };
           } else if ((res.error ?? '').includes('already exists')) {
-            // A live PTY with this id is already running (e.g. respawned at boot or
-            // by another path) — the agent isn't actually missing, so retire it from
-            // the restorable list rather than reporting a phantom failure.
+            // A live PTY with this id is already running (e.g. respawned at boot, or
+            // this page reloaded while the Office kept running): the agent isn't
+            // missing, its card is. Put it back on the floor on that terminal —
+            // dropping it left the terminal running with no agent, so nothing
+            // reached it.
             alreadyLive++;
+            if (!useStore.getState().agents.some((x) => x.id === a.id)) {
+              return { ...a, provider, ptyId, archived: false, status: 'idle', currentStation: 'desk', recentTextTs: Date.now() };
+            }
             useStore.getState().removeRestorableAgent(a.id);
           } else {
             // Leave it restorable so the user can retry — but record WHY so the

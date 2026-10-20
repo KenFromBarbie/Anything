@@ -318,7 +318,8 @@
 
 /* The floor is bright pixel art in every theme, so in a dark theme the page
  * takes a see-through coat of its own colour, keeping light text readable. */
-:root[data-office-backdrop].dark
+/* (Not on the Office page, where the floor is the page.) */
+:root[data-office-backdrop].dark:not([data-office-focus])
   [data-buzz-content-surface]:not([data-buzz-content-unframed]) {
   background-color: hsl(var(--background) / 0.62);
 }
