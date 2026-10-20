@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Check, Copy } from "lucide-react";
 
-import { HostedCommunityOnboarding } from "@/features/communities/ui/HostedCommunityOnboarding";
+import { LocalServerCreateForm } from "@/features/communities/ui/LocalServerCreateForm";
 import { useCommunityOnboarding } from "@/features/onboarding/communityOnboarding";
 import { InviteRedeemForm } from "@/features/onboarding/ui/InviteRedeemForm";
 import { OnboardingChrome } from "@/features/onboarding/ui/OnboardingChrome";
@@ -38,10 +38,6 @@ export function WelcomeSetup({
   const [page, setPage] = React.useState<WelcomeSetupPage>(initialPage);
   const [transitionMode, setTransitionMode] =
     React.useState<WelcomeTransitionMode>(initialTransitionMode);
-  // While true, the Builderlab sign-in modal floats over the current page —
-  // we only navigate to the hosted stage once sign-in completes, so the page
-  // behind the modal never changes out from under the user.
-  const [isHostedSignInOpen, setIsHostedSignInOpen] = React.useState(false);
   const [copiedNpub, setCopiedNpub] = React.useState(false);
   const communityOnboarding = useCommunityOnboarding();
   const identityQuery = useIdentityQuery();
@@ -89,9 +85,10 @@ export function WelcomeSetup({
     [communityOnboarding, page],
   );
 
+  // Communities are servers on this computer: creating one starts it here.
   const beginHostedCommunity = React.useCallback(
-    () => setIsHostedSignInOpen(true),
-    [],
+    () => showPage("owned"),
+    [showPage],
   );
 
   const transitionDirection =
@@ -234,7 +231,19 @@ export function WelcomeSetup({
               direction={transitionDirection}
               transitionKey={`owned-${transitionDirection}`}
             >
-              <HostedCommunityOnboarding onBack={() => showPage("welcome")} />
+              <div className="w-full max-w-[560px] text-left">
+                <LocalServerCreateForm
+                  onCancel={() => showPage("welcome")}
+                  onCreated={(relayUrl, name) => {
+                    communityOnboarding.start({
+                      source: "first-community",
+                      firstCommunityPage: "join",
+                      relayUrl,
+                      communityName: name,
+                    });
+                  }}
+                />
+              </div>
             </OnboardingSlideTransition>
           ) : (
             <OnboardingSlideTransition
@@ -315,16 +324,6 @@ export function WelcomeSetup({
               </div>
             </OnboardingSlideTransition>
           )}
-          {isHostedSignInOpen && page !== "owned" ? (
-            <HostedCommunityOnboarding
-              onBack={() => setIsHostedSignInOpen(false)}
-              onReady={() => {
-                setIsHostedSignInOpen(false);
-                showPage("owned");
-              }}
-              stageHidden
-            />
-          ) : null}
         </div>
       </OnboardingFooterProvider>
     </div>

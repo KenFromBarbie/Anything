@@ -1,4 +1,3 @@
-pub mod admin;
 mod agent_access;
 mod agent_auth;
 mod agent_config;
@@ -76,7 +75,6 @@ mod window_vibrancy;
 mod workflows;
 mod workspace;
 
-pub use admin::*;
 pub use agent_access::*;
 pub use agent_auth::*;
 pub use agent_config::*;

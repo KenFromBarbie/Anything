@@ -8,7 +8,6 @@ import "@fontsource-variable/inter/opsz-italic.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/700.css";
 import "@/shared/styles/globals.css";
-import { UpdaterProvider } from "@/features/settings/hooks/UpdaterProvider";
 import { migrateLegacyCommunityStorageBeforeRender } from "@/features/communities/legacyCommunityStorage";
 import { CommunitiesProvider } from "@/features/communities/useCommunities";
 import { huddleWindowChannelId } from "@/features/huddle/lib/huddleWindow";
@@ -94,10 +93,8 @@ function renderApp() {
               <TooltipProvider>
                 <EmojiBurstProvider>
                   <PoofBurstProvider>
-                    <UpdaterProvider>
-                      <App />
-                      <NostrBindConsentDialog />
-                    </UpdaterProvider>
+                    <App />
+                    <NostrBindConsentDialog />
                     <Toaster />
                   </PoofBurstProvider>
                 </EmojiBurstProvider>

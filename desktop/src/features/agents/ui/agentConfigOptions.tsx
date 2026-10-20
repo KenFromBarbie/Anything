@@ -147,7 +147,6 @@ export const PERSONA_LLM_PROVIDER_OPTIONS: readonly PersonaModelOption[] = [
   { id: "openai", label: "OpenAI" },
   { id: "openai-compat", label: "OpenAI-compatible" },
   { id: "openrouter", label: "OpenRouter" },
-  { id: "relay-mesh", label: "Shared compute" },
   { id: "databricks", label: "Databricks" },
   { id: "databricks_v2", label: "Databricks v2" },
 ];
