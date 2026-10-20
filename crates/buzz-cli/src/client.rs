@@ -540,6 +540,8 @@ impl BuzzClient {
         auth_tag_json: Option<String>,
     ) -> Result<Self, CliError> {
         let http = reqwest::Client::builder()
+            // A local relay listens on IPv4; skip the IPv6 attempt (slow on Windows).
+            .resolve("localhost", std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
             .timeout(env_duration_secs("BUZZ_TIMEOUT_SECS", 30))
             .connect_timeout(env_duration_secs("BUZZ_CONNECT_TIMEOUT_SECS", 15))
             .build()
@@ -918,6 +920,8 @@ impl BuzzClient {
         let auth = sign_nip98(&self.keys, "POST", &url, Some(&body))?;
         let unknown = |detail: String| CliError::DeliveryUnknown(detail);
         let http = reqwest::Client::builder()
+            // A local relay listens on IPv4; skip the IPv6 attempt (slow on Windows).
+            .resolve("localhost", std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
             .redirect(reqwest::redirect::Policy::none())
             .timeout(env_duration_secs("BUZZ_TIMEOUT_SECS", 30))
             .connect_timeout(env_duration_secs("BUZZ_CONNECT_TIMEOUT_SECS", 15))
@@ -1337,6 +1341,8 @@ impl BuzzClient {
         let url = media_url_from_input(&self.relay_url, input)?;
         // Use a dedicated client: 120 s timeout, no redirect forwarding.
         let client = reqwest::Client::builder()
+            // A local relay listens on IPv4; skip the IPv6 attempt (slow on Windows).
+            .resolve("localhost", std::net::SocketAddr::from(([127, 0, 0, 1], 0)))
             .timeout(Duration::from_secs(120))
             // Do not forward Authorization or x-auth-tag to redirect targets.
             .redirect(reqwest::redirect::Policy::none())

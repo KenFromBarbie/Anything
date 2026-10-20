@@ -32,7 +32,9 @@ const crypto = require('node:crypto');
 const { join } = require('node:path');
 const { execFile } = require('node:child_process');
 
-const POLL_MS = 4000;
+// How often each agent's feed is checked. A reply can't start before its
+// message is picked up, so this is felt on every exchange.
+const POLL_MS = 1500;
 const CLI_TIMEOUT_MS = 30000;
 const SEEN_CAP = 1000;
 const MAX_REPLY_BYTES = 64 * 1024;
@@ -305,7 +307,9 @@ class BuzzBridge {
     this.polling = true;
     try {
       this.reportRoster();
-      for (const who of this.identities()) await this.pollFor(who);
+      // Every agent at once: one after another, each CLI round trip added to
+      // the wait of everyone polled after it.
+      await Promise.all(this.identities().map((who) => this.pollFor(who)));
     } finally {
       this.polling = false;
     }
