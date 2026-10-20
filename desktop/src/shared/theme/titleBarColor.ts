@@ -55,6 +55,7 @@ function topColors(): { caption: string; text: string } | null {
 
 /** Keep the native title bar (Windows) in the theme's colours. */
 export function followThemeWithTitleBar(): () => void {
+  if (typeof MutationObserver === "undefined") return () => {};
   let last = "";
   let timer: ReturnType<typeof setTimeout> | null = null;
   const apply = () => {
