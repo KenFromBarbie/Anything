@@ -795,7 +795,7 @@ function InboxMessageDetailPane({
         >
           <span
             aria-hidden="true"
-            className="absolute bottom-4 left-4 h-4 w-4 bg-background"
+            className="composer-corner-mask absolute bottom-4 left-4 h-4 w-4 bg-background"
             style={{
               maskImage:
                 "radial-gradient(circle at top right, transparent 0 1rem, black calc(1rem + 0.5px))",
@@ -805,7 +805,7 @@ function InboxMessageDetailPane({
           />
           <span
             aria-hidden="true"
-            className="absolute bottom-4 right-4 h-4 w-4 bg-background"
+            className="composer-corner-mask absolute bottom-4 right-4 h-4 w-4 bg-background"
             style={{
               maskImage:
                 "radial-gradient(circle at top left, transparent 0 1rem, black calc(1rem + 0.5px))",

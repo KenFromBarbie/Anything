@@ -364,6 +364,7 @@
   display: none;
 }
 
+:root[data-office-backdrop] .composer-corner-mask,
 :root[data-office-backdrop] .composer-overlay-corner-masks::before,
 :root[data-office-backdrop] .composer-overlay-corner-masks::after {
   display: none;
