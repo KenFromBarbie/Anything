@@ -54,6 +54,7 @@ mod studio;
 mod team_catalog;
 mod templates;
 mod terminal_runtime;
+mod title_bar;
 #[cfg_attr(not(test), allow(dead_code))]
 mod terminal_transport;
 #[cfg(target_os = "macos")]
@@ -549,6 +550,7 @@ pub fn run() {
         })
         .invoke_handler(studio::with_artcraft_commands(tauri::generate_handler![
             studio::studio_place,
+            title_bar::set_title_bar_colors,
             studio::studio_theme,
             local_servers::local_server_create,
             local_servers::local_servers_available,

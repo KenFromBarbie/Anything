@@ -13,6 +13,7 @@ import { invokeTauri } from "@/shared/api/tauri";
 import { isMacPlatform } from "@/shared/lib/platform";
 import { getStorageItem } from "@/shared/lib/safeStorage";
 import { createThemeVars, hexToHsl } from "./adaptive-theme";
+import { followThemeWithTitleBar } from "./titleBarColor";
 import {
   SYNTAX_THEMES,
   type SyntaxThemeName,
@@ -564,6 +565,9 @@ export function ThemeProvider({
       }
     });
   }, [effectiveTheme]);
+
+  // The native title bar (Windows) takes the theme's colours.
+  useEffect(() => (isTauri() ? followThemeWithTitleBar() : undefined), []);
 
   useEffect(() => {
     // `initial-render-ready` fires from a layout effect, so it is already
