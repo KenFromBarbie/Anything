@@ -31,6 +31,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const { join } = require('node:path');
 const { execFile } = require('node:child_process');
+const { MeetingVoices, splitAnswer } = require('./meeting-voice.cjs');
 
 // How often each agent's feed is checked. A reply can't start before its
 // message is picked up, so this is felt on every exchange.
@@ -232,6 +233,7 @@ class BuzzBridge {
   }
 
   stop() {
+    this.voices?.stopAll();
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     if (this.server) this.server.close();
@@ -358,6 +360,11 @@ class BuzzBridge {
     who.callChannels = new Set(
       list.filter((c) => /(^|\s)(call|huddle)$/i.test(String(c.name ?? '').trim())).map((c) => c.channel_id)
     );
+    // The app's meeting room: its calls get quick answers (see answerInMeeting).
+    const meetings = list.filter((c) => /^meeting room call$/i.test(String(c.name ?? '').trim()));
+    who.meetingChannels = new Set(meetings.map((c) => c.channel_id));
+    // A meeting this agent is in: get its voice ready before anyone asks.
+    for (const c of meetings) if (!c.archived_at) this.warmMeetingVoice(c.channel_id, who);
     who.dmCheckedAt = Date.now();
   }
 
@@ -387,10 +394,12 @@ class BuzzBridge {
   }
 
   /** Returns false only when the hive can't take the message yet. */
-  async handleEvent(ev, who) {
-    if (ev.kind !== 9 || ev.pubkey === who.pubkey) return true;
+  async handleEvent(ev, who, opts = {}) {
+    if (ev.kind !== 9) return true;
     const channel = ev.tags?.find((t) => t[0] === 'h')?.[1];
     if (channel && !who.knownChannels?.has(channel)) await this.refreshDmChannels(who, true);
+    if (channel && who.meetingChannels?.has(channel)) this.noteMeeting(ev, channel);
+    if (ev.pubkey === who.pubkey) return true;
     const route = this.classify(ev, who);
     if (!route) return true; // ordinary channel chat, not for this agent
     const sender = ev.pubkey.toLowerCase();
@@ -441,7 +450,13 @@ class BuzzBridge {
           ? `You are in a meeting with ${others}; the owner asked everyone: give your part in one short sentence.`
           : `You are chairing a meeting with ${others}: the owner did not name anyone, so you answer (or say who should, by name).`;
     }
-    const where = inCall
+    // In the meeting room the answer comes fast, from a quick model speaking
+    // as the agent; real work it's asked for goes on to the agent itself.
+    if (inCall && !fromAgent && !opts.asWork && !opts.noFast && who.meetingChannels?.has(channel)) {
+      void this.answerInMeeting(ev, who, channel, attendees, meetingNote);
+      return true;
+    }
+    const where = inCall && !opts.asWork
       ? 'a live voice call (what the owner said, transcribed)'
       : route.why === 'dm' ? 'a direct message' : route.why === 'followup' ? 'a follow-up in a Buzz thread you are in' : 'a Buzz channel mention';
     const from = fromAgent ? `from ${fromAgent.name}, one of the office's agents` : 'from the office owner';
@@ -450,7 +465,7 @@ class BuzzBridge {
       fromAgent
         ? 'Help with what they ask if it is yours to do; otherwise say so in the thread.'
         : 'Handle it as you would any request from the human: do it yourself or route it to the right agent.',
-      ...(inCall
+      ...(inCall && !opts.asWork
         ? [
           'You are in a voice call: your reply is read aloud straight away. Answer in one to three short spoken sentences, plain words only (no markdown, lists, links or code), and reply quickly with --in-channel (in the call, not a thread); do longer work afterwards and say so.'
 ,
@@ -490,6 +505,72 @@ class BuzzBridge {
     await this.run(['reactions', 'add', '--event', ev.id, '--emoji', '👀'], undefined, who).catch(() => {});
     this.log.log(`[buzz-bridge] delivered ${route.why} ${ev.id.slice(0, 12)}… to ${who.name}${fromAgent ? ` (from ${fromAgent.name})` : ''}`);
     return true;
+  }
+
+  /** What was said in a meeting (owner and agents), for the quick answers. */
+  noteMeeting(ev, channel) {
+    if (!this.meetingLog) this.meetingLog = new Map();
+    const log = this.meetingLog.get(channel) ?? [];
+    if (log.some((l) => l.id === ev.id)) return;
+    const speaker = ev.pubkey.toLowerCase() === this.owner ? 'Owner' : (this.byPubkey(ev.pubkey.toLowerCase())?.name ?? 'Someone');
+    log.push({ id: ev.id, at: ev.created_at, name: speaker, text: String(ev.content ?? '').slice(0, 600) });
+    log.sort((a, b) => a.at - b.at);
+    this.meetingLog.set(channel, log.slice(-30));
+  }
+
+  /** The meeting voices (quick spoken answers; see meeting-voice.cjs). */
+  meetingVoices() {
+    if (!this.voices) this.voices = new MeetingVoices({ cwd: this.userData, log: this.log });
+    return this.voices;
+  }
+
+  /** Start `who`'s voice for a meeting as soon as the meeting is seen, so the
+   *  first answer doesn't wait for the CLI to start. */
+  warmMeetingVoice(channel, who) {
+    this.meetingVoices().voiceFor(channel, who, who === this.michael);
+  }
+
+  /** Answer the owner in the meeting room as `who`, quickly and aloud. */
+  async answerInMeeting(ev, who, channel, attendees, note) {
+    const voice = this.meetingVoices().voiceFor(channel, who, who === this.michael);
+    // What was said since this voice last spoke (others' answers, earlier
+    // questions), then the question itself.
+    const fresh = (this.meetingLog?.get(channel) ?? [])
+      .filter((l) => l.id !== ev.id && !voice.seen.has(l.id));
+    for (const l of fresh) voice.seen.add(l.id);
+    voice.seen.add(ev.id);
+    const others = attendees.filter((i) => i !== who).map((i) => i.name);
+    const turn = [
+      others.length ? `In the meeting: the owner, ${others.join(', ')} and you.` : 'In the meeting: the owner and you.',
+      ...(note ? [note] : []),
+      ...(fresh.length ? ['Said since your last turn:', ...fresh.slice(-12).map((l) => `${l.name}: ${l.text}`)] : []),
+      `The owner, to you now: "${String(ev.content ?? '').slice(0, 1500)}"`,
+    ].join('\n');
+    let out;
+    try {
+      out = await voice.ask(turn);
+    } catch (e) {
+      this.log.warn(`[buzz-bridge] meeting answer for ${who.name} failed (${e.message}); passing it on`);
+      await this.handleEvent(ev, who, { noFast: true }).catch(() => {});
+      return;
+    }
+    const { spoken, task } = splitAnswer(out);
+    if (spoken) {
+      const r = await this.run(['messages', 'send', '--channel', channel, '--content', '-'], spoken, who).catch((e) => {
+        this.log.warn(`[buzz-bridge] ${who.name} could not speak in the meeting:`, e.message);
+        return null;
+      });
+      if (r?.event_id) {
+        voice.seen.add(r.event_id);
+        this.noteMeeting({ id: r.event_id, created_at: Math.floor(Date.now() / 1000), pubkey: who.pubkey, content: spoken }, channel);
+      }
+    }
+    this.log.log(`[buzz-bridge] ${who.name} answered in the meeting${task ? ' and took a task' : ''}`);
+    if (task) {
+      const content = `From the meeting (you already said you would do this): ${task}\n\nWhat the owner said: ${ev.content}`;
+      await this.handleEvent({ ...ev, content }, who, { asWork: true })
+        .catch((e) => this.log.warn('[buzz-bridge] meeting task not delivered:', e.message));
+    }
   }
 
   /** How an agent reaches the rest of the floor through Buzz channels. */

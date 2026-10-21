@@ -16,6 +16,8 @@ import {
   useChannelSections,
   type ChannelSection,
 } from "@/features/sidebar/lib/useChannelSections";
+import { isMeetingRoomChannelName } from "@/features/office/lib/meetingRoom";
+import { MeetingRoomVoiceChannel } from "@/features/sidebar/ui/MeetingRoomVoiceChannel";
 import { useActiveWorkingChannelsById } from "@/features/sidebar/lib/useActiveWorkingChannelsById";
 import { useDmSidebarMetadata } from "@/features/sidebar/useDmSidebarMetadata";
 import {
@@ -287,8 +289,14 @@ export function AppSidebar({
       if (channel.id === selectedChannelId) onSelectHome();
     });
 
+  // The meeting room's own channels show as its voice channel instead.
   const streamChannels = React.useMemo(
-    () => channels.filter((channel) => channel.channelType === "stream"),
+    () =>
+      channels.filter(
+        (channel) =>
+          channel.channelType === "stream" &&
+          !isMeetingRoomChannelName(channel.name),
+      ),
     [channels],
   );
 
@@ -723,6 +731,9 @@ export function AppSidebar({
                       onDeleteChannel={requestDeleteChannel}
                       onLeaveChannel={requestLeaveChannel}
                     />
+                    {collapsedGroups.channels ? null : (
+                      <MeetingRoomVoiceChannel />
+                    )}
                   </SidebarDndContext>
                   <FeatureGate feature="forum">
                     <ChannelGroupSection

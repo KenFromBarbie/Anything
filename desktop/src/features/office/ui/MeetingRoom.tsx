@@ -15,6 +15,7 @@ import {
   markMeetingStarting,
   listOfficeAgentsOnFloor,
   onOpenMeetingDialog,
+  setMeetingState,
   type OfficeAgentSummary,
 } from "@/features/office/lib/meetingRoom";
 import { ProfileAvatar } from "@/features/profile/ui/ProfileAvatar";
@@ -207,9 +208,11 @@ export function MeetingFloorSync() {
       });
     };
     if (!meeting) {
+      setMeetingState({ active: false, names: [] });
       if (lastSent.current) send([]);
       return;
     }
+    setMeetingState({ active: true, names: [] });
     const tick = async () => {
       try {
         const [pubkeys, agents] = await Promise.all([
@@ -218,11 +221,11 @@ export function MeetingFloorSync() {
         ]);
         if (cancelled) return;
         const inCall = new Set(pubkeys.map((p) => p.toLowerCase()));
-        send(
-          agents
-            .filter((a) => inCall.has(a.pubkey.toLowerCase()))
-            .map((a) => a.name),
-        );
+        const names = agents
+          .filter((a) => inCall.has(a.pubkey.toLowerCase()))
+          .map((a) => a.name);
+        setMeetingState({ active: true, names });
+        send(names);
       } catch {
         // Next tick.
       }

@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 import type { ManagedAgentBackend } from "@/shared/api/types";
@@ -50,6 +51,36 @@ export function isMeetingCall(
   }
   return meetingCalls.has(ephemeralChannelId) || isMeetingCallName(channelName);
 }
+
+/** The meeting now (who is at the table), for the sidebar's voice channel. */
+export type MeetingState = { active: boolean; names: string[] };
+let meetingState: MeetingState = { active: false, names: [] };
+const meetingListeners = new Set<() => void>();
+export function setMeetingState(next: MeetingState) {
+  if (
+    next.active === meetingState.active &&
+    next.names.join("|") === meetingState.names.join("|")
+  ) {
+    return;
+  }
+  meetingState = next;
+  for (const listener of meetingListeners) listener();
+}
+export function useMeetingState(): MeetingState {
+  return useSyncExternalStore(
+    (listener) => {
+      meetingListeners.add(listener);
+      return () => meetingListeners.delete(listener);
+    },
+    () => meetingState,
+  );
+}
+
+/** The meeting room's own channels (its text channel, its calls): the
+ *  sidebar's voice channel stands for them, so they're left out of lists. */
+export const isMeetingRoomChannelName = (name: string | null | undefined) =>
+  (name ?? "").trim().toLowerCase() === MEETING_CHANNEL_NAME ||
+  isMeetingCallName(name);
 
 /** Opens the meeting dialog from anywhere (the Office page's button, a click
  *  on the conference table). */
