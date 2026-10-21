@@ -78,6 +78,9 @@ interface Runtime {
   busySince?: number;
   /** In a meeting: the conference-table chair it holds (meetSeats index). */
   meetSeat?: number;
+  /** Its own desk while it sits in a meeting chair (taking the chair makes
+   *  the chair its desk; this puts the real one back). */
+  homeDesk?: Tile;
 }
 
 /** Only a busy stretch at least this long earns a cheer on finishing. Short
@@ -996,7 +999,7 @@ export function OfficeFloor() {
         if (spot.godOnly) {
           const god = useStore.getState().agents.find((a) => a.isGod);
           const grt = god ? runtimes.get(god.id) : undefined;
-          if (!god || !grt || grt.err || grt.brk
+          if (!god || !grt || grt.err || grt.brk || inMeeting(god.id)
             || (god.status !== 'idle' && god.status !== 'success')
             || Math.random() >= 0.5) return;        // the boss is unhurried
           agent = god; rt = grt;
@@ -1424,9 +1427,9 @@ export function OfficeFloor() {
       /** Pick who performs a ledger change: the assignee if on the floor, the
        *  god for fresh pins / orphan cards. Returns undefined → instant redraw. */
       const actorFor = (assignee: string | undefined, preferGod: boolean): string | undefined => {
-        if (!preferGod && assignee && runtimes.has(assignee)) return assignee;
+        if (!preferGod && assignee && runtimes.has(assignee) && !inMeeting(assignee)) return assignee;
         const god = useStore.getState().agents.find((a) => a.isGod);
-        return god && runtimes.has(god.id) ? god.id : undefined;
+        return god && runtimes.has(god.id) && !inMeeting(god.id) ? god.id : undefined;
       };
 
       let lastLedger: LedgerTask[] = [];
@@ -1614,6 +1617,7 @@ export function OfficeFloor() {
             const seat = meetSeats[idx];
             c.walkToAndThen(seat.approach, () => {
               if (rt.meetSeat !== idx) return;
+              if (!rt.homeDesk) rt.homeDesk = c.getDeskTile();
               c.repositionTo(seat.tile.x, seat.tile.y);
               c.sitInPlace(seat.face);
             });
@@ -1626,6 +1630,10 @@ export function OfficeFloor() {
         if (rt.meetSeat !== undefined) {
           meetTaken.delete(rt.meetSeat);
           rt.meetSeat = undefined;
+        }
+        if (rt.homeDesk) {
+          c.setDeskTile(rt.homeDesk);
+          rt.homeDesk = undefined;
         }
 
         // While an agent is on a coffee break the director owns its avatar — a
@@ -1842,6 +1850,30 @@ export function OfficeFloor() {
         }
       };
 
+      let meetingCheck = 0;
+      const keepMeetingSeated = (dt: number): void => {
+        meetingCheck -= dt;
+        if (meetingCheck > 0) return;
+        meetingCheck = 1;
+        for (const [id, rt] of runtimes) {
+          if (rt.meetSeat === undefined || !inMeeting(id)) continue;
+          const seat = meetSeats[rt.meetSeat];
+          if (!seat) continue;
+          const c = rt.character;
+          const at = c.getTilePosition();
+          if (at.x === seat.tile.x && at.y === seat.tile.y && c.isSitting()) continue;
+          if (c.getAnimation() === 'walk') continue; // on its way (or being moved)
+          const idx = rt.meetSeat;
+          if (at.x === seat.tile.x && at.y === seat.tile.y) { c.sitInPlace(seat.face); continue; }
+          c.walkToAndThen(seat.approach, () => {
+            if (rt.meetSeat !== idx) return;
+            if (!rt.homeDesk) rt.homeDesk = c.getDeskTile();
+            c.repositionTo(seat.tile.x, seat.tile.y);
+            c.sitInPlace(seat.face);
+          });
+        }
+      };
+
       const onTick = (ticker: Ticker) => {
         const dt = ticker.deltaMS / 1000;
         camera.update(dt);
@@ -1855,6 +1887,7 @@ export function OfficeFloor() {
         updateCafeteria(dt);
         updateCoffeeRuns(dt);
         updateErrands(dt);
+        keepMeetingSeated(dt);
         updateBossAura(dt);
         updateDeskLife(dt);
         updateBoardMoves(dt);

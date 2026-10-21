@@ -20,6 +20,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Separator } from "@/shared/ui/separator";
 import { Switch } from "@/shared/ui/switch";
 
+import { CallModelPicker } from "./CallModelPicker";
+
 export type HuddleAgentVoiceSettings = {
   enabled: boolean;
   voice_key: string;
@@ -163,6 +165,8 @@ export function AgentVoiceMenu({
             </DropdownMenu>
           </div>
         ) : null}
+
+        <CallModelPicker agentPubkey={agentPubkey} />
 
         {onRemoveAgent ? (
           <>

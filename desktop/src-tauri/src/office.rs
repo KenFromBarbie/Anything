@@ -452,6 +452,59 @@ async fn sync_office_workers(app: AppHandle, scope: OfficeScope, roster: Vec<(St
     eprintln!("buzz-desktop: office sidecar did not take its agents' identities");
 }
 
+const CALL_MODELS_FILE: &str = "call-models.json";
+
+/// The model each Office agent answers with in calls (by agent pubkey), as
+/// picked in the call's agent menu; agents not listed use the default
+/// (Sonnet 5.5). Kept in the active community's Office folder, where its
+/// bridge reads it on each answer.
+#[tauri::command]
+pub async fn get_call_models(
+    app: AppHandle,
+) -> Result<std::collections::BTreeMap<String, String>, String> {
+    let (_, user_data) = office_scope(&app)?;
+    Ok(std::fs::read(user_data.join(CALL_MODELS_FILE))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default())
+}
+
+/// Pick the model `agent_pubkey` answers with in calls; empty clears it.
+#[tauri::command]
+pub async fn set_call_model(
+    app: AppHandle,
+    agent_pubkey: String,
+    model: String,
+) -> Result<(), String> {
+    let pubkey = agent_pubkey.trim().to_ascii_lowercase();
+    if pubkey.len() != 64 || !pubkey.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err("not an agent pubkey".into());
+    }
+    let model = model.trim().to_string();
+    if !model
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '[' | ']'))
+    {
+        return Err("not a model id".into());
+    }
+    let (_, user_data) = office_scope(&app)?;
+    std::fs::create_dir_all(&user_data).map_err(|e| e.to_string())?;
+    let path = user_data.join(CALL_MODELS_FILE);
+    let mut models: std::collections::BTreeMap<String, String> = std::fs::read(&path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default();
+    if model.is_empty() {
+        models.remove(&pubkey);
+    } else {
+        models.insert(pubkey, model);
+    }
+    let json = serde_json::to_vec_pretty(&models).map_err(|e| e.to_string())?;
+    let staging = path.with_extension("json.tmp");
+    std::fs::write(&staging, json).map_err(|e| format!("save call models: {e}"))?;
+    std::fs::rename(&staging, &path).map_err(|e| format!("save call models: {e}"))
+}
+
 /// Set at startup, for nudging the Offices from places without an AppHandle.
 static APP: std::sync::OnceLock<AppHandle> = std::sync::OnceLock::new();
 

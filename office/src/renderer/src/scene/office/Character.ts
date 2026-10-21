@@ -332,6 +332,12 @@ export class Character {
     this.moveTo(tile);
   }
 
+  /** Make `tile` the home desk again (after a stint elsewhere, e.g. a
+   *  meeting chair, which repositionTo made the desk). */
+  setDeskTile(tile: { x: number; y: number }): void {
+    this.deskTile = { x: tile.x, y: tile.y };
+  }
+
   repositionTo(tx: number, ty: number): void {
     this.deskTile = { x: tx, y: ty };
     const pos = this.mapRenderer.tileToPixel(tx, ty);

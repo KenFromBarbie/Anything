@@ -32,6 +32,8 @@ const crypto = require('node:crypto');
 const { join } = require('node:path');
 const { execFile } = require('node:child_process');
 const { MeetingVoices, splitAnswer } = require('./meeting-voice.cjs');
+/** Agent-to-agent hand-offs in a call before it waits for the owner again. */
+const MAX_HANDOFFS = 30;
 
 // How often each agent's feed is checked. A reply can't start before its
 // message is picked up, so this is felt on every exchange.
@@ -364,7 +366,10 @@ class BuzzBridge {
     const meetings = list.filter((c) => /^meeting room call$/i.test(String(c.name ?? '').trim()));
     who.meetingChannels = new Set(meetings.map((c) => c.channel_id));
     // A meeting this agent is in: get its voice ready before anyone asks.
-    for (const c of meetings) if (!c.archived_at) this.warmMeetingVoice(c.channel_id, who);
+    for (const c of list) {
+      if (c.archived_at || !who.callChannels.has(c.channel_id)) continue;
+      this.warmMeetingVoice(c.channel_id, who);
+    }
     who.dmCheckedAt = Date.now();
   }
 
@@ -398,7 +403,7 @@ class BuzzBridge {
     if (ev.kind !== 9) return true;
     const channel = ev.tags?.find((t) => t[0] === 'h')?.[1];
     if (channel && !who.knownChannels?.has(channel)) await this.refreshDmChannels(who, true);
-    if (channel && who.meetingChannels?.has(channel)) this.noteMeeting(ev, channel);
+    if (channel && who.callChannels?.has(channel)) this.noteMeeting(ev, channel);
     if (ev.pubkey === who.pubkey) return true;
     const route = this.classify(ev, who);
     if (!route) return true; // ordinary channel chat, not for this agent
@@ -452,7 +457,9 @@ class BuzzBridge {
     }
     // In the meeting room the answer comes fast, from a quick model speaking
     // as the agent; real work it's asked for goes on to the agent itself.
-    if (inCall && !fromAgent && !opts.asWork && !opts.noFast && who.meetingChannels?.has(channel)) {
+    if (inCall && !fromAgent && !opts.asWork && !opts.noFast) {
+      if (!this.handoffs) this.handoffs = new Map();
+      this.handoffs.set(channel, 0);
       void this.answerInMeeting(ev, who, channel, attendees, meetingNote);
       return true;
     }
@@ -530,8 +537,26 @@ class BuzzBridge {
     this.meetingVoices().voiceFor(channel, who, who === this.michael);
   }
 
-  /** Answer the owner in the meeting room as `who`, quickly and aloud. */
-  async answerInMeeting(ev, who, channel, attendees, note) {
+  /** Answer the owner in the meeting room as `who`, quickly and aloud.
+   *  Answers in a meeting take turns (the chair first when several are
+   *  asked), so each one hears the replies just given. */
+  answerInMeeting(ev, who, channel, attendees, note, from = 'The owner') {
+    if (!this.meetingTurns) this.meetingTurns = new Map();
+    const enqueue = () => {
+      const prev = this.meetingTurns.get(channel) ?? Promise.resolve();
+      const turn = prev
+        .then(() => this.answerTurn(ev, who, channel, attendees, note, from))
+        .catch((e) => this.log.warn('[buzz-bridge] meeting turn failed:', e?.message ?? e));
+      this.meetingTurns.set(channel, turn);
+      return turn;
+    };
+    // The chair queues straight away; the others a moment later, so when
+    // several are asked at once the chair speaks first.
+    if (who === this.michael) return enqueue();
+    return new Promise((r) => setTimeout(r, 400)).then(enqueue);
+  }
+
+  async answerTurn(ev, who, channel, attendees, note, from = 'The owner') {
     const voice = this.meetingVoices().voiceFor(channel, who, who === this.michael);
     // What was said since this voice last spoke (others' answers, earlier
     // questions), then the question itself.
@@ -544,7 +569,7 @@ class BuzzBridge {
       others.length ? `In the meeting: the owner, ${others.join(', ')} and you.` : 'In the meeting: the owner and you.',
       ...(note ? [note] : []),
       ...(fresh.length ? ['Said since your last turn:', ...fresh.slice(-12).map((l) => `${l.name}: ${l.text}`)] : []),
-      `The owner, to you now: "${String(ev.content ?? '').slice(0, 1500)}"`,
+      `${from}, to you now: "${String(ev.content ?? '').slice(0, 1500)}"`,
     ].join('\n');
     let out;
     try {
@@ -554,7 +579,8 @@ class BuzzBridge {
       await this.handleEvent(ev, who, { noFast: true }).catch(() => {});
       return;
     }
-    const { spoken, task } = splitAnswer(out);
+    const { spoken: said, task } = splitAnswer(out);
+    const spoken = /^\W*pass\W*$/i.test(said) ? '' : said; // nothing to add
     if (spoken) {
       const r = await this.run(['messages', 'send', '--channel', channel, '--content', '-'], spoken, who).catch((e) => {
         this.log.warn(`[buzz-bridge] ${who.name} could not speak in the meeting:`, e.message);
@@ -563,6 +589,21 @@ class BuzzBridge {
       if (r?.event_id) {
         voice.seen.add(r.event_id);
         this.noteMeeting({ id: r.event_id, created_at: Math.floor(Date.now() / 1000), pubkey: who.pubkey, content: spoken }, channel);
+        const lower = spoken.toLowerCase();
+        const escape = (w) => w.replace(/[^a-z0-9 ]/g, (c) => String.fromCharCode(92) + c);
+        const named = attendees.filter((i) => i !== who
+          && new RegExp('(^|[^a-z0-9])' + escape(i.name.toLowerCase()) + '([^a-z0-9]|$)').test(lower));
+        if (!this.handoffs) this.handoffs = new Map();
+        const run = this.handoffs.get(channel) ?? 0;
+        if (named.length && run < MAX_HANDOFFS) {
+          this.handoffs.set(channel, run + 1);
+          const handed = { id: r.event_id, created_at: Math.floor(Date.now() / 1000), pubkey: who.pubkey, content: spoken, tags: ev.tags };
+          for (const next of named) {
+            void this.answerInMeeting(handed, next, channel, attendees, `${who.name} handed over to you.`, who.name);
+          }
+        } else if (named.length) {
+          this.log.log(`[buzz-bridge] meeting hand-offs stopped after ${MAX_HANDOFFS}; waiting for the owner`);
+        }
       }
     }
     this.log.log(`[buzz-bridge] ${who.name} answered in the meeting${task ? ' and took a task' : ''}`);

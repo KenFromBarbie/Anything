@@ -45,15 +45,31 @@ function systemPrompt(name, chair) {
   return [
     `You are ${name}, one of the AI agents working in the owner's office${chair ? ' (you run the floor and chair meetings)' : ''}.`,
     'You are in a live voice meeting with the owner and some of your colleagues. Everything you say is read aloud.',
-    'Each message gives you what was said since your last turn, then what the owner just said to you.',
+    'Each message gives you what was said since your last turn (including what your colleagues just answered), then what was just said to you (by the owner, or a colleague handing over to you).',
+    'To hand over to a colleague, say their name: they speak next and hear you. Only name someone when you mean them to go next.',
+    'You hear your colleagues: build on what they said, never repeat it. If they already covered it and you have nothing to add, reply with just: PASS',
     'Reply as yourself in one to three short spoken sentences: plain words, no markdown, lists, links or code. Be direct and natural.',
     'Do not pretend to have done work you have not done. If the owner asks you to actually do something (research, build, write, change something), say briefly that you will, and then on a last line of its own write: TASK: <the task in one line, with what they asked for>.',
   ].join('\n');
 }
 
+/** The model each agent answers with in calls (`call-models.json` in the
+ *  Office's data folder, by agent pubkey, written by the app's call menu);
+ *  MEETING_MODEL when none is picked. */
+function callModelFor(dataDir, pubkey) {
+  try {
+    const picked = JSON.parse(fs.readFileSync(join(dataDir, 'call-models.json'), 'utf8'))?.[pubkey];
+    if (typeof picked === 'string' && /^[a-z0-9.\-\[\]]+$/i.test(picked)) return picked;
+  } catch {
+    // Nothing picked yet.
+  }
+  return MEETING_MODEL;
+}
+
 class MeetingVoice {
-  constructor({ name, chair, cwd, log }) {
+  constructor({ name, chair, cwd, log, model }) {
     this.name = name;
+    this.model = model;
     this.log = log;
     this.queue = Promise.resolve();
     this.waiting = null;
@@ -61,7 +77,7 @@ class MeetingVoice {
     this.lastUsed = Date.now();
     this.seen = new Set(); // meeting lines this voice has been told
     this.child = spawn(claudeBin(), [
-      '-p', '--model', MEETING_MODEL,
+      '-p', '--model', model,
       '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
       '--no-session-persistence', '--effort', 'low', '--disable-slash-commands',
       '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
@@ -138,9 +154,15 @@ class MeetingVoices {
   /** The voice for `who` in this meeting, started if it isn't running. */
   voiceFor(channel, who, chair) {
     const key = this.key(channel, who.agentId);
+    const model = callModelFor(this.cwd, who.pubkey);
     let voice = this.voices.get(key);
+    // A model picked during the call takes over from the next answer on.
+    if (voice && !voice.dead && voice.model !== model) {
+      voice.stop();
+      voice = null;
+    }
     if (!voice || voice.dead) {
-      voice = new MeetingVoice({ name: who.name, chair, cwd: this.cwd, log: this.log });
+      voice = new MeetingVoice({ name: who.name, chair, cwd: this.cwd, log: this.log, model });
       this.voices.set(key, voice);
     }
     return voice;

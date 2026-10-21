@@ -601,6 +601,8 @@ pub fn run() {
             research::research_save_file,
             office::office_connect,
             office::office_status,
+            office::get_call_models,
+            office::set_call_model,
             office::office_stop,
             terminal_runtime::terminal_attach,
             terminal_runtime::terminal_detach,
