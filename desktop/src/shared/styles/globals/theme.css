@@ -408,6 +408,13 @@
   background: none;
 }
 
+/* During a call the call bar sits along the bottom of the window. The floor
+ * is drawn in the app's layer, which stacks above the bar, so it stops short
+ * of it instead of covering the call's controls. */
+.buzz-huddle-shell[data-huddle-open="true"] .office-backdrop-layer {
+  bottom: var(--buzz-huddle-drawer-height, 5rem);
+}
+
 .office-backdrop-wash {
   background-color: hsl(var(--sidebar-background));
   transition: opacity 500ms ease;

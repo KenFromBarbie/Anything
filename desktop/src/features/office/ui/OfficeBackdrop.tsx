@@ -142,7 +142,7 @@ export function OfficeBackdrop() {
     <>
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+        className="office-backdrop-layer pointer-events-none fixed inset-0 -z-10 overflow-hidden"
         data-office-backdrop-frame
       >
         <iframe
@@ -158,7 +158,7 @@ export function OfficeBackdrop() {
           floor: the whole window shows the floor evenly. */}
       <div
         aria-hidden
-        className="office-backdrop-wash pointer-events-none fixed inset-0 -z-[5]"
+        className="office-backdrop-layer office-backdrop-wash pointer-events-none fixed inset-0 -z-[5]"
         style={{ opacity: 1 - strength / 100 }}
       />
     </>

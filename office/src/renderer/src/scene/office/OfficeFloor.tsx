@@ -387,29 +387,57 @@ export function OfficeFloor() {
       };
       addZoneSeats('boardroom');       // conference room overflow
 
-      // Meetings (a call in the app's meeting room) gather their members at
-      // the conference table: the boardroom's walkable tiles beside the table,
-      // facing it (chairs above face down, below face up), left to right.
-      const meetSeats: Array<{ tile: Tile; face: 'up' | 'down' }> = [];
+      // Meetings (a call in the app's meeting room) seat their members on the
+      // conference table's chairs. The chairs are furniture (not walkable): in
+      // the boardroom, the table is the widest blocked rows and the chairs are
+      // the shorter blocked rows above (facing down) and below it (facing up),
+      // within its width. An attendee walks to the open tile nearest its chair,
+      // then takes the chair.
+      const meetSeats: Array<{ tile: Tile; approach: Tile; face: 'up' | 'down' }> = [];
       {
         const z = mapRenderer.getZone('boardroom');
         if (z) {
-          const inZone = (x: number, y: number) =>
-            x >= z.x && x < z.x + z.width && y >= z.y && y < z.y + z.height;
-          const chairs: Array<{ tile: Tile; face: 'up' | 'down' }> = [];
-          const rest: Array<{ tile: Tile; face: 'up' | 'down' }> = [];
+          const blocked = (x: number, y: number) => !mapRenderer.isWalkable(x, y);
+          const rows: Array<{ y: number; xs: number[] }> = [];
           for (let y = z.y; y < z.y + z.height; y++) {
-            for (let x = z.x; x < z.x + z.width; x++) {
-              if (!mapRenderer.isWalkable(x, y)) continue;
-              const tableBelow = inZone(x, y + 1) && !mapRenderer.isWalkable(x, y + 1);
-              const tableAbove = inZone(x, y - 1) && !mapRenderer.isWalkable(x, y - 1);
-              if (tableBelow) chairs.push({ tile: { x, y }, face: 'down' });
-              else if (tableAbove) chairs.push({ tile: { x, y }, face: 'up' });
-              else rest.push({ tile: { x, y }, face: 'down' });
-            }
+            const xs: number[] = [];
+            for (let x = z.x; x < z.x + z.width; x++) if (blocked(x, y)) xs.push(x);
+            rows.push({ y, xs });
           }
-          chairs.sort((a, b) => a.tile.x - b.tile.x || a.tile.y - b.tile.y);
-          meetSeats.push(...chairs, ...rest);
+          const widest = Math.max(0, ...rows.map((r) => r.xs.length));
+          const tableRows = rows.filter((r) => widest > 0 && r.xs.length === widest);
+          if (tableRows.length) {
+            const top = tableRows[0].y;
+            const bottom = tableRows[tableRows.length - 1].y;
+            const minX = Math.min(...tableRows.flatMap((r) => r.xs));
+            const maxX = Math.max(...tableRows.flatMap((r) => r.xs));
+            const nearestOpen = (t: Tile): Tile | null => {
+              let best: Tile | null = null;
+              let bestD = Infinity;
+              for (let dy = -2; dy <= 2; dy++) {
+                for (let dx = -3; dx <= 3; dx++) {
+                  const c = { x: t.x + dx, y: t.y + dy };
+                  if (!mapRenderer.isWalkable(c.x, c.y)) continue;
+                  const d = Math.abs(dx) + Math.abs(dy);
+                  if (d < bestD) { bestD = d; best = c; }
+                }
+              }
+              return best;
+            };
+            for (const r of rows) {
+              if (r.y >= top && r.y <= bottom) continue;
+              if (r.y !== top - 1 && r.y !== bottom + 1) continue;
+              const face: 'up' | 'down' = r.y < top ? 'down' : 'up';
+              for (const x of r.xs) {
+                if (x < minX || x > maxX) continue;
+                const approach = nearestOpen({ x, y: r.y });
+                if (approach) meetSeats.push({ tile: { x, y: r.y }, approach, face });
+              }
+            }
+            // Fill the table from the middle of each side outwards.
+            const mid = (minX + maxX) / 2;
+            meetSeats.sort((a, b) => Math.abs(a.tile.x - mid) - Math.abs(b.tile.x - mid) || a.tile.y - b.tile.y);
+          }
         }
       }
       const meetTaken = new Map<number, string>();
@@ -1580,8 +1608,10 @@ export function OfficeFloor() {
             meetTaken.set(idx, agent.id);
             rt.meetSeat = idx;
             const seat = meetSeats[idx];
-            c.walkToAndThen(seat.tile, () => {
-              if (rt.meetSeat === idx) c.sitInPlace(seat.face);
+            c.walkToAndThen(seat.approach, () => {
+              if (rt.meetSeat !== idx) return;
+              c.repositionTo(seat.tile.x, seat.tile.y);
+              c.sitInPlace(seat.face);
             });
           }
           c.setStatusGlyph('none');

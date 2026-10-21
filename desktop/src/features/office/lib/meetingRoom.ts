@@ -53,13 +53,15 @@ export function isMeetingCall(
 }
 
 /** The meeting now (who is at the table), for the sidebar's voice channel. */
-export type MeetingState = { active: boolean; names: string[] };
-let meetingState: MeetingState = { active: false, names: [] };
+export type MeetingPerson = { name: string; pubkey: string };
+export type MeetingState = { active: boolean; people: MeetingPerson[] };
+let meetingState: MeetingState = { active: false, people: [] };
 const meetingListeners = new Set<() => void>();
 export function setMeetingState(next: MeetingState) {
   if (
     next.active === meetingState.active &&
-    next.names.join("|") === meetingState.names.join("|")
+    next.people.map((p) => p.pubkey).join("|") ===
+      meetingState.people.map((p) => p.pubkey).join("|")
   ) {
     return;
   }

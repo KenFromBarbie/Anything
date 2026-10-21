@@ -208,11 +208,11 @@ export function MeetingFloorSync() {
       });
     };
     if (!meeting) {
-      setMeetingState({ active: false, names: [] });
+      setMeetingState({ active: false, people: [] });
       if (lastSent.current) send([]);
       return;
     }
-    setMeetingState({ active: true, names: [] });
+    setMeetingState({ active: true, people: [] });
     const tick = async () => {
       try {
         const [pubkeys, agents] = await Promise.all([
@@ -221,11 +221,14 @@ export function MeetingFloorSync() {
         ]);
         if (cancelled) return;
         const inCall = new Set(pubkeys.map((p) => p.toLowerCase()));
-        const names = agents
-          .filter((a) => inCall.has(a.pubkey.toLowerCase()))
-          .map((a) => a.name);
-        setMeetingState({ active: true, names });
-        send(names);
+        const present = agents.filter((a) =>
+          inCall.has(a.pubkey.toLowerCase()),
+        );
+        setMeetingState({
+          active: true,
+          people: present.map((a) => ({ name: a.name, pubkey: a.pubkey })),
+        });
+        send(present.map((a) => a.name));
       } catch {
         // Next tick.
       }
