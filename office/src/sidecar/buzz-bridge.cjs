@@ -32,8 +32,6 @@ const crypto = require('node:crypto');
 const { join } = require('node:path');
 const { execFile } = require('node:child_process');
 const { MeetingVoices, splitAnswer } = require('./meeting-voice.cjs');
-/** Agent-to-agent hand-offs in a call before it waits for the owner again. */
-const MAX_HANDOFFS = 30;
 
 // How often each agent's feed is checked. A reply can't start before its
 // message is picked up, so this is felt on every exchange.
@@ -458,8 +456,6 @@ class BuzzBridge {
     // In the meeting room the answer comes fast, from a quick model speaking
     // as the agent; real work it's asked for goes on to the agent itself.
     if (inCall && !fromAgent && !opts.asWork && !opts.noFast) {
-      if (!this.handoffs) this.handoffs = new Map();
-      this.handoffs.set(channel, 0);
       void this.answerInMeeting(ev, who, channel, attendees, meetingNote);
       return true;
     }
@@ -593,16 +589,11 @@ class BuzzBridge {
         const escape = (w) => w.replace(/[^a-z0-9 ]/g, (c) => String.fromCharCode(92) + c);
         const named = attendees.filter((i) => i !== who
           && new RegExp('(^|[^a-z0-9])' + escape(i.name.toLowerCase()) + '([^a-z0-9]|$)').test(lower));
-        if (!this.handoffs) this.handoffs = new Map();
-        const run = this.handoffs.get(channel) ?? 0;
-        if (named.length && run < MAX_HANDOFFS) {
-          this.handoffs.set(channel, run + 1);
+        if (named.length) {
           const handed = { id: r.event_id, created_at: Math.floor(Date.now() / 1000), pubkey: who.pubkey, content: spoken, tags: ev.tags };
           for (const next of named) {
             void this.answerInMeeting(handed, next, channel, attendees, `${who.name} handed over to you.`, who.name);
           }
-        } else if (named.length) {
-          this.log.log(`[buzz-bridge] meeting hand-offs stopped after ${MAX_HANDOFFS}; waiting for the owner`);
         }
       }
     }

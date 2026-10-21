@@ -414,13 +414,33 @@ export function OfficeFloor() {
             const bottom = tableRows[tableRows.length - 1].y;
             const minX = Math.min(...tableRows.flatMap((r) => r.xs));
             const maxX = Math.max(...tableRows.flatMap((r) => r.xs));
+            // Tiles the office floor can actually reach (from the entrance):
+            // an open tile beside a chair can sit in a walled-off pocket, and
+            // an agent sent there never arrives.
+            const reach = new Set<string>();
+            {
+              const start = mapRenderer.getSpawnPoint('entrance')
+                ?? { x: Math.floor(mapRenderer.width / 2), y: mapRenderer.height - 2 };
+              const queue: Tile[] = [];
+              const push = (x: number, y: number) => {
+                const k = `${x},${y}`;
+                if (reach.has(k) || !mapRenderer.isWalkable(x, y)) return;
+                reach.add(k);
+                queue.push({ x, y });
+              };
+              push(start.x, start.y);
+              for (let i = 0; i < queue.length; i++) {
+                const q = queue[i];
+                push(q.x + 1, q.y); push(q.x - 1, q.y); push(q.x, q.y + 1); push(q.x, q.y - 1);
+              }
+            }
             const nearestOpen = (t: Tile): Tile | null => {
               let best: Tile | null = null;
               let bestD = Infinity;
-              for (let dy = -2; dy <= 2; dy++) {
-                for (let dx = -3; dx <= 3; dx++) {
+              for (let dy = -3; dy <= 3; dy++) {
+                for (let dx = -4; dx <= 4; dx++) {
                   const c = { x: t.x + dx, y: t.y + dy };
-                  if (!mapRenderer.isWalkable(c.x, c.y)) continue;
+                  if (!reach.has(`${c.x},${c.y}`)) continue;
                   const d = Math.abs(dx) + Math.abs(dy);
                   if (d < bestD) { bestD = d; best = c; }
                 }
@@ -448,6 +468,36 @@ export function OfficeFloor() {
         }
       }
       const meetTaken = new Map<number, string>();
+      const walkToMeetSeat = (rt: Runtime, idx: number): void => {
+        const seat = meetSeats[idx];
+        const c = rt.character;
+        const take = () => {
+          if (rt.meetSeat !== idx) return;
+          if (!rt.homeDesk) rt.homeDesk = c.getDeskTile();
+          c.repositionTo(seat.tile.x, seat.tile.y);
+          c.sitInPlace(seat.face);
+        };
+        c.walkToAndThen(seat.approach, take);
+        if (c.getAnimation() === 'walk') return;
+        const at = c.getTilePosition();
+        if (at.x === seat.approach.x && at.y === seat.approach.y) return; // already there: taken
+        // No route from here: step onto the nearest open tile, then walk.
+        let best: Tile | null = null;
+        let bestD = Infinity;
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const t = { x: at.x + dx, y: at.y + dy };
+            if (!mapRenderer.isWalkable(t.x, t.y)) continue;
+            const d = Math.abs(dx) + Math.abs(dy);
+            if (d < bestD) { bestD = d; best = t; }
+          }
+        }
+        if (!best) return;
+        const desk = c.getDeskTile();
+        c.repositionTo(best.x, best.y); // moves the desk too: put it back
+        c.setDeskTile(desk);
+        c.walkToAndThen(seat.approach, take);
+      };
       const inMeeting = (id: string) => useStore.getState().meetingAgentIds.includes(id);
       // The bottom-right open area is the cafeteria (break room) — see the
       // coffee-break director below. It is deliberately NOT added as overflow
@@ -1614,13 +1664,7 @@ export function OfficeFloor() {
             if (idx < 0) idx = 0;
             meetTaken.set(idx, agent.id);
             rt.meetSeat = idx;
-            const seat = meetSeats[idx];
-            c.walkToAndThen(seat.approach, () => {
-              if (rt.meetSeat !== idx) return;
-              if (!rt.homeDesk) rt.homeDesk = c.getDeskTile();
-              c.repositionTo(seat.tile.x, seat.tile.y);
-              c.sitInPlace(seat.face);
-            });
+            walkToMeetSeat(rt, idx);
           }
           c.setStatusGlyph('none');
           const busyNow = agent.status === 'working' || agent.status === 'thinking';
@@ -1863,14 +1907,8 @@ export function OfficeFloor() {
           const at = c.getTilePosition();
           if (at.x === seat.tile.x && at.y === seat.tile.y && c.isSitting()) continue;
           if (c.getAnimation() === 'walk') continue; // on its way (or being moved)
-          const idx = rt.meetSeat;
           if (at.x === seat.tile.x && at.y === seat.tile.y) { c.sitInPlace(seat.face); continue; }
-          c.walkToAndThen(seat.approach, () => {
-            if (rt.meetSeat !== idx) return;
-            if (!rt.homeDesk) rt.homeDesk = c.getDeskTile();
-            c.repositionTo(seat.tile.x, seat.tile.y);
-            c.sitInPlace(seat.face);
-          });
+          walkToMeetSeat(rt, rt.meetSeat);
         }
       };
 
