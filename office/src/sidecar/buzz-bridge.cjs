@@ -402,6 +402,7 @@ class BuzzBridge {
     const channel = ev.tags?.find((t) => t[0] === 'h')?.[1];
     if (channel && !who.knownChannels?.has(channel)) await this.refreshDmChannels(who, true);
     if (channel && who.callChannels?.has(channel)) this.noteMeeting(ev, channel);
+    if (channel) this.noteConversation(ev, channel);
     if (ev.pubkey === who.pubkey) return true;
     const route = this.classify(ev, who);
     if (!route) return true; // ordinary channel chat, not for this agent
@@ -487,6 +488,13 @@ class BuzzBridge {
       `If this becomes board work, record where it came from on every card you make for it: "buzz": {"replyTo": "${ev.id}"}. Questions for the owner about that work are asked in this thread (the command above), not on the card.`,
       ...this.buzzToolsNote(who),
       '',
+      ...((() => {
+        const before = channel ? this.conversationBefore(ev, channel) : [];
+        return before.length
+          ? ['', 'The conversation so far (check whether a colleague already answered or finished it before you act):', ...before]
+          : [];
+      })()),
+      '',
       'The message:',
       ev.content
     ].join('\n');
@@ -508,6 +516,33 @@ class BuzzBridge {
     await this.run(['reactions', 'add', '--event', ev.id, '--emoji', '👀'], undefined, who).catch(() => {});
     this.log.log(`[buzz-bridge] delivered ${route.why} ${ev.id.slice(0, 12)}… to ${who.name}${fromAgent ? ` (from ${fromAgent.name})` : ''}`);
     return true;
+  }
+
+  /** The conversation an event belongs to: its thread, else its channel. */
+  conversationKey(ev, channel) {
+    const known = this.thread(this.threadRootOf(ev) ?? '');
+    return `${channel}:${known?.root ?? this.threadRootOf(ev) ?? 'top'}`;
+  }
+
+  /** Remember a message (owner's or an agent's) in its conversation. */
+  noteConversation(ev, channel) {
+    if (!this.conversations) this.conversations = new Map();
+    const key = this.conversationKey(ev, channel);
+    const log = this.conversations.get(key) ?? [];
+    if (log.some((l) => l.id === ev.id)) return;
+    const pk = String(ev.pubkey ?? '').toLowerCase();
+    const name = pk === this.owner ? 'Owner' : (this.byPubkey(pk)?.name ?? 'Someone');
+    log.push({ id: ev.id, at: ev.created_at ?? Math.floor(Date.now() / 1000), name, text: String(ev.content ?? '').slice(0, 800) });
+    log.sort((a, b) => a.at - b.at);
+    this.conversations.set(key, log.slice(-20));
+    if (this.conversations.size > 400) this.conversations.delete(this.conversations.keys().next().value);
+  }
+
+  /** What was said before `ev` in its conversation, as lines for an agent. */
+  conversationBefore(ev, channel) {
+    const log = this.conversations?.get(this.conversationKey(ev, channel)) ?? [];
+    return log.filter((l) => l.id !== ev.id && l.at <= (ev.created_at ?? Infinity)).slice(-10)
+      .map((l) => `${l.name}: ${l.text.replace(/\s+/g, ' ')}`);
   }
 
   /** What was said in a meeting (owner and agents), for the quick answers. */
@@ -660,6 +695,20 @@ class BuzzBridge {
     if (r?.event_id) {
       this.remember(r.event_id, thread.root, thread.channel, thread.threaded, who.agentId);
       this.saveState();
+      this.noteConversation({ id: r.event_id, created_at: Math.floor(Date.now() / 1000), pubkey: who.pubkey,
+        content: text, tags: [['h', thread.channel], ['e', thread.root, '', 'root']] }, thread.channel);
+      const send = this.shim.ipcMain.handlers.get('hive:send');
+      for (const agentId of thread.agents) {
+        if (agentId === who.agentId || !send) continue;
+        void Promise.resolve(send({ sender: null, senderFrame: null }, {
+          to: agentId,
+          act: 'inform',
+          subject: `${who.name} replied in a thread you're in`,
+          body: `[BUZZ UPDATE — ${who.name} replied in a Buzz thread you were also asked in. No reply needed; use it to avoid repeating or redoing their work.]\n\n${text.slice(0, 1500)}`,
+          conversation: `buzz-${thread.root}`,
+          requires_reply: false
+        }, 'human')).catch(() => {});
+      }
     }
     return [200, { ok: true, eventId: r?.event_id, as: who.name }];
   }

@@ -397,6 +397,8 @@ export function OfficeFloor() {
       // within its width. An attendee walks to the open tile nearest its chair,
       // then takes the chair.
       const meetSeats: Array<{ tile: Tile; approach: Tile; face: 'up' | 'down' }> = [];
+      /** Open floor reachable from the entrance (filled below with the seats). */
+      const reach = new Set<string>();
       {
         const z = mapRenderer.getZone('boardroom');
         if (z) {
@@ -417,7 +419,6 @@ export function OfficeFloor() {
             // Tiles the office floor can actually reach (from the entrance):
             // an open tile beside a chair can sit in a walled-off pocket, and
             // an agent sent there never arrives.
-            const reach = new Set<string>();
             {
               const start = mapRenderer.getSpawnPoint('entrance')
                 ?? { x: Math.floor(mapRenderer.width / 2), y: mapRenderer.height - 2 };
@@ -487,7 +488,7 @@ export function OfficeFloor() {
         for (let dy = -2; dy <= 2; dy++) {
           for (let dx = -2; dx <= 2; dx++) {
             const t = { x: at.x + dx, y: at.y + dy };
-            if (!mapRenderer.isWalkable(t.x, t.y)) continue;
+            if (!reach.has(`${t.x},${t.y}`)) continue;
             const d = Math.abs(dx) + Math.abs(dy);
             if (d < bestD) { bestD = d; best = t; }
           }
@@ -1672,10 +1673,18 @@ export function OfficeFloor() {
           return;
         }
         if (rt.meetSeat !== undefined) {
+          const seat = meetSeats[rt.meetSeat];
           meetTaken.delete(rt.meetSeat);
           rt.meetSeat = undefined;
-        }
-        if (rt.homeDesk) {
+          const desk = rt.homeDesk ?? c.getDeskTile();
+          if (seat) c.repositionTo(seat.approach.x, seat.approach.y);
+          c.setDeskTile(desk);
+          rt.homeDesk = undefined;
+          // The meeting's over: everyone leaves the room for their own desk.
+          c.hideThought();
+          c.sitAtDesk(agent.isGod || agent.status === 'working' || agent.status === 'thinking');
+          if (agent.status === 'idle' || agent.status === 'success') return;
+        } else if (rt.homeDesk) {
           c.setDeskTile(rt.homeDesk);
           rt.homeDesk = undefined;
         }
@@ -1904,10 +1913,16 @@ export function OfficeFloor() {
           const seat = meetSeats[rt.meetSeat];
           if (!seat) continue;
           const c = rt.character;
-          const at = c.getTilePosition();
-          if (at.x === seat.tile.x && at.y === seat.tile.y && c.isSitting()) continue;
           if (c.getAnimation() === 'walk') continue; // on its way (or being moved)
-          if (at.x === seat.tile.x && at.y === seat.tile.y) { c.sitInPlace(seat.face); continue; }
+          const seatPx = mapRenderer.tileToPixel(seat.tile.x, seat.tile.y);
+          const pos = c.getPixelPosition();
+          const ts = mapRenderer.tileSize;
+          const inChair = Math.abs(pos.x - (seatPx.x + ts / 2)) <= ts / 2
+            && Math.abs(pos.y - (seatPx.y + ts)) <= ts;
+          if (inChair) {
+            if (!c.isSitting()) c.sitInPlace(seat.face);
+            continue;
+          }
           walkToMeetSeat(rt, rt.meetSeat);
         }
       };
