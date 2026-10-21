@@ -242,41 +242,6 @@ export function useHuddlePresentation() {
     location.pathname,
     returnMainWindowToHuddleParent,
   ]);
-  const openHuddleCompanion = React.useCallback(
-    (ephemeralChannelId: string) => {
-      activeHuddleChannelIdRef.current = ephemeralChannelId;
-      trackHuddleBackingChannel(ephemeralChannelId);
-
-      if (huddleCompanionDismissedChannelIdRef.current === ephemeralChannelId) {
-        return Promise.resolve();
-      }
-
-      huddleCompanionDismissedChannelIdRef.current = null;
-      hideHuddleChannel(ephemeralChannelId);
-      setIsHuddleDrawerOpen(false);
-      setIsHuddleCompanionOpen(true);
-
-      if (
-        huddleCompanionChannelIdRef.current === ephemeralChannelId &&
-        huddleCompanionOpenPromiseRef.current
-      ) {
-        return huddleCompanionOpenPromiseRef.current;
-      }
-
-      huddleCompanionChannelIdRef.current = ephemeralChannelId;
-      const openPromise = invoke<void>("open_huddle_window").catch((error) => {
-        if (huddleCompanionChannelIdRef.current === ephemeralChannelId) {
-          huddleCompanionChannelIdRef.current = null;
-          huddleCompanionOpenPromiseRef.current = null;
-          setIsHuddleCompanionOpen(false);
-        }
-        throw error;
-      });
-      huddleCompanionOpenPromiseRef.current = openPromise;
-      return openPromise;
-    },
-    [hideHuddleChannel, trackHuddleBackingChannel],
-  );
   const viewHuddleChannel = React.useCallback(
     (ephemeralChannelId: string) => {
       revealHuddleChannel(ephemeralChannelId);
@@ -403,11 +368,8 @@ export function useHuddlePresentation() {
         event.payload.phase === "creating" &&
         event.payload.ephemeral_channel_id
       ) {
-        void openHuddleCompanion(event.payload.ephemeral_channel_id).catch(
-          (error) => {
-            console.error("Failed to open starting call window:", error);
-          },
-        );
+        // The call shows in the main window (no call window of its own).
+        showHuddleInMainApp(event.payload.ephemeral_channel_id);
       }
       if (event.payload.phase === "idle") {
         const endedChannelId = activeHuddleChannelIdRef.current;
@@ -435,9 +397,9 @@ export function useHuddlePresentation() {
   }, [
     hideHuddleChannel,
     isHuddleRoom,
-    openHuddleCompanion,
     queryClient,
     returnToHuddleParentAfterEnd,
+    showHuddleInMainApp,
     trackHuddleBackingChannel,
   ]);
 
