@@ -443,11 +443,12 @@ fn tts_worker(
         let deadline = std::time::Instant::now() + AUDIO_PRIME_TIMEOUT;
         while !playback.empty() {
             if std::time::Instant::now() >= deadline {
-                eprintln!("buzz-desktop: tts stage=startup status=failed reason=output_prime");
-                let _ = startup_tx.send(Err(
-                    "TTS audio output did not become ready before timeout".to_string(),
-                ));
-                return;
+                // Some Windows outputs (virtual mixers such as Voicemeeter, a
+                // device just after wake) never report the primer drained,
+                // though they play. Giving up here turned speech off for the
+                // whole call, so carry on: at worst the first words clip.
+                eprintln!("buzz-desktop: tts stage=startup status=degraded reason=output_prime");
+                break;
             }
             thread::sleep(Duration::from_millis(10));
         }

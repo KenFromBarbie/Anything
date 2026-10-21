@@ -434,9 +434,13 @@ export function OfficeFloor() {
                 if (approach) meetSeats.push({ tile: { x, y: r.y }, approach, face });
               }
             }
-            // Fill the table from the middle of each side outwards.
+            // The far side first (facing the room, plainly seated; from the
+            // near side an agent shows its back and reads as standing), each
+            // side filled from the middle outwards.
             const mid = (minX + maxX) / 2;
-            meetSeats.sort((a, b) => Math.abs(a.tile.x - mid) - Math.abs(b.tile.x - mid) || a.tile.y - b.tile.y);
+            meetSeats.sort((a, b) =>
+              (a.face === 'down' ? 0 : 1) - (b.face === 'down' ? 0 : 1)
+              || Math.abs(a.tile.x - mid) - Math.abs(b.tile.x - mid));
           }
         }
       }
