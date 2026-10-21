@@ -48,7 +48,7 @@ export function HuddleProfileControl({
     setSelectedDeviceId,
     setVoiceInputMode,
     toggleMute,
-    viewHuddleChannel,
+    showHuddleInMainApp,
     voiceInputMode,
   } = useHuddle();
   const { micLevel } = useHuddleLevels();
@@ -111,7 +111,7 @@ export function HuddleProfileControl({
 
   // Opens the call in the main window (calls don't get a window of their own).
   async function handleOpenHuddleWindow() {
-    if (activeEphemeralChannelId) viewHuddleChannel(activeEphemeralChannelId);
+    if (activeEphemeralChannelId) showHuddleInMainApp(activeEphemeralChannelId);
   }
 
   return (

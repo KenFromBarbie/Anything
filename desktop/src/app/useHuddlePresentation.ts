@@ -258,6 +258,10 @@ export function useHuddlePresentation() {
   );
   const showHuddleInMainApp = React.useCallback(
     (ephemeralChannelId: string) => {
+      // The call's controls (people, mute, Leave) open with it: calls have no
+      // window of their own.
+      setIsHuddleCompanionOpen(false);
+      setIsHuddleDrawerOpen(true);
       activeHuddleChannelIdRef.current = ephemeralChannelId;
       trackHuddleBackingChannel(ephemeralChannelId);
       viewHuddleChannel(ephemeralChannelId);

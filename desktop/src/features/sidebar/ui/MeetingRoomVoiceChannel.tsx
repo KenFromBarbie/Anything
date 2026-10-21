@@ -20,7 +20,7 @@ import { SidebarMenuLabel } from "@/shared/ui/sidebar-menu-label";
  */
 export function MeetingRoomVoiceChannel() {
   const { active, names } = useMeetingState();
-  const { activeEphemeralChannelId, viewHuddleChannel } = useHuddle();
+  const { activeEphemeralChannelId, showHuddleInMainApp } = useHuddle();
 
   return (
     <SidebarMenu
@@ -31,7 +31,7 @@ export function MeetingRoomVoiceChannel() {
         <SidebarMenuButton
           onClick={() => {
             if (active && activeEphemeralChannelId) {
-              viewHuddleChannel(activeEphemeralChannelId);
+              showHuddleInMainApp(activeEphemeralChannelId);
             } else {
               openMeetingDialog();
             }
