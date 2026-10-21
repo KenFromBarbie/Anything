@@ -37,6 +37,7 @@ export function HuddleProfileControl({
   visible: boolean;
 }) {
   const {
+    activeEphemeralChannelId,
     audioDevices,
     isMuted,
     leaveHuddle,
@@ -47,6 +48,7 @@ export function HuddleProfileControl({
     setSelectedDeviceId,
     setVoiceInputMode,
     toggleMute,
+    viewHuddleChannel,
     voiceInputMode,
   } = useHuddle();
   const { micLevel } = useHuddleLevels();
@@ -107,12 +109,9 @@ export function HuddleProfileControl({
     }
   }
 
+  // Opens the call in the main window (calls don't get a window of their own).
   async function handleOpenHuddleWindow() {
-    try {
-      await invoke("open_huddle_window");
-    } catch (error) {
-      console.error("Failed to open call window:", error);
-    }
+    if (activeEphemeralChannelId) viewHuddleChannel(activeEphemeralChannelId);
   }
 
   return (
@@ -123,7 +122,7 @@ export function HuddleProfileControl({
       data-testid="profile-huddle-control"
     >
       <Button
-        aria-label="Open call window"
+        aria-label="Open the call"
         className="h-auto min-w-0 flex-1 justify-start gap-2 px-0 py-0 text-left hover:bg-transparent"
         onClick={() => void handleOpenHuddleWindow()}
         type="button"

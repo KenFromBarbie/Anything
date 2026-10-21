@@ -6,7 +6,6 @@ import {
   Captions,
   PhoneOff,
   PictureInPicture,
-  PictureInPicture2,
   SmilePlus,
 } from "lucide-react";
 import * as React from "react";
@@ -149,7 +148,6 @@ function huddleReactionTags(
 export function HuddleBar({
   className,
   mode = "main",
-  onOpenHuddleWindow,
   onVisibilityChange,
 }: HuddleBarProps) {
   const documentVisible = useDocumentVisible();
@@ -553,16 +551,6 @@ export function HuddleBar({
     }
   }
 
-  async function handleOpenHuddleWindow() {
-    try {
-      await invoke("open_huddle_window");
-      dismissHeadphonesHint();
-      onOpenHuddleWindow?.();
-    } catch (error) {
-      console.error("Failed to open call window:", error);
-    }
-  }
-
   async function handleReturnToDrawer() {
     try {
       await invoke("close_huddle_companion");
@@ -824,25 +812,8 @@ export function HuddleBar({
       </div>
 
       <div className="flex shrink-0 items-center gap-2 justify-self-end">
-        {mode === "main" ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                aria-label="Open call in a new window"
-                className="buzz-huddle-control-button h-12 w-12 shrink-0 rounded-md"
-                onClick={() => void handleOpenHuddleWindow()}
-                size="icon"
-                type="button"
-                variant="secondary"
-              >
-                <PictureInPicture2 className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="buzz-huddle-tooltip" side="top">
-              Open call window
-            </TooltipContent>
-          </Tooltip>
-        ) : (
+        {/* Calls stay in the main window: no "open in a new window". */}
+        {mode === "main" ? null : (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

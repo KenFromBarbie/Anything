@@ -277,17 +277,6 @@ export function useHuddlePresentation() {
     },
     [hideHuddleChannel, trackHuddleBackingChannel],
   );
-  const handleHuddleStarted = React.useCallback(
-    async (ephemeralChannelId: string) => {
-      try {
-        await openHuddleCompanion(ephemeralChannelId);
-      } catch (error) {
-        revealHuddleChannel(ephemeralChannelId);
-        throw error;
-      }
-    },
-    [openHuddleCompanion, revealHuddleChannel],
-  );
   const viewHuddleChannel = React.useCallback(
     (ephemeralChannelId: string) => {
       revealHuddleChannel(ephemeralChannelId);
@@ -309,6 +298,13 @@ export function useHuddlePresentation() {
       viewHuddleChannel(ephemeralChannelId);
     },
     [trackHuddleBackingChannel, viewHuddleChannel],
+  );
+  // A call opens in the main window (no separate call window).
+  const handleHuddleStarted = React.useCallback(
+    async (ephemeralChannelId: string) => {
+      showHuddleInMainApp(ephemeralChannelId);
+    },
+    [showHuddleInMainApp],
   );
   const handleSidebarChannelSelect = React.useCallback(
     (channelId: string) => {
