@@ -610,7 +610,7 @@ class BuzzBridge {
       await this.handleEvent(ev, who, { noFast: true }).catch(() => {});
       return;
     }
-    const { spoken: said, task } = splitAnswer(out);
+    const { spoken: said, task, next } = splitAnswer(out);
     const spoken = /^\W*pass\W*$/i.test(said) ? '' : said; // nothing to add
     if (spoken) {
       const r = await this.run(['messages', 'send', '--channel', channel, '--content', '-'], spoken, who).catch((e) => {
@@ -622,8 +622,10 @@ class BuzzBridge {
         this.noteMeeting({ id: r.event_id, created_at: Math.floor(Date.now() / 1000), pubkey: who.pubkey, content: spoken }, channel);
         const lower = spoken.toLowerCase();
         const escape = (w) => w.replace(/[^a-z0-9 ]/g, (c) => String.fromCharCode(92) + c);
+        const silent = next.map((n) => n.toLowerCase());
         const named = attendees.filter((i) => i !== who
-          && new RegExp('(^|[^a-z0-9])' + escape(i.name.toLowerCase()) + '([^a-z0-9]|$)').test(lower));
+          && (silent.includes(i.name.toLowerCase())
+            || new RegExp('(^|[^a-z0-9])' + escape(i.name.toLowerCase()) + '([^a-z0-9]|$)').test(lower)));
         if (named.length) {
           const handed = { id: r.event_id, created_at: Math.floor(Date.now() / 1000), pubkey: who.pubkey, content: spoken, tags: ev.tags };
           for (const next of named) {

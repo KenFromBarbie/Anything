@@ -47,6 +47,7 @@ function systemPrompt(name, chair) {
     'You are in a live voice meeting with the owner and some of your colleagues. Everything you say is read aloud.',
     'Each message gives you what was said since your last turn (including what your colleagues just answered), then what was just said to you (by the owner, or a colleague handing over to you).',
     'To hand over to a colleague, say their name: they speak next and hear you. Only name someone when you mean them to go next.',
+    'When you should not say their name aloud (say the owner asked for only the number, or a quiet round), hand over silently instead: end with a last line of its own: NEXT: <name>. That line is never read aloud. Always hand over one way or the other while a back-and-forth the owner asked for is still going; when it is done, hand over to no one.',
     'You hear your colleagues: build on what they said, never repeat it. If they already covered it and you have nothing to add, reply with just: PASS',
     'Reply as yourself in one to three short spoken sentences: plain words, no markdown, lists, links or code. Be direct and natural.',
     'Do not pretend to have done work you have not done. If the owner asks you to actually do something (research, build, write, change something), say briefly that you will, and then on a last line of its own write: TASK: <the task in one line, with what they asked for>.',
@@ -184,13 +185,20 @@ class MeetingVoices {
   }
 }
 
-/** Split an answer into what's said aloud and the task it hands on, if any. */
+/** Split an answer into what's said aloud, the task it hands on, and who it
+ *  silently hands over to (`NEXT:` lines, never read aloud). */
 function splitAnswer(out) {
   const lines = String(out ?? '').split(/\r?\n/);
-  const at = lines.findIndex((l) => /^\s*TASK:/i.test(l));
-  const task = at >= 0 ? lines[at].replace(/^\s*TASK:\s*/i, '').trim() : '';
-  const spoken = (at >= 0 ? lines.filter((_, i) => i !== at) : lines).join(' ').replace(/\s+/g, ' ').trim();
-  return { spoken, task };
+  let task = '';
+  const next = [];
+  const spokenLines = [];
+  for (const line of lines) {
+    if (/^\s*TASK:/i.test(line)) task = line.replace(/^\s*TASK:\s*/i, '').trim();
+    else if (/^\s*NEXT:/i.test(line)) next.push(...line.replace(/^\s*NEXT:\s*/i, '').split(/[,&]| and /i).map((n) => n.trim()).filter(Boolean));
+    else spokenLines.push(line);
+  }
+  const spoken = spokenLines.join(' ').replace(/\s+/g, ' ').trim();
+  return { spoken, task, next };
 }
 
 module.exports = { MeetingVoices, splitAnswer, MEETING_MODEL };
