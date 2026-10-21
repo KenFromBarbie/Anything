@@ -7,7 +7,7 @@ import { useStore, type Agent } from '@/store/store';
 import { TiledMapRenderer } from './TiledMapRenderer';
 import { Camera } from './Camera';
 import { hostedInBuzz, mirrorRole } from '@/host/buzzHost';
-import { emitAgentClick, setAgentLocator } from './agentLocator';
+import { emitAgentClick, emitDeskClick, setAgentLocator } from './agentLocator';
 import { Character, paintCup } from './Character';
 import { DeskScreen } from './DeskScreen';
 import { MessageEnvelope, type MessageAct } from './MessageEnvelope';
@@ -1190,6 +1190,27 @@ export function OfficeFloor() {
         st.requestCommandCenterTab('tasks');
       });
       charLayer.addChild(boardG);
+
+      // Each desk's computer: clicking it manages that desk in the app (the
+      // agent who sits there, or hire one for a free desk). Invisible, over
+      // the 2×2 monitor; characters stay on top.
+      if (hostedInBuzz) {
+        seatTiles.forEach((seat, i) => {
+          if (mapRenderer.gidAt('furniture-above', seat.x, seat.y - 2) !== theme.monitor.offTopLeftGid) return;
+          const deskG = new Graphics();
+          deskG.rect(seat.x * tsB, (seat.y - 2) * tsB, 2 * tsB, 2 * tsB).fill({ color: 0xffffff, alpha: 0.001 });
+          deskG.eventMode = 'static';
+          deskG.cursor = 'pointer';
+          deskG.zIndex = (seat.y - 1) * tsB;
+          deskG.on('pointertap', (ev) => {
+            ev.stopPropagation();
+            let occupant: string | null = null;
+            for (const [id, rt] of runtimes) if (rt.seatIndex === i) occupant = id;
+            emitDeskClick(occupant);
+          });
+          charLayer.addChild(deskG);
+        });
+      }
 
       // The conference table: clicking it opens the app's meeting room (who to
       // meet with). Invisible, over the table's tiles; characters stay on top.

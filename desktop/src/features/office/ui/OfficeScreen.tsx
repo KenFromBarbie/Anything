@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { openMeetingDialog } from "@/features/office/lib/meetingRoom";
+import { openDeskAgent } from "@/features/office/ui/DeskAgentDialog";
 import { managedAgentsQueryKey } from "@/features/agents/hooks";
 import { useOfficeAnchor } from "@/features/office/lib/officeAnchor";
 import {
@@ -179,6 +180,10 @@ export function OfficeScreen() {
           id: String(msg.id),
           at,
         });
+        return;
+      }
+      if (msg.type === "desk-click") {
+        openDeskAgent(typeof msg.id === "string" ? msg.id : null);
         return;
       }
       if (msg.type === "navigate") {

@@ -26,3 +26,16 @@ export function onAgentClick(listener: (agentId: string) => void): () => void {
 export function emitAgentClick(agentId: string): void {
   for (const listener of clickListeners) listener(agentId);
 }
+
+/** A desk's computer was clicked: the agent who sits there, or null for a
+ *  free desk (Anything opens the agent's settings, or the hire form). */
+const deskListeners = new Set<(agentId: string | null) => void>();
+
+export function onDeskClick(listener: (agentId: string | null) => void): () => void {
+  deskListeners.add(listener);
+  return () => deskListeners.delete(listener);
+}
+
+export function emitDeskClick(agentId: string | null): void {
+  for (const listener of deskListeners) listener(agentId);
+}

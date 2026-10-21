@@ -79,6 +79,7 @@ import {
   type SettingsSection,
   isSettingsSection,
 } from "@/features/settings/ui/SettingsPanels";
+import { DeskAgentDialog } from "@/features/office/ui/DeskAgentDialog";
 import { OfficeBackdrop } from "@/features/office/ui/OfficeBackdrop";
 import {
   MeetingDialog,
@@ -988,6 +989,7 @@ export function AppShell() {
                   )}
                   {!isHuddleRoom ? <OfficeBackdrop /> : null}
                   {!isHuddleRoom ? <MeetingDialog /> : null}
+                  {!isHuddleRoom ? <DeskAgentDialog /> : null}
                   {!isHuddleRoom ? <MeetingFloorSync /> : null}
                   {!isHuddleRoom ? (
                     <OfficeHost
