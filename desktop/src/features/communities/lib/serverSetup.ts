@@ -164,6 +164,9 @@ export function useServerSetupRunner(relayUrl: string | undefined): void {
               cwd: setup.workFolder,
               provider: options.defaultProvider,
               description: agent.role.slice(0, 300),
+              // The setup's team is the permanent staff: an office each,
+              // and they hire floor workers as the work needs.
+              staff: true,
             });
             hired.add(agent.name);
             update(relayUrl, (s) => ({
@@ -178,7 +181,7 @@ export function useServerSetupRunner(relayUrl: string | undefined): void {
         }
         update(relayUrl, () => null);
         toast.success(
-          `${setup.name} is set up: ${setup.channels.length} channels, ${setup.agents.length} agents, and Michael has the plan.`,
+          `${setup.name} is set up: ${setup.channels.length} channels, ${setup.agents.length} permanent staff, and Michael has the plan.`,
         );
       } catch (error) {
         failed.current = true;

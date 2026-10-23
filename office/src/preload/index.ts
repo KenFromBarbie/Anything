@@ -58,6 +58,8 @@ export interface HiveAgentMeta {
   isGod?: boolean;
   /** Michael's prep assistant — send-only; enriches prompts and forwards them. */
   isAssistant?: boolean;
+  /** Permanent staff (owns an area, hires floor workers). */
+  isStaff?: boolean;
 }
 
 export interface HiveMessage {
@@ -275,6 +277,8 @@ export interface HarnessConfig {
    *  'claude' / 'claude-opus-4-8'. Mirrors src/main/config.ts. */
   godProvider?: AgentProvider;
   godModel?: string;
+  /** Let god (and permanent staff) start ephemeral workers from spawn-requests. */
+  orchestratorMaySpawn?: boolean;
   /** Per-server consent for the default MCP bundle, keyed by catalog id. Mirrors
    *  src/main/config.ts. */
   mcpDefaults?: { [id: string]: { enabled: boolean } };

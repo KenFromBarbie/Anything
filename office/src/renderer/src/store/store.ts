@@ -54,6 +54,9 @@ export interface Agent {
   goal?: string;
   /** User-authored private note shown and edited from the roster-card hover. */
   note?: string;
+  /** Permanent staff: owns one area of the server, sits in a private office,
+   *  and hires floor workers (see hive.ts `isStaff`). */
+  staff?: boolean;
   status: StatusKind;
   action: string;
   progress: number;

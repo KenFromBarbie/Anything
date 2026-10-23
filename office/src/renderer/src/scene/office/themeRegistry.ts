@@ -129,6 +129,9 @@ export interface ThemeConfig {
   primarySeatNames: string[];
   /** Paired café table seats, in order. */
   cafeSeatNames: string[];
+  /** Desks in the private offices, kept for permanent staff (agents hired
+   *  with `staff`); everyone else sits on the open floor. */
+  staffSeatNames?: string[];
   /** Café standing spots: [spawn-point name, kind]. */
   cafeStands: ReadonlyArray<readonly [string, 'coffee' | 'vending']>;
   coffee: CoffeeConfig;
@@ -150,6 +153,7 @@ export const OFFICE_THEME: ThemeConfig = {
     { url: a5FloorsWallsUrl, firstgid: 513, image: 'a5', imagewidth: 256, imageheight: 512, tilewidth: 16, tileheight: 16, columns: 16, tilecount: 512 },
     { url: interiorsUrl, firstgid: 1025, image: 'interiors', imagewidth: 256, imageheight: 1424, tilewidth: 16, tileheight: 16, columns: 16, tilecount: 1424 },
   ],
+  staffSeatNames: ['desk-agent-organizer', 'warroom-seat', 'desk-chief-architect', 'desk-ui-ux-expert'],
   primarySeatNames: [
     'desk-ceo',
     'pc-1', 'pc-2', 'pc-3', 'pc-4', 'pc-5', 'pc-6',

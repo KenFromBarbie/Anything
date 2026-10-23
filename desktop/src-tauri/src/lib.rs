@@ -56,6 +56,7 @@ mod team_catalog;
 mod templates;
 mod terminal_runtime;
 mod title_bar;
+mod server_planner;
 #[cfg_attr(not(test), allow(dead_code))]
 mod terminal_transport;
 #[cfg(target_os = "macos")]
@@ -558,6 +559,9 @@ pub fn run() {
             local_servers::local_server_create,
             local_servers::local_servers_available,
             local_servers::server_work_folder,
+            server_planner::server_plan,
+            server_planner::server_pick_files,
+            server_planner::server_attach_files,
             studio::studio_status,
             studio::studio_install,
             studio::studio_set_tools,

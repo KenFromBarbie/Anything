@@ -338,6 +338,9 @@ const ops: Record<string, Op> = {
     const description = text(a.description, 300) || 'a fresh harness';
     const goal = text(a.goal, 4000) || undefined;
     const isolate = a.isolate === true;
+    // Permanent staff hire floor workers, which takes the spawn queue.
+    const staff = a.staff === true;
+    if (staff && !config.orchestratorMaySpawn) await window.cth.updateConfig({ orchestratorMaySpawn: true });
 
     const id = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now().toString(36)}`;
     const ptyId = `pty-${id}`;
@@ -345,7 +348,7 @@ const ops: Record<string, Op> = {
     const [exe, ...args] = tokenizeCommand(command.trim());
     const spawned = await window.cth.spawnPty({
       id: ptyId, cwd, command: exe, provider, args, cols: 100, rows: 30, isolate,
-      hive: { id, name, provider, cwd, role: description }
+      hive: { id, name, provider, cwd, role: description, ...(staff ? { isStaff: true } : {}) }
     });
     if (!spawned.ok) throw new Error(spawned.error ?? 'the agent could not start');
     const spawnedCwd = spawned.cwd || cwd;
@@ -356,7 +359,8 @@ const ops: Record<string, Op> = {
       tmuxTarget: '', cwd: spawnedCwd, goal,
       status: 'idle', action: 'starting up', progress: 0, currentStation: 'desk',
       ptyId, command: command.trim(), provider, model,
-      worktreePath: spawned.worktreePath, seedPrompt: spawned.seedPrompt, recentTextTs: Date.now()
+      worktreePath: spawned.worktreePath, seedPrompt: spawned.seedPrompt, recentTextTs: Date.now(),
+      ...(staff ? { staff: true } : {})
     };
     useStore.getState().addAgent(agent);
     useStore.getState().select(id);

@@ -380,6 +380,15 @@ export function OfficeFloor() {
         seatTiles.push({ x: t.x, y: t.y });
       };
       for (const name of theme.primarySeatNames) addSeat(mapRenderer.getSpawnPoint(name));
+      for (const name of theme.staffSeatNames ?? []) addSeat(mapRenderer.getSpawnPoint(name));
+      // The private offices' desks: staff first, the floor's last resort.
+      const staffSeats = new Set(
+        (theme.staffSeatNames ?? [])
+          .map((name) => mapRenderer.getSpawnPoint(name))
+          .filter((t): t is Tile => !!t)
+          .map((t) => seatTiles.findIndex((s) => s.x === t.x && s.y === t.y))
+          .filter((i) => i > 0),
+      );
       const addZoneSeats = (zone: string) => {
         const z = mapRenderer.getZone(zone);
         if (!z) return;
@@ -456,8 +465,15 @@ export function OfficeFloor() {
       const GOD_SEAT = 0;
       const claimSeat = (agent: Agent): number | null => {
         if (agent.isGod) { seatClaims.add(GOD_SEAT); return GOD_SEAT; }
-        for (let i = 1; i < seatTiles.length; i++) {
-          if (!seatClaims.has(i)) { seatClaims.add(i); return i; }
+        // Staff take an office of their own; everyone else the open floor,
+        // and only when that's full an empty office.
+        const passes = agent.staff ? [true, false] : [false, true];
+        for (const wantOffice of passes) {
+          for (let i = 1; i < seatTiles.length; i++) {
+            if (staffSeats.has(i) !== wantOffice || seatClaims.has(i)) continue;
+            seatClaims.add(i);
+            return i;
+          }
         }
         return null;
       };

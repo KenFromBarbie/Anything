@@ -1,10 +1,20 @@
 import * as React from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useQuery } from "@tanstack/react-query";
-import { FolderOpen, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  FolderOpen,
+  Link2,
+  Loader2,
+  Paperclip,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import {
+  type DraftFromClaude,
   draftPlan,
+  planFromDraft,
   type ServerPlan,
   startingPrompt,
 } from "@/features/communities/lib/serverPlan";
@@ -15,11 +25,12 @@ import { Input } from "@/shared/ui/input";
 import { Textarea } from "@/shared/ui/textarea";
 
 /**
- * A new server on this computer, set up for its work: first what it's for,
- * then the drafted setup (agents and their roles, channels, starter threads,
- * the work folder, Michael's starting prompt) to edit. Creating it starts its
- * relay (`local_servers.rs`), connects to it, and the setup is carried out
- * there (`serverSetup`).
+ * A new server on this computer, set up for its work: first what it's for
+ * (with files and links to go on), then the setup Claude drafts from that
+ * (`server_plan`: permanent staff, channels and starter threads specific to
+ * the work, Michael's starting prompt) to edit. Creating it starts its relay
+ * (`local_servers.rs`), connects to it, and the setup is carried out there
+ * (`serverSetup`).
  */
 export function LocalServerCreateForm({
   onCancel,
@@ -34,6 +45,11 @@ export function LocalServerCreateForm({
   const [plan, setPlan] = React.useState<ServerPlan | null>(null);
   const [promptEdited, setPromptEdited] = React.useState(false);
   const [folder, setFolder] = React.useState<string | null>(null);
+  const [files, setFiles] = React.useState<string[]>([]);
+  const [links, setLinks] = React.useState<string[]>([]);
+  const [link, setLink] = React.useState("");
+  const [planning, setPlanning] = React.useState(false);
+  const [planNote, setPlanNote] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const { data: available, isLoading } = useQuery({
@@ -49,10 +65,55 @@ export function LocalServerCreateForm({
       return promptEdited ? next : { ...next, prompt: startingPrompt(next) };
     });
 
-  const toPlan = (event: React.FormEvent) => {
+  const addLink = () => {
+    const value = link.trim();
+    if (!value) return;
+    const url = /^[a-z]+:\/\//i.test(value) ? value : `https://${value}`;
+    setLinks((current) => (current.includes(url) ? current : [...current, url]));
+    setLink("");
+  };
+
+  const attachFiles = async () => {
+    try {
+      const picked = await invoke<string[]>("server_pick_files");
+      setFiles((current) => [
+        ...current,
+        ...picked.filter((f) => !current.includes(f)),
+      ]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  // Claude drafts the setup from the description, files and links; if it
+  // can't, a template stands in and the owner is told why.
+  const toPlan = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!name.trim()) return;
-    setPlan(draftPlan(name.trim(), purpose.trim()));
+    if (!name.trim() || planning) return;
+    const pending = link.trim() ? [...links, link.trim()] : links;
+    setPlanning(true);
+    setPlanNote(null);
+    setError(null);
+    try {
+      const draft = await invoke<DraftFromClaude>("server_plan", {
+        name: name.trim(),
+        purpose: purpose.trim(),
+        files,
+        links: pending,
+      });
+      setPlan(planFromDraft(name.trim(), purpose.trim(), draft, files, pending));
+    } catch (e) {
+      setPlan(draftPlan(name.trim(), purpose.trim(), files, pending));
+      setPlanNote(
+        `Claude couldn't draft this one (${e instanceof Error ? e.message : String(e)}), so this is a general starting point. Edit it to fit.`,
+      );
+    } finally {
+      setPlanning(false);
+    }
+    if (link.trim()) {
+      setLinks(pending);
+      setLink("");
+    }
     setPromptEdited(false);
     setStep("plan");
   };
@@ -60,10 +121,7 @@ export function LocalServerCreateForm({
   const chooseFolder = async () => {
     try {
       const picked = await callOffice<string | null>("hire.chooseFolder");
-      if (picked) {
-        setFolder(picked);
-        edit((p) => ({ ...p, files: [picked] }));
-      }
+      if (picked) setFolder(picked);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -77,10 +135,15 @@ export function LocalServerCreateForm({
       const workFolder =
         folder ??
         (await invoke<string>("server_work_folder", { name: plan.name }));
-      const finalPlan = {
-        ...plan,
-        files: plan.files.length > 0 ? plan.files : [workFolder],
-      };
+      // The attachments go into the work folder, where the agents work.
+      const copies =
+        plan.files.length > 0
+          ? await invoke<string[]>("server_attach_files", {
+              workFolder,
+              files: plan.files,
+            })
+          : [];
+      const finalPlan = { ...plan, files: copies, workFolder };
       const prompt = promptEdited
         ? finalPlan.prompt
         : startingPrompt(finalPlan);
@@ -123,9 +186,9 @@ export function LocalServerCreateForm({
   if (step === "describe" || !plan) {
     return (
       <form
-        className="grid gap-3"
+        className="grid min-w-0 gap-3"
         data-testid="local-server-create"
-        onSubmit={toPlan}
+        onSubmit={(event) => void toPlan(event)}
       >
         <label
           className="grid gap-1.5 text-sm font-medium"
@@ -150,16 +213,83 @@ export function LocalServerCreateForm({
             className="min-h-28"
             id="local-server-purpose"
             onChange={(event) => setPurpose(event.target.value)}
-            placeholder="What you're making or running, who it's for, and how work should flow. The setup (agents, channels, Michael's first instructions) is drafted from this."
+            placeholder="What you're making or running, who it's for, and how work should flow. The setup (staff, channels, Michael's first instructions) is drafted from this."
             value={purpose}
           />
         </label>
+        <div className="grid gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Button
+              disabled={planning}
+              onClick={() => void attachFiles()}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <Paperclip />
+              Attach files
+            </Button>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <Input
+                aria-label="Link"
+                className="h-8 min-w-0"
+                disabled={planning}
+                onChange={(event) => setLink(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addLink();
+                  }
+                }}
+                placeholder="Add a link (a site, a doc, a brief)"
+                value={link}
+              />
+              <Button
+                aria-label="Add link"
+                disabled={!link.trim() || planning}
+                onClick={addLink}
+                size="icon"
+                type="button"
+                variant="outline"
+              >
+                <Plus />
+              </Button>
+            </div>
+          </div>
+          {files.length + links.length > 0 ? (
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {files.map((file) => (
+                <Attachment
+                  icon={<Paperclip className="size-3" />}
+                  key={file}
+                  label={file.split(/[\\/]/).pop() ?? file}
+                  onRemove={() => setFiles((c) => c.filter((f) => f !== file))}
+                  title={file}
+                />
+              ))}
+              {links.map((url) => (
+                <Attachment
+                  icon={<Link2 className="size-3" />}
+                  key={url}
+                  label={url.replace(/^https?:\/\//, "")}
+                  onRemove={() => setLinks((c) => c.filter((l) => l !== url))}
+                  title={url}
+                />
+              ))}
+            </div>
+          ) : null}
+          <p className="text-xs text-muted-foreground">
+            Claude reads these to plan the setup, and the agents get them too.
+          </p>
+        </div>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <div className="flex justify-end gap-2">
           <Button onClick={onCancel} type="button" variant="ghost">
             Cancel
           </Button>
-          <Button disabled={!name.trim()} type="submit">
-            Next: the setup
+          <Button disabled={!name.trim() || planning} type="submit">
+            {planning ? <Loader2 className="animate-spin" /> : null}
+            {planning ? "Planning the setup…" : "Next: the setup"}
           </Button>
         </div>
       </form>
@@ -168,14 +298,18 @@ export function LocalServerCreateForm({
 
   return (
     <div
-      className="grid max-h-[70vh] gap-4 overflow-y-auto pr-1"
+      className="grid max-h-[70vh] min-w-0 gap-4 overflow-x-hidden overflow-y-auto pr-1"
       data-testid="local-server-plan"
     >
+      {planNote ? (
+        <p className="text-xs text-muted-foreground">{planNote}</p>
+      ) : null}
       <Section
+        hint="Permanent roles, each with an office of their own. They split up Michael's requests and hire floor workers as the work needs."
         onAdd={() =>
           edit((p) => ({ ...p, agents: [...p.agents, { name: "", role: "" }] }))
         }
-        title="Agents to hire"
+        title="Permanent staff"
       >
         {plan.agents.map((agent, index) => (
           <Row
@@ -328,7 +462,7 @@ export function LocalServerCreateForm({
         ))}
       </Section>
 
-      <div className="grid gap-1.5">
+      <div className="grid min-w-0 gap-1.5">
         <span className="text-sm font-medium">Work folder and files</span>
         <div className="flex items-center gap-2">
           <Button
@@ -346,8 +480,10 @@ export function LocalServerCreateForm({
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          The agents work here, and Michael starts by reading any files you put
-          in it.
+          The agents work here.{" "}
+          {plan.files.length > 0
+            ? `Your ${plan.files.length} attached file${plan.files.length === 1 ? " is" : "s are"} copied into its inputs folder.`
+            : "Michael starts by reading any files you put in it."}
         </p>
       </div>
 
@@ -398,7 +534,7 @@ function Section({
   title: string;
 }) {
   return (
-    <div className="grid gap-1.5">
+    <div className="grid min-w-0 gap-1.5">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">{title}</span>
         <Button onClick={onAdd} size="xs" type="button" variant="ghost">
@@ -420,7 +556,7 @@ function Row({
   onRemove: () => void;
 }) {
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex min-w-0 items-center gap-1.5 [&>input]:min-w-0">
       {children}
       <Button
         aria-label="Remove"
@@ -432,5 +568,37 @@ function Row({
         <Trash2 />
       </Button>
     </div>
+  );
+}
+
+function Attachment({
+  icon,
+  label,
+  onRemove,
+  title,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onRemove: () => void;
+  title: string;
+}) {
+  return (
+    <span
+      className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-border bg-muted/50 py-0.5 pr-0.5 pl-1.5 text-xs"
+      title={title}
+    >
+      {icon}
+      <span className="min-w-0 truncate">{label}</span>
+      <Button
+        aria-label={`Remove ${label}`}
+        className="size-5"
+        onClick={onRemove}
+        size="icon-xs"
+        type="button"
+        variant="ghost"
+      >
+        <X />
+      </Button>
+    </span>
   );
 }

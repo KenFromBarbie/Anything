@@ -1,7 +1,9 @@
 /**
- * The setup for a new server, from what it's for: the agents to hire (with
- * their roles), the channels and starter threads to create, files to hand
- * over, and the starting prompt for Michael. Drafted from the description,
+ * The setup for a new server, from what it's for: the permanent staff to
+ * hire (each owns one area and lives in its own office), the channels and
+ * starter threads to create, the files and links handed over, and the
+ * starting prompt for Michael. Drafted by Claude from the description and
+ * attachments (`server_plan`), or from a template when that isn't possible,
  * then edited by the owner before the server is made (see serverSetup).
  */
 
@@ -15,8 +17,22 @@ export type ServerPlan = {
   agents: PlanAgent[];
   channels: PlanChannel[];
   threads: PlanThread[];
+  /** Files handed to the agents (copied into the work folder's inputs/). */
   files: string[];
+  links: string[];
+  /** Where the agents work; set when the server is created. */
+  workFolder?: string;
+  /** Claude's summary of the mission and first goals, for Michael. */
+  brief: string;
   prompt: string;
+};
+
+/** What `server_plan` returns: Claude's draft. */
+export type DraftFromClaude = {
+  staff?: Array<{ name?: unknown; role?: unknown }>;
+  channels?: Array<{ name?: unknown; purpose?: unknown }>;
+  threads?: Array<{ channel?: unknown; title?: unknown }>;
+  brief?: unknown;
 };
 
 type Template = {
@@ -163,8 +179,14 @@ export function channelSlug(name: string): string {
     .slice(0, 60);
 }
 
-/** A first draft of the setup from the server's description. */
-export function draftPlan(name: string, purpose: string): ServerPlan {
+/** A first draft of the setup from the server's description (a template,
+ *  used when Claude can't draft one). */
+export function draftPlan(
+  name: string,
+  purpose: string,
+  files: string[] = [],
+  links: string[] = [],
+): ServerPlan {
   const template = TEMPLATES.find((t) => t.match.test(purpose)) ?? FALLBACK;
   const plan: ServerPlan = {
     name,
@@ -172,40 +194,120 @@ export function draftPlan(name: string, purpose: string): ServerPlan {
     agents: template.agents.map((a) => ({ ...a })),
     channels: template.channels.map((c) => ({ ...c })),
     threads: template.threads.map((t) => ({ ...t })),
-    files: [],
+    files,
+    links,
+    brief: "",
     prompt: "",
   };
   plan.prompt = startingPrompt(plan);
   return plan;
 }
 
-/** The kickoff for Michael: what the server is for and how it's set up. */
+const str = (v: unknown, max: number) =>
+  typeof v === "string" ? v.trim().slice(0, max) : "";
+
+/** The setup from Claude's draft; anything missing or empty falls back to
+ *  the template, so the owner always gets a complete setup to edit. */
+export function planFromDraft(
+  name: string,
+  purpose: string,
+  draft: DraftFromClaude,
+  files: string[] = [],
+  links: string[] = [],
+): ServerPlan {
+  const fallback = draftPlan(name, purpose, files, links);
+  const seen = new Set<string>(["michael"]);
+  const agents = (draft.staff ?? [])
+    .map((a) => ({ name: str(a.name, 40), role: str(a.role, 200) }))
+    .filter((a) => {
+      const key = a.name.toLowerCase();
+      if (!a.name || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, STAFF_SEATS);
+  const channels = (draft.channels ?? [])
+    .map((c) => ({ name: channelSlug(str(c.name, 60)), purpose: str(c.purpose, 200) }))
+    .filter((c) => c.name)
+    .slice(0, 10);
+  const names = new Set(channels.map((c) => c.name));
+  const threads = (draft.threads ?? [])
+    .map((t) => ({ channel: channelSlug(str(t.channel, 60)), title: str(t.title, 200) }))
+    .filter((t) => t.title && names.has(t.channel))
+    .slice(0, 6);
+  const plan: ServerPlan = {
+    ...fallback,
+    agents: agents.length ? agents : fallback.agents,
+    channels: channels.length ? channels : fallback.channels,
+    threads: channels.length ? threads : fallback.threads,
+    brief: str(draft.brief, 2000),
+  };
+  plan.prompt = startingPrompt(plan);
+  return plan;
+}
+
+/** Permanent staff each have an office of their own; there are this many. */
+export const STAFF_SEATS = 4;
+
+const fileName = (path: string) =>
+  path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+
+/** " (a.pdf, b.docx, https://…)": the first few things to read, or nothing. */
+function materialList(plan: ServerPlan): string {
+  const items = [...plan.files.map(fileName), ...plan.links];
+  if (items.length === 0) return "";
+  const shown = items.slice(0, 4).join(", ");
+  return ` (${shown}${items.length > 4 ? ", ..." : ""})`;
+}
+
+/** The kickoff for Michael: the work, his staff and how work flows through
+ *  them, the channels, the material, and his first steps. */
 export function startingPrompt(plan: ServerPlan): string {
   const lines = [
-    `This is a new server, "${plan.name}". What it's for:`,
-    plan.purpose.trim() || "(not described yet: ask me)",
+    `You are running "${plan.name}", a new server, from today.`,
     "",
+    "THE WORK",
+    plan.purpose.trim() || "(not described yet: ask me what it is first)",
   ];
+  if (plan.brief.trim()) lines.push("", plan.brief.trim());
+  lines.push("");
   if (plan.agents.length > 0) {
-    lines.push("Your team (hired for you, one desk each):");
+    lines.push(
+      "YOUR STAFF (permanent: each has an office of their own and owns one area)",
+    );
     for (const agent of plan.agents)
-      lines.push(`- ${agent.name}: ${agent.role}`);
+      lines.push(`- ${agent.name}: ${agent.role || "(role to agree)"}`);
     lines.push("");
   }
+  lines.push(
+    "HOW WORK FLOWS",
+    "1. You plan and delegate; you don't do the work yourself. Split every request from me by area and send each part to the staff member who owns it, as a contract: objective, expected output, references and tools, boundaries and the definition of done.",
+    "2. Your staff break their part into tasks and hire floor workers to do them, check the results, and report back to you. Work that fits no one's area: give it to the closest fit, or ask me whether it needs a new permanent role.",
+    "3. Keep the task board true: every card has an owner, and you are the one who signs work off.",
+    "4. Answer me with one combined result, not a relay of everyone's messages. Anything only I can decide or do, ask me in the thread it came from.",
+    "",
+  );
   if (plan.channels.length > 0) {
-    lines.push("Channels:");
+    lines.push("CHANNELS (post each update where it belongs)");
     for (const channel of plan.channels) {
       lines.push(`- #${channelSlug(channel.name)}: ${channel.purpose}`);
     }
     lines.push("");
   }
-  if (plan.files.length > 0) {
-    lines.push("Files to start from (on this computer):");
-    for (const file of plan.files) lines.push(`- ${file}`);
+  if (plan.workFolder || plan.files.length > 0 || plan.links.length > 0) {
+    lines.push("MATERIAL");
+    if (plan.workFolder) lines.push(`- Work folder: ${plan.workFolder}`);
+    for (const file of plan.files) lines.push(`- File: ${file}`);
+    for (const link of plan.links) lines.push(`- Link: ${link}`);
     lines.push("");
   }
+  const first = plan.channels[0] ? `#${channelSlug(plan.channels[0].name)}` : "a channel";
   lines.push(
-    "Start by reading the files, then break the work into first tasks on the board, assign them to the team by role, and post a short plan in the right channels. Ask me anything you need to decide.",
+    "FIRST STEPS",
+    `1. Read the material${materialList(plan)}.`,
+    "2. Write the plan on the board: the goals, the first milestones, and each staff member's first tasks.",
+    "3. Brief each staff member on their area and their first tasks, and get them started.",
+    `4. Post the plan in ${first}, then tell me what you need from me.`,
   );
   return lines.join("\n");
 }

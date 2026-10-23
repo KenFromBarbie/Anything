@@ -4604,6 +4604,9 @@ interface SpawnRequest {
   // from the worker id.
   character?: string;
   accent?: string;
+  /** The staff member who hired this worker (agent id). The worker reports
+   *  to them instead of god, and they hear when it can't start. */
+  requestedBy?: string;
 }
 
 /** Polling cadence — matches the hive router. */
@@ -4687,8 +4690,17 @@ async function processSpawnRequest(filePath: string): Promise<void> {
   }
   const slack = raw.slack && typeof raw.slack.channel === 'string' && typeof raw.slack.thread_ts === 'string'
     ? { channel: raw.slack.channel, thread_ts: raw.slack.thread_ts } : undefined;
+  // A staff member's hire: they get the worker's reports (and its failures).
+  const hirer = typeof raw.requestedBy === 'string' && raw.requestedBy !== 'god'
+    ? hive.registry().agents[raw.requestedBy]
+    : undefined;
   const fail = (reason: string): void => {
     informGod(`[worker spawn rejected] ${reason}`, `Spawn-request ${basename(filePath)} rejected: ${reason}.`, slack);
+    if (hirer) {
+      try {
+        hive.send({ to: hirer.id, act: 'inform', subject: `[worker spawn rejected] ${reason}`, body: `Your spawn-request ${basename(filePath)} was rejected: ${reason}.` }, 'ephemeral-worker');
+      } catch { /* god was told */ }
+    }
     archiveRequest(filePath, '.failed');
   };
 
@@ -4804,8 +4816,12 @@ async function processSpawnRequest(filePath: string): Promise<void> {
     const prefix = slack
       ? buildAutonomousRequestProtocol(slack.channel, slack.thread_ts, slackReplyScriptPath())
       : '[AUTONOMOUS WORKER TASK — no interactive human is watching. Work autonomously; do not ask interactive questions.] The task starts now: ';
-    const suffix = `\n\n[CAPABILITIES] Before you start, consult your capability catalog — run the \`/capabilities\` skill (or read \`$AGENT_DIR/.claude/skills/capabilities/SKILL.md\`). It lists your temporal date-range skills (\`/today\`, \`/last30Days\`, \`/lastQuarter\`, …) and the integrations available to you (reached via the loopback broker) and how to call each. For any time-scoped work, resolve the dates with those skills instead of computing them by hand.\n\n[WORKER COMPLETION] When finished, signal done by sending ONE outbox message to god with "act":"done" and a short result summary — that releases this ephemeral worker (terminal closed; your branch is handed to god). Do NOT push to any remote; god is the sole integrator.`;
-    hive.send({ to: workerId, conversation: `worker-${reqId}`, act: 'request', subject: meta.name, body: `${prefix}${objective}${suffix}` }, 'god');
+    const reportTo = hirer ? hirer.id : 'god';
+    const hiredBy = hirer
+      ? `[HIRED BY ${hirer.name} (${hirer.id})${hirer.role ? `, ${hirer.role}` : ''}] Send your questions and your result to ${hirer.id}, not to god.\n\n`
+      : '';
+    const suffix = `\n\n[CAPABILITIES] Before you start, consult your capability catalog — run the \`/capabilities\` skill (or read \`$AGENT_DIR/.claude/skills/capabilities/SKILL.md\`). It lists your temporal date-range skills (\`/today\`, \`/last30Days\`, \`/lastQuarter\`, …) and the integrations available to you (reached via the loopback broker) and how to call each. For any time-scoped work, resolve the dates with those skills instead of computing them by hand.\n\n[WORKER COMPLETION] When finished, signal done by sending ONE outbox message to ${reportTo} with "act":"done" and a short result summary — that releases this ephemeral worker (terminal closed; your branch is handed to god). Do NOT push to any remote; god is the sole integrator.`;
+    hive.send({ to: workerId, conversation: `worker-${reqId}`, act: 'request', subject: meta.name, body: `${prefix}${hiredBy}${objective}${suffix}` }, hirer ? hirer.id : 'god');
   } catch (e) {
     console.error('[worker] dispatch send failed:', e);
   }
