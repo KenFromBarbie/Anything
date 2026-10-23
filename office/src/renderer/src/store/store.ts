@@ -416,6 +416,13 @@ const rosterMirror: {
 } = { agents: [], archived: [], restorable: [], queues: {}, selectedId: null };
 
 let rosterFlush: ReturnType<typeof setTimeout> | null = null;
+/** Agents the user removed since the last disk write. The main process keeps
+ *  any agent that disappears from the roster without being listed here. */
+const rosterRemoved = new Set<string>();
+
+function noteRemoved(id: string): void {
+  rosterRemoved.add(id);
+}
 
 function flushRosterNow(): void {
   if (rosterFlush) { clearTimeout(rosterFlush); rosterFlush = null; }
@@ -427,8 +434,10 @@ function flushRosterNow(): void {
       archived: rosterMirror.archived,
       restorable: rosterMirror.restorable,
       queues: rosterMirror.queues,
-      selectedId: rosterMirror.selectedId
+      selectedId: rosterMirror.selectedId,
+      removed: [...rosterRemoved]
     });
+    rosterRemoved.clear();
   } catch { /* the file is a mirror — localStorage already took the write */ }
 }
 
@@ -804,6 +813,7 @@ export const useStore = create<State>((set, get) => ({
     }),
   removeAgent: (id) =>
     set((s) => {
+      noteRemoved(id);
       const agents = s.agents.filter(a => a.id !== id);
       const { [id]: _gone, ...feeds } = s.feeds;
       const { [id]: _queueGone, ...messageQueues } = s.messageQueues;
@@ -848,6 +858,7 @@ export const useStore = create<State>((set, get) => ({
   removeRestorableAgent: (id) =>
     set((s) => {
       if (!s.restorableAgents.some((a) => a.id === id)) return s;
+      noteRemoved(id);
       const restorableAgents = s.restorableAgents.filter((a) => a.id !== id);
       persistRestorable(restorableAgents);
       return { restorableAgents };

@@ -43,6 +43,7 @@ import { selectBroadcastTargets } from '../shared/broadcast';
 import { preferredAgentRole } from '../shared/agentRole';
 import { mergeTaskLedger } from '../shared/taskLedger';
 import { expandTilde } from './fs';
+import { writeJsonDurably } from './durableWrite';
 import { resolveGodName } from '../shared/godIdentity';
 import { activeAccountHome, applyAccountEnv } from './aiAccounts';
 
@@ -2681,9 +2682,7 @@ export class HiveManager {
     writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
   }
   private atomicWriteJson(p: string, data: unknown): void {
-    const tmp = `${p}.tmp-${shortRand()}`;
-    writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
-    renameSync(tmp, p);
+    writeJsonDurably(p, data);
   }
 
   // — git (single committer, retry + stale-lock recovery) —

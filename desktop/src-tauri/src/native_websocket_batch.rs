@@ -89,10 +89,36 @@ pub(crate) fn is_auth_challenge(payload: &str) -> bool {
         .starts_with("\"AUTH\"")
 }
 
+/// A stored (non-ephemeral) event from the relay: a message, reply or edit
+/// the Office's agents may need to act on. Typing and presence are
+/// ephemeral (kinds 20000-29999) and don't count.
+pub(crate) fn is_stored_event(payload: &str) -> bool {
+    let rest = payload.trim_start().strip_prefix('[').unwrap_or_default().trim_start();
+    if !rest.starts_with("\"EVENT\"") {
+        return false;
+    }
+    let Ok(serde_json::Value::Array(parts)) = serde_json::from_str::<serde_json::Value>(payload) else {
+        return false;
+    };
+    let kind = parts
+        .last()
+        .and_then(|event| event.get("kind"))
+        .and_then(serde_json::Value::as_u64);
+    matches!(kind, Some(k) if !(20000..30000).contains(&k))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    #[test]
+    fn stored_events_wake_the_office_and_typing_does_not() {
+        assert!(is_stored_event(r#"["EVENT","s",{"kind":9,"content":"hi"}]"#));
+        assert!(!is_stored_event(r#"["EVENT","s",{"kind":20001}]"#));
+        assert!(!is_stored_event(r#"["EOSE","s"]"#));
+        assert!(!is_stored_event(r#"["AUTH","c"]"#));
+    }
 
     /// Records each delivery as its raw JSON payload, so tests assert on what
     /// the renderer actually receives rather than on internal batch state.

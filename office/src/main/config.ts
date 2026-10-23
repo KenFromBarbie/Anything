@@ -1,5 +1,6 @@
 import { app } from 'electron';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { writeJsonDurably } from './durableWrite';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import {
@@ -646,14 +647,7 @@ function persistConfig(next: HarnessConfig): HarnessConfig {
   // unparseable config.json to factory defaults — one torn write would wipe
   // harnessHome, the Slack/webhook secrets and every saved setting. Same
   // discipline as roster.ts and hive.ts atomicWriteJson.
-  const tmp = `${p}.tmp-${Math.random().toString(36).slice(2, 10)}`;
-  try {
-    writeFileSync(tmp, JSON.stringify(next, null, 2), 'utf8');
-    renameSync(tmp, p);
-  } catch (e) {
-    try { rmSync(tmp, { force: true }); } catch { /* the tmp file is disposable */ }
-    throw e;
-  }
+  writeJsonDurably(p, next);
   // Saving one setting stores only that setting, so fill the rest back in first:
   // subscribers must see the same complete config a read gives them, never a
   // half-filled one. Skip the migration — it saves in its own right, and has
@@ -810,7 +804,7 @@ function ensureClaudeGlobalPermissions(home: string, configDir = join(home, '.cl
       s.skipDangerousModePermissionPrompt = true;
       s.skipAutoPermissionPrompt = true;
       mkdirSync(dir, { recursive: true });
-      writeFileSync(p, JSON.stringify(s, null, 2), 'utf8');
+      writeJsonDurably(p, s);
     }
   } catch (error) {
     console.warn(
@@ -849,7 +843,7 @@ function ensureClaudeProjectTrust(home: string, cwd: string, stateFile = join(ho
       for (const k of keys) {
         c.projects[k] = { ...(c.projects[k] ?? {}), hasTrustDialogAccepted: true };
       }
-      writeFileSync(p, JSON.stringify(c, null, 2), 'utf8');
+      writeJsonDurably(p, c);
     }
   } catch (error) {
     console.warn(

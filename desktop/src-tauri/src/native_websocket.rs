@@ -8,7 +8,9 @@ use tauri::{
     Manager, Runtime,
 };
 
-use crate::native_websocket_batch::{is_auth_challenge, FrameBatch, BATCH_MAX_SERIALIZED_BYTES};
+use crate::native_websocket_batch::{
+    is_auth_challenge, is_stored_event, FrameBatch, BATCH_MAX_SERIALIZED_BYTES,
+};
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio_tungstenite::{
     tungstenite::protocol::{frame::coding::CloseCode, CloseFrame, Message},
@@ -309,6 +311,11 @@ async fn run_connection<S>(
                     OutboundMessage::Text(payload) => is_auth_challenge(payload),
                     _ => false,
                 };
+                if let OutboundMessage::Text(payload) = &message {
+                    if is_stored_event(payload) {
+                        crate::office::relay_event_seen();
+                    }
+                }
                 let Ok(frame) = serde_json::to_string(&message) else { continue };
 
                 // Flush before appending when the frame would carry the batch

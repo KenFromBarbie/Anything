@@ -8,6 +8,7 @@ import { TiledMapRenderer } from './TiledMapRenderer';
 import { Camera } from './Camera';
 import { hostedInBuzz, mirrorRole } from '@/host/buzzHost';
 import { emitAgentClick, emitDeskClick, setAgentLocator } from './agentLocator';
+import { findMeetSeats, inChair, nearestReachable, reachableFrom, type MeetSeat } from './meetingSeats';
 import { Character, paintCup } from './Character';
 import { DeskScreen } from './DeskScreen';
 import { MessageEnvelope, type MessageAct } from './MessageEnvelope';
@@ -396,78 +397,14 @@ export function OfficeFloor() {
       // the shorter blocked rows above (facing down) and below it (facing up),
       // within its width. An attendee walks to the open tile nearest its chair,
       // then takes the chair.
-      const meetSeats: Array<{ tile: Tile; approach: Tile; face: 'up' | 'down' }> = [];
-      /** Open floor reachable from the entrance (filled below with the seats). */
-      const reach = new Set<string>();
-      {
-        const z = mapRenderer.getZone('boardroom');
-        if (z) {
-          const blocked = (x: number, y: number) => !mapRenderer.isWalkable(x, y);
-          const rows: Array<{ y: number; xs: number[] }> = [];
-          for (let y = z.y; y < z.y + z.height; y++) {
-            const xs: number[] = [];
-            for (let x = z.x; x < z.x + z.width; x++) if (blocked(x, y)) xs.push(x);
-            rows.push({ y, xs });
-          }
-          const widest = Math.max(0, ...rows.map((r) => r.xs.length));
-          const tableRows = rows.filter((r) => widest > 0 && r.xs.length === widest);
-          if (tableRows.length) {
-            const top = tableRows[0].y;
-            const bottom = tableRows[tableRows.length - 1].y;
-            const minX = Math.min(...tableRows.flatMap((r) => r.xs));
-            const maxX = Math.max(...tableRows.flatMap((r) => r.xs));
-            // Tiles the office floor can actually reach (from the entrance):
-            // an open tile beside a chair can sit in a walled-off pocket, and
-            // an agent sent there never arrives.
-            {
-              const start = mapRenderer.getSpawnPoint('entrance')
-                ?? { x: Math.floor(mapRenderer.width / 2), y: mapRenderer.height - 2 };
-              const queue: Tile[] = [];
-              const push = (x: number, y: number) => {
-                const k = `${x},${y}`;
-                if (reach.has(k) || !mapRenderer.isWalkable(x, y)) return;
-                reach.add(k);
-                queue.push({ x, y });
-              };
-              push(start.x, start.y);
-              for (let i = 0; i < queue.length; i++) {
-                const q = queue[i];
-                push(q.x + 1, q.y); push(q.x - 1, q.y); push(q.x, q.y + 1); push(q.x, q.y - 1);
-              }
-            }
-            const nearestOpen = (t: Tile): Tile | null => {
-              let best: Tile | null = null;
-              let bestD = Infinity;
-              for (let dy = -3; dy <= 3; dy++) {
-                for (let dx = -4; dx <= 4; dx++) {
-                  const c = { x: t.x + dx, y: t.y + dy };
-                  if (!reach.has(`${c.x},${c.y}`)) continue;
-                  const d = Math.abs(dx) + Math.abs(dy);
-                  if (d < bestD) { bestD = d; best = c; }
-                }
-              }
-              return best;
-            };
-            for (const r of rows) {
-              if (r.y >= top && r.y <= bottom) continue;
-              if (r.y !== top - 1 && r.y !== bottom + 1) continue;
-              const face: 'up' | 'down' = r.y < top ? 'down' : 'up';
-              for (const x of r.xs) {
-                if (x < minX || x > maxX) continue;
-                const approach = nearestOpen({ x, y: r.y });
-                if (approach) meetSeats.push({ tile: { x, y: r.y }, approach, face });
-              }
-            }
-            // The far side first (facing the room, plainly seated; from the
-            // near side an agent shows its back and reads as standing), each
-            // side filled from the middle outwards.
-            const mid = (minX + maxX) / 2;
-            meetSeats.sort((a, b) =>
-              (a.face === 'down' ? 0 : 1) - (b.face === 'down' ? 0 : 1)
-              || Math.abs(a.tile.x - mid) - Math.abs(b.tile.x - mid));
-          }
-        }
-      }
+      const reach = reachableFrom(
+        mapRenderer.getSpawnPoint('entrance') ?? { x: Math.floor(mapRenderer.width / 2), y: mapRenderer.height - 2 },
+        (x, y) => mapRenderer.isWalkable(x, y),
+      );
+      const boardroom = mapRenderer.getZone('boardroom');
+      const meetSeats: MeetSeat[] = boardroom
+        ? findMeetSeats(boardroom, (x, y) => mapRenderer.isWalkable(x, y), reach)
+        : [];
       const meetTaken = new Map<number, string>();
       const walkToMeetSeat = (rt: Runtime, idx: number): void => {
         const seat = meetSeats[idx];
@@ -483,16 +420,7 @@ export function OfficeFloor() {
         const at = c.getTilePosition();
         if (at.x === seat.approach.x && at.y === seat.approach.y) return; // already there: taken
         // No route from here: step onto the nearest open tile, then walk.
-        let best: Tile | null = null;
-        let bestD = Infinity;
-        for (let dy = -2; dy <= 2; dy++) {
-          for (let dx = -2; dx <= 2; dx++) {
-            const t = { x: at.x + dx, y: at.y + dy };
-            if (!reach.has(`${t.x},${t.y}`)) continue;
-            const d = Math.abs(dx) + Math.abs(dy);
-            if (d < bestD) { bestD = d; best = t; }
-          }
-        }
+        const best = nearestReachable(reach, at, 2, 2);
         if (!best) return;
         const desk = c.getDeskTile();
         c.repositionTo(best.x, best.y); // moves the desk too: put it back
@@ -1935,12 +1863,8 @@ export function OfficeFloor() {
           if (!seat) continue;
           const c = rt.character;
           if (c.getAnimation() === 'walk') continue; // on its way (or being moved)
-          const seatPx = mapRenderer.tileToPixel(seat.tile.x, seat.tile.y);
-          const pos = c.getPixelPosition();
-          const ts = mapRenderer.tileSize;
-          const inChair = Math.abs(pos.x - (seatPx.x + ts / 2)) <= ts / 2
-            && Math.abs(pos.y - (seatPx.y + ts)) <= ts;
-          if (inChair) {
+          const seated = inChair(c.getPixelPosition(), mapRenderer.tileToPixel(seat.tile.x, seat.tile.y), mapRenderer.tileSize);
+          if (seated) {
             if (!c.isSitting()) c.sitInPlace(seat.face);
             continue;
           }

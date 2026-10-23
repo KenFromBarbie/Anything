@@ -190,3 +190,23 @@ test('queues and selection round-trip, and a bad queues field degrades to empty'
   assert.deepEqual(coerced.queues, {});
   assert.equal(coerced.selectedId, null);
 });
+
+test('an agent that vanishes from a write without being removed is kept as restorable', () => {
+  const home = tmpHome();
+  const store = storeAt(home);
+  store.write(snapshot([{ id: 'jim', name: 'Jim' }, { id: 'pam', name: 'Pam' }]));
+  store.write(snapshot([{ id: 'pam', name: 'Pam' }]));
+  const after = store.read();
+  assert.deepEqual(after.agents.map((a) => a.id), ['pam']);
+  assert.deepEqual(after.restorable.map((a) => a.id), ['jim']);
+});
+
+test('an agent the user removed leaves the roster', () => {
+  const home = tmpHome();
+  const store = storeAt(home);
+  store.write(snapshot([{ id: 'jim', name: 'Jim' }, { id: 'pam', name: 'Pam' }]));
+  store.write(snapshot([{ id: 'pam', name: 'Pam' }], { removed: ['jim'] }));
+  const after = store.read();
+  assert.deepEqual(after.restorable, []);
+  assert.equal('removed' in after, false);
+});

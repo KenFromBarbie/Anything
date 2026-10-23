@@ -535,6 +535,23 @@ pub(crate) fn poll_now() {
     }
 }
 
+static POKE_PENDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The app's live relay connection delivered an event: the Offices check
+/// their feeds in a moment. Bursts (a channel's history loading) collapse
+/// into one check; this is what replaces fast polling in the Office.
+pub(crate) fn relay_event_seen() {
+    use std::sync::atomic::Ordering;
+    if POKE_PENDING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    std::thread::spawn(|| {
+        std::thread::sleep(Duration::from_millis(150));
+        POKE_PENDING.store(false, Ordering::Release);
+        poll_now();
+    });
+}
+
 /// Write one line to the running sidecar's stdin. False if it isn't running
 /// (or is another community's: a late report never reaches the next Office).
 fn send_to_sidecar(app: &AppHandle, scope: &OfficeScope, line: &str) -> bool {

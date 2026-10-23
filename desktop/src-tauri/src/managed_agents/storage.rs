@@ -606,15 +606,53 @@ pub fn delete_agent_key(pubkey: &str) {
     }
 }
 
-/// Atomic, symlink-preserving JSON write.
+/// Atomic, durable, symlink-preserving JSON write.
 /// Resolves symlinks so the tmp+rename happens at the real target path,
-/// preserving any symlink at `path`.
+/// preserving any symlink at `path`. The new bytes reach the disk before the
+/// rename (a crash right after a bare rename left `teams.json` as NUL bytes),
+/// and the previous version is kept as `<name>.bak` for [`read_store_bytes`].
 pub(crate) fn atomic_write_json(path: &Path, payload: &[u8]) -> Result<(), String> {
+    use std::io::Write as _;
     let resolved = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     let tmp = resolved.with_extension("json.tmp");
-    std::fs::write(&tmp, payload).map_err(|e| format!("failed to write {}: {e}", tmp.display()))?;
+    let mut file = std::fs::File::create(&tmp)
+        .map_err(|e| format!("failed to write {}: {e}", tmp.display()))?;
+    file.write_all(payload)
+        .and_then(|()| file.sync_all())
+        .map_err(|e| format!("failed to write {}: {e}", tmp.display()))?;
+    drop(file);
+    if resolved.exists() {
+        let _ = std::fs::copy(&resolved, backup_path(&resolved));
+    }
     std::fs::rename(&tmp, &resolved)
         .map_err(|e| format!("failed to rename {}: {e}", resolved.display()))
+}
+
+/// Where [`atomic_write_json`] keeps a store's previous version.
+pub(crate) fn backup_path(path: &Path) -> std::path::PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".bak");
+    path.with_file_name(name)
+}
+
+/// A store's bytes, or its previous version when the store itself is
+/// damaged (unreadable, or not valid JSON after a crash).
+pub(crate) fn read_store_bytes(path: &Path) -> std::io::Result<Vec<u8>> {
+    let bytes = std::fs::read(path)?;
+    if serde_json::from_slice::<serde_json::Value>(&bytes).is_ok() {
+        return Ok(bytes);
+    }
+    let backup = backup_path(path);
+    match std::fs::read(&backup) {
+        Ok(old) if serde_json::from_slice::<serde_json::Value>(&old).is_ok() => {
+            eprintln!(
+                "buzz-desktop: {} is damaged; using its last good copy",
+                path.display()
+            );
+            Ok(old)
+        }
+        _ => Ok(bytes),
+    }
 }
 
 /// Atomic, symlink-preserving JSON write that creates the file `0o600` BEFORE

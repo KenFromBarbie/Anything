@@ -30,6 +30,7 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { writeJsonDurably } from './durableWrite';
 
 /** What the renderer mirrors to disk. The inner agent shape is deliberately
  *  opaque here — the renderer's store owns it, and repeating it would mean
@@ -42,6 +43,9 @@ export interface RosterSnapshot {
   restorable: unknown[];
   queues: Record<string, unknown[]>;
   selectedId: string | null;
+  /** Ids the user removed since the last write. Only these may leave the
+   *  roster; see `keepVanished`. Never stored. */
+  removed?: string[];
 }
 
 export interface RosterWriteResult {
@@ -63,6 +67,34 @@ function isSnapshot(v: unknown): v is RosterSnapshot {
   if (!v || typeof v !== 'object') return false;
   const s = v as Partial<RosterSnapshot>;
   return Array.isArray(s.agents) && Array.isArray(s.archived) && Array.isArray(s.restorable);
+}
+
+function idOf(entry: unknown): string | null {
+  const id = (entry as { id?: unknown } | null)?.id;
+  return typeof id === 'string' ? id : null;
+}
+
+/**
+ * The main process owns who is on the floor. A renderer write replaces the
+ * roster's contents, but an agent may leave it only when the user removed it
+ * (`removed`): one that just vanished from the renderer's copy (a failed
+ * restore, a stale reload) is kept, as restorable, instead of being lost.
+ * That is how Jim once dropped off the floor.
+ */
+export function keepVanished(existing: RosterSnapshot | null, snap: RosterSnapshot): unknown[] {
+  if (!existing) return snap.restorable;
+  const removed = new Set(snap.removed ?? []);
+  const present = new Set(
+    [...snap.agents, ...snap.archived, ...snap.restorable].map(idOf).filter((id): id is string => !!id)
+  );
+  const kept = [...existing.agents, ...existing.restorable].filter((entry) => {
+    const id = idOf(entry);
+    return !!id && !present.has(id) && !removed.has(id);
+  });
+  if (kept.length) {
+    console.warn(`[roster] kept ${kept.length} agent(s) the renderer dropped without removing: ${kept.map(idOf).join(', ')}`);
+  }
+  return kept.length ? [...snap.restorable, ...kept] : snap.restorable;
 }
 
 function entryCount(s: RosterSnapshot): number {
@@ -151,15 +183,13 @@ export class RosterStore {
         savedAt: new Date().toISOString(),
         agents: snap.agents,
         archived: snap.archived,
-        restorable: snap.restorable,
+        restorable: keepVanished(existing, snap),
         queues: snap.queues && typeof snap.queues === 'object' ? snap.queues : {},
         selectedId: typeof snap.selectedId === 'string' ? snap.selectedId : null
       };
       // Temp + rename: `rename` is atomic within a filesystem, so a crash leaves
       // either the old file or the new one, never half of either.
-      const tmp = `${p}.tmp`;
-      writeFileSync(tmp, JSON.stringify(body, null, 2), 'utf8');
-      renameSync(tmp, p);
+      writeJsonDurably(p, body);
       this.wrote = true;
       return { ok: true };
     } catch (e) {

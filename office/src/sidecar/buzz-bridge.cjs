@@ -33,9 +33,13 @@ const { join } = require('node:path');
 const { execFile } = require('node:child_process');
 const { MeetingVoices, splitAnswer } = require('./meeting-voice.cjs');
 
-// How often each agent's feed is checked. A reply can't start before its
-// message is picked up, so this is felt on every exchange.
-const POLL_MS = 1500;
+// The fallback check of each agent's feed. Messages normally arrive at once:
+// the app sees them on its live relay connection and says so (poll-now), and
+// an agent's own post wakes the floor straight away. This only catches what
+// the app can't see (agents' DMs with each other).
+const POLL_MS = 8000;
+// The conversation memory survives restarts; written at most this often.
+const CONTEXT_SAVE_MS = 2000;
 const CLI_TIMEOUT_MS = 30000;
 const SEEN_CAP = 1000;
 const MAX_REPLY_BYTES = 64 * 1024;
@@ -109,6 +113,8 @@ class BuzzBridge {
     this.workers = new Map();
     this.statePath = join(userData, 'buzz-bridge-state.json');
     this.state = this.loadState();
+    this.contextPath = join(userData, 'buzz-bridge-context.json');
+    this.loadContext();
     this.rosterSent = null;
     this.polling = false;
     this.timer = null;
@@ -186,6 +192,36 @@ class BuzzBridge {
     }
     return state;
   }
+  /** What was said in conversations and meetings, who attended which
+   *  meeting, and which meetings were already summed up for their agents. */
+  loadContext() {
+    let c = {};
+    try { c = JSON.parse(fs.readFileSync(this.contextPath, 'utf8')); } catch { /* first run */ }
+    this.conversations = new Map(Object.entries(c.conversations ?? {}));
+    this.meetingLog = new Map(Object.entries(c.meetings ?? {}));
+    this.meetingAttendees = new Map(Object.entries(c.attendees ?? {}).map(([k, v]) => [k, new Set(v)]));
+    this.debriefed = new Set(c.debriefed ?? []);
+  }
+  saveContextNow() {
+    const data = {
+      conversations: Object.fromEntries(this.conversations),
+      meetings: Object.fromEntries(this.meetingLog),
+      attendees: Object.fromEntries([...this.meetingAttendees].map(([k, v]) => [k, [...v]])),
+      debriefed: [...this.debriefed].slice(-200),
+    };
+    try {
+      const tmp = this.contextPath + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(data));
+      fs.renameSync(tmp, this.contextPath);
+    } catch (e) {
+      this.log.warn('[buzz-bridge] could not save conversation memory:', e.message);
+    }
+  }
+  saveContext() {
+    if (this.contextTimer) return;
+    this.contextTimer = setTimeout(() => { this.contextTimer = null; this.saveContextNow(); }, CONTEXT_SAVE_MS);
+    this.contextTimer.unref?.();
+  }
   cursor(who) {
     return (this.state.cursors[who.agentId] ??= { since: Math.floor(Date.now() / 1000), seen: [] });
   }
@@ -234,6 +270,7 @@ class BuzzBridge {
 
   stop() {
     this.voices?.stopAll();
+    if (this.contextTimer) { clearTimeout(this.contextTimer); this.contextTimer = null; this.saveContextNow(); }
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     if (this.server) this.server.close();
@@ -365,7 +402,11 @@ class BuzzBridge {
     who.meetingChannels = new Set(meetings.map((c) => c.channel_id));
     // A meeting this agent is in: get its voice ready before anyone asks.
     for (const c of list) {
-      if (c.archived_at || !who.callChannels.has(c.channel_id)) continue;
+      if (!who.callChannels.has(c.channel_id)) continue;
+      if (c.archived_at) {
+        if (this.meetingAttendees.has(c.channel_id)) this.debriefMeeting(c.channel_id);
+        continue;
+      }
       this.warmMeetingVoice(c.channel_id, who);
     }
     who.dmCheckedAt = Date.now();
@@ -526,7 +567,6 @@ class BuzzBridge {
 
   /** Remember a message (owner's or an agent's) in its conversation. */
   noteConversation(ev, channel) {
-    if (!this.conversations) this.conversations = new Map();
     const key = this.conversationKey(ev, channel);
     const log = this.conversations.get(key) ?? [];
     if (log.some((l) => l.id === ev.id)) return;
@@ -536,6 +576,7 @@ class BuzzBridge {
     log.sort((a, b) => a.at - b.at);
     this.conversations.set(key, log.slice(-20));
     if (this.conversations.size > 400) this.conversations.delete(this.conversations.keys().next().value);
+    this.saveContext();
   }
 
   /** What was said before `ev` in its conversation, as lines for an agent. */
@@ -547,13 +588,14 @@ class BuzzBridge {
 
   /** What was said in a meeting (owner and agents), for the quick answers. */
   noteMeeting(ev, channel) {
-    if (!this.meetingLog) this.meetingLog = new Map();
     const log = this.meetingLog.get(channel) ?? [];
     if (log.some((l) => l.id === ev.id)) return;
     const speaker = ev.pubkey.toLowerCase() === this.owner ? 'Owner' : (this.byPubkey(ev.pubkey.toLowerCase())?.name ?? 'Someone');
     log.push({ id: ev.id, at: ev.created_at, name: speaker, text: String(ev.content ?? '').slice(0, 600) });
     log.sort((a, b) => a.at - b.at);
-    this.meetingLog.set(channel, log.slice(-30));
+    this.meetingLog.set(channel, log.slice(-60));
+    if (this.meetingLog.size > 50) this.meetingLog.delete(this.meetingLog.keys().next().value);
+    this.saveContext();
   }
 
   /** The meeting voices (quick spoken answers; see meeting-voice.cjs). */
@@ -565,7 +607,55 @@ class BuzzBridge {
   /** Start `who`'s voice for a meeting as soon as the meeting is seen, so the
    *  first answer doesn't wait for the CLI to start. */
   warmMeetingVoice(channel, who) {
+    this.attend(channel, who);
     this.meetingVoices().voiceFor(channel, who, who === this.michael);
+  }
+
+  attend(channel, who) {
+    const set = this.meetingAttendees.get(channel) ?? new Set();
+    if (set.has(who.agentId)) return;
+    set.add(who.agentId);
+    this.meetingAttendees.set(channel, set);
+    this.saveContext();
+  }
+
+  /** The tail of an agent's own memory.md (what its working session has
+   *  recorded), so its meeting voice knows what it has been doing. */
+  workNotes(who) {
+    try {
+      const config = JSON.parse(fs.readFileSync(join(this.userData, 'config.json'), 'utf8'));
+      if (!config.harnessHome) return '';
+      const text = fs.readFileSync(join(config.harnessHome, 'hive', 'agents', who.agentId, 'memory.md'), 'utf8');
+      return text.length > 3000 ? '…' + text.slice(-3000) : text;
+    } catch {
+      return '';
+    }
+  }
+
+  /** A meeting ended (its call channel archived): hand each agent who was in
+   *  it what was said, into its working session, so the work that follows
+   *  starts from the meeting rather than from nothing. Once per meeting. */
+  debriefMeeting(channel) {
+    if (this.debriefed.has(channel)) return;
+    this.debriefed.add(channel);
+    this.saveContext();
+    this.meetingVoices().endMeeting?.(channel);
+    const log = this.meetingLog.get(channel) ?? [];
+    const who = [...(this.meetingAttendees.get(channel) ?? [])];
+    const send = this.shim.ipcMain.handlers.get('hive:send');
+    if (!log.length || !who.length || !send) return;
+    const transcript = log.map((l) => `${l.name}: ${l.text.replace(/\s+/g, ' ')}`).join('\n');
+    for (const agentId of who) {
+      void Promise.resolve(send({ sender: null, senderFrame: null }, {
+        to: agentId,
+        act: 'inform',
+        subject: 'Meeting notes',
+        body: `[MEETING ENDED — what was said, so your work carries on from it. Record anything you agreed to do in your memory.md; do the tasks you took on.]\n\n${transcript.slice(-6000)}`,
+        conversation: `meeting-${channel}`,
+        requires_reply: false
+      }, 'human')).catch(() => {});
+    }
+    this.log.log(`[buzz-bridge] meeting ${channel.slice(0, 8)} ended; notes sent to ${who.length} agent(s)`);
   }
 
   /** Answer the owner in the meeting room as `who`, quickly and aloud.
@@ -596,7 +686,16 @@ class BuzzBridge {
     for (const l of fresh) voice.seen.add(l.id);
     voice.seen.add(ev.id);
     const others = attendees.filter((i) => i !== who).map((i) => i.name);
+    this.attend(channel, who);
+    // Its first turn: what the agent's working session has been doing.
+    let notes = '';
+    if (!voice.briefed) {
+      voice.briefed = true;
+      const memory = this.workNotes(who);
+      if (memory.trim()) notes = `Your own work notes (your memory.md, latest last), so you know what you have been doing:\n${memory}\n---`;
+    }
     const turn = [
+      ...(notes ? [notes] : []),
       others.length ? `In the meeting: the owner, ${others.join(', ')} and you.` : 'In the meeting: the owner and you.',
       ...(note ? [note] : []),
       ...(fresh.length ? ['Said since your last turn:', ...fresh.slice(-12).map((l) => `${l.name}: ${l.text}`)] : []),
@@ -618,6 +717,7 @@ class BuzzBridge {
         return null;
       });
       if (r?.event_id) {
+        this.pollNow();
         voice.seen.add(r.event_id);
         this.noteMeeting({ id: r.event_id, created_at: Math.floor(Date.now() / 1000), pubkey: who.pubkey, content: spoken }, channel);
         const lower = spoken.toLowerCase();
@@ -712,6 +812,7 @@ class BuzzBridge {
         }, 'human')).catch(() => {});
       }
     }
+    if (r?.event_id) this.pollNow();
     return [200, { ok: true, eventId: r?.event_id, as: who.name }];
   }
 
@@ -733,6 +834,7 @@ class BuzzBridge {
       this.remember(r.event_id, r.event_id, c.channel_id, true, who.agentId);
       this.saveState();
     }
+    if (r?.event_id) this.pollNow();
     return [200, { ok: true, eventId: r?.event_id, channel: c.name, as: who.name }];
   }
 

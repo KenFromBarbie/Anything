@@ -43,6 +43,8 @@ export interface RosterSnapshot {
   restorable: unknown[];
   queues: Record<string, unknown[]>;
   selectedId: string | null;
+  /** Ids the user removed since the last write (only these may leave the roster). */
+  removed?: string[];
 }
 
 export interface HiveAgentMeta {

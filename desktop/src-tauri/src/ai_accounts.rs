@@ -156,8 +156,15 @@ fn load_registry(app: &AppHandle) -> Registry {
 }
 
 fn write_atomic(path: &Path, text: &str) -> Result<(), String> {
+    use std::io::Write as _;
     let tmp = path.with_extension("tmp");
-    std::fs::write(&tmp, text).map_err(|e| format!("write {}: {e}", tmp.display()))?;
+    // On disk before the rename, so a crash can't leave a hollow file.
+    let mut file =
+        std::fs::File::create(&tmp).map_err(|e| format!("write {}: {e}", tmp.display()))?;
+    file.write_all(text.as_bytes())
+        .and_then(|()| file.sync_all())
+        .map_err(|e| format!("write {}: {e}", tmp.display()))?;
+    drop(file);
     std::fs::rename(&tmp, path).map_err(|e| format!("save {}: {e}", path.display()))
 }
 

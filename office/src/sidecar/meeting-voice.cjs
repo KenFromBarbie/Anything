@@ -178,6 +178,15 @@ class MeetingVoices {
     }
   }
 
+  /** The meeting is over: its voices stop now instead of idling out. */
+  endMeeting(channel) {
+    for (const [key, voice] of this.voices) {
+      if (!key.startsWith(`${channel}:`)) continue;
+      voice.stop();
+      this.voices.delete(key);
+    }
+  }
+
   stopAll() {
     clearInterval(this.sweeper);
     for (const voice of this.voices.values()) voice.stop();
