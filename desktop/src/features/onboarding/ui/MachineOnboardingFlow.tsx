@@ -96,6 +96,10 @@ export function MachineOnboardingFlow({
   const [identityStorage, setIdentityStorage] = React.useState<
     IdentityStorage | undefined
   >();
+  /** The identity was made for you on first run (no key step, no backup
+   *  step: back it up any time in Settings). */
+  const [autoCreated, setAutoCreated] = React.useState(false);
+  const [autoCreateFailed, setAutoCreateFailed] = React.useState(false);
   const [readyRuntimeIds, setReadyRuntimeIds] = React.useState<string[]>([]);
   const [setupBackAction, setSetupBackAction] = React.useState<
     (() => void) | null
@@ -164,6 +168,36 @@ export function MachineOnboardingFlow({
       setIsPending(false);
     }
   }, [queryClient]);
+
+  // First run: no "create or import a key" choice. The app makes the identity
+  // and goes straight to setting up agents; "Use an existing key" stays on
+  // the landing screen, which only shows if this fails.
+  const autoCreateStarted = React.useRef(false);
+  React.useEffect(() => {
+    if (page !== "identity" || identityLost || autoCreateStarted.current) {
+      return;
+    }
+    autoCreateStarted.current = true;
+    setIsPending(true);
+    void (async () => {
+      try {
+        const identity = await getIdentity();
+        queryClient.setQueryData(["identity"], identity);
+        setSelectedPubkey(identity.pubkey);
+        setIdentityStorage(identity.storage);
+        setAutoCreated(true);
+        setTransitionDirection("forward");
+        setPage("setup");
+      } catch (cause) {
+        setAutoCreateFailed(true);
+        setError(
+          cause instanceof Error ? cause.message : "Failed to load identity",
+        );
+      } finally {
+        setIsPending(false);
+      }
+    })();
+  }, [identityLost, page, queryClient]);
 
   const loadRecoveredIdentity = React.useCallback(async () => {
     setIsPending(true);
@@ -255,6 +289,8 @@ export function MachineOnboardingFlow({
   }, [backupSession]);
 
   const backFromSetup = React.useCallback(() => {
+    // An identity made for you has no key or backup step to go back to.
+    if (autoCreated) return;
     if (identityWasImported) {
       setKeyImportFormKey((current) => current + 1);
       setKeyImportStage("key-entry");
@@ -269,7 +305,7 @@ export function MachineOnboardingFlow({
     setTransitionDirection("backward");
     setReturningFromSecurity(false);
     setPage("backup");
-  }, [backupSession, backupSubview, identityWasImported]);
+  }, [autoCreated, backupSession, backupSubview, identityWasImported]);
 
   const backFromConfig = React.useCallback(() => {
     setupSelectionHandoffRef.current = false;
@@ -317,13 +353,34 @@ export function MachineOnboardingFlow({
                   },
                 }
               : page === "setup"
-                ? { onClick: setupBackAction ?? backFromSetup }
+                ? setupBackAction
+                  ? { onClick: setupBackAction }
+                  : autoCreated
+                    ? undefined
+                    : { onClick: backFromSetup }
                 : page === "config"
                   ? {
                       disabled: isDefaultConfigSaving,
                       onClick: backFromConfig,
                     }
                   : undefined;
+
+  if (page === "identity" && !autoCreateFailed) {
+    return (
+      <div
+        className="buzz-onboarding-neutral-theme buzz-startup-shell buzz-onboarding-welcome flex max-h-dvh items-center justify-center px-4 py-8 text-foreground"
+        data-testid="machine-onboarding-gate"
+      >
+        <StartupWindowDragRegion />
+        <div className="flex items-center gap-4">
+          <AppMark className="h-20 w-20" loading />
+          <h1 className="text-6xl font-semibold tracking-tight text-foreground">
+            Anything
+          </h1>
+        </div>
+      </div>
+    );
+  }
 
   if (page === "identity") {
     return (
