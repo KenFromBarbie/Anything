@@ -92,3 +92,39 @@ export const ENGINE_CLI_NAME: Record<Engine, string> = {
   codex: "Codex",
   gemini: "Gemini CLI",
 };
+
+/** What happens when an account reaches one of its caps. */
+export type AtCap = "switch" | "freeze" | "warn";
+
+/** Usage caps for one account (Rust: `ai_accounts::guard`). Token caps count
+ *  the same total the usage panel shows (input, output and cache). */
+export type UsageRule = {
+  cap5h: number | null;
+  capDay: number | null;
+  capWeek: number | null;
+  /** Percent of the plan's own limit, where the CLI reports one. */
+  capPercent: number | null;
+  atCap: AtCap;
+};
+
+export type UsageFreeze = { manual: boolean; reason: string; since: number };
+
+export type UsageGuard = {
+  /** By "engine:account id". */
+  rules: Record<string, UsageRule>;
+  /** By engine. */
+  frozen: Record<string, UsageFreeze>;
+  /** Newest first. */
+  log: { at: number; engine: Engine; text: string }[];
+};
+
+export const ruleKey = (engine: Engine, id: string) => `${engine}:${id}`;
+
+export const getUsageGuard = () => invoke<UsageGuard>("ai_accounts_guard");
+export const setUsageRule = (
+  engine: Engine,
+  id: string,
+  rule: UsageRule | null,
+) => invoke<void>("ai_accounts_set_rule", { engine, id, rule });
+export const freezeEngine = (engine: Engine, on: boolean) =>
+  invoke<void>("ai_accounts_freeze", { engine, on });

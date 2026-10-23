@@ -17,6 +17,8 @@ type AppTopChromeProps = {
   hasCommunityRail?: boolean;
   /** The server bar, when it lives in the top bar (Settings → Appearance). */
   serverBar?: React.ReactNode;
+  /** The server row shows only while the pointer is on the top bar. */
+  serverBarAutoHide?: boolean;
 };
 
 // Fixed px on purpose (button box + glyph): these controls sit beside the
@@ -61,6 +63,7 @@ export function AppTopChrome({
   onGoForward,
   hasCommunityRail = false,
   serverBar,
+  serverBarAutoHide = false,
 }: AppTopChromeProps) {
   const topChromeRef = React.useRef<HTMLDivElement>(null);
   const isFullscreen = useIsFullscreen();
@@ -125,7 +128,7 @@ export function AppTopChrome({
     <div
       ref={topChromeRef}
       className={cn(
-        "relative z-45 flex shrink-0 cursor-default select-none items-center bg-sidebar pr-3 text-sidebar-foreground",
+        "group/top-chrome relative z-45 flex shrink-0 cursor-default select-none items-center bg-sidebar pr-3 text-sidebar-foreground",
         topChromeBackdrop.height,
         navRowPaddingClass,
       )}
@@ -163,7 +166,14 @@ export function AppTopChrome({
         </Button>
       </div>
       {serverBar ? (
-        <div className="ml-2 flex h-full min-w-0 max-w-[40%] items-center border-l border-sidebar-border/60 pl-2">
+        <div
+          className={cn(
+            "ml-2 flex h-full min-w-0 max-w-[40%] items-center border-l border-sidebar-border/60 pl-2",
+            serverBarAutoHide &&
+              "max-w-0 overflow-hidden border-transparent opacity-0 transition-[max-width,opacity] duration-200 group-hover/top-chrome:max-w-[40%] group-hover/top-chrome:border-sidebar-border/60 group-hover/top-chrome:opacity-100 group-focus-within/top-chrome:max-w-[40%] group-focus-within/top-chrome:opacity-100",
+          )}
+          data-testid="top-chrome-server-bar"
+        >
           {serverBar}
         </div>
       ) : null}

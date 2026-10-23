@@ -61,6 +61,13 @@ import {
   SettingsOptionGroupList,
 } from "./SettingsOptionGroup";
 import { SettingsSectionHeader } from "./SettingsSectionHeader";
+import {
+  FreezeButton,
+  FrozenBanner,
+  UsageActivity,
+  UsageRulesPanel,
+  useUsageGuard,
+} from "./AiUsageRules";
 
 const LIST_KEY = ["ai-accounts"] as const;
 
@@ -358,7 +365,10 @@ function AccountRow({
       {open ? (
         <div className="pl-6">
           {account.signedIn ? (
-            <UsagePanel account={account} engine={engine.engine} />
+            <div className="grid gap-3">
+              <UsagePanel account={account} engine={engine.engine} />
+              <UsageRulesPanel account={account} engine={engine.engine} />
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">
               Sign in to see this account's usage.
@@ -427,18 +437,24 @@ function EngineGroup({ engine }: { engine: EngineAccounts }) {
           : undefined
       }
       headerAction={
-        <Button
-          disabled={!engine.cliInstalled}
-          onClick={() => setAdding((a) => !a)}
-          size="sm"
-          variant="outline"
-        >
-          <Plus />
-          Add account
-        </Button>
+        <div className="flex items-center gap-2">
+          {engine.cliInstalled ? (
+            <FreezeButton engine={engine.engine} label={engine.label} />
+          ) : null}
+          <Button
+            disabled={!engine.cliInstalled}
+            onClick={() => setAdding((a) => !a)}
+            size="sm"
+            variant="outline"
+          >
+            <Plus />
+            Add account
+          </Button>
+        </div>
       }
       title={engine.label}
     >
+      <FrozenBanner engine={engine.engine} label={engine.label} />
       {!engine.cliInstalled ? (
         <p className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
@@ -614,7 +630,7 @@ export function AiAccountsSettingsCard() {
   return (
     <section className="min-w-0" data-testid="settings-ai-accounts">
       <SettingsSectionHeader
-        description="The Claude, ChatGPT and Google subscriptions your agents run on. Add more accounts, see their usage, and switch which one the agents use."
+        description="The Claude, ChatGPT and Google subscriptions your agents run on. Add more accounts, see their usage, set caps that switch accounts or freeze the agents, and pick which one the agents use."
         title="AI accounts"
       />
       {accounts.isLoading ? (
@@ -633,9 +649,24 @@ export function AiAccountsSettingsCard() {
           {(accounts.data ?? []).map((engine) => (
             <EngineGroup engine={engine} key={engine.engine} />
           ))}
+          <UsageActivityGroup />
         </SettingsOptionGroupList>
       )}
     </section>
+  );
+}
+
+/** What the usage caps have done (switched, froze, warned), newest first. */
+function UsageActivityGroup() {
+  const guard = useUsageGuard();
+  if (!guard.data?.log.length) return null;
+  return (
+    <SettingsOptionGroup
+      description="What your usage caps did: account switches, freezes and warnings."
+      title="Usage activity"
+    >
+      <UsageActivity />
+    </SettingsOptionGroup>
   );
 }
 

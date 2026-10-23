@@ -93,7 +93,8 @@ import { AppSidebar } from "@/features/sidebar/ui/AppSidebar";
 import { requestFocusedThreadClose } from "@/features/channels/focusedThreadCloseRequest";
 import { CommunityRail } from "@/features/sidebar/ui/CommunityRail";
 import { HoverServerBar } from "@/features/sidebar/ui/HoverServerBar";
-import { useServerBarMode } from "@/features/sidebar/lib/serverBarPreference";
+import { useUsageAlerts } from "@/features/settings/ui/AiUsageRules";
+import { useServerBarPrefs } from "@/features/sidebar/lib/serverBarPreference";
 import { useChannelMutes } from "@/features/sidebar/lib/useChannelMutes";
 import { useChannelStars } from "@/features/sidebar/lib/useChannelStars";
 import { useCommunities } from "@/features/communities/useCommunities";
@@ -145,7 +146,11 @@ export function AppShell() {
   const hasCommunityRail = communitiesHook.communities.length > 0;
   // Where the server bar sits (Settings → Appearance): a column at the left,
   // tucked away until hovered, or a row in the top bar.
-  const serverBarMode = useServerBarMode();
+  const serverBar = useServerBarPrefs();
+  // The column takes room in the layout only when it's always shown.
+  const railPinned = serverBar.position === "left" && !serverBar.autoHide;
+  // The AI-account usage guard's switches, freezes and warnings, as toasts.
+  useUsageAlerts();
   const addCommunityDialog = useAddCommunityDialogState();
   const [isChannelManagementOpen, setIsChannelManagementOpen] =
     React.useState(false);
@@ -794,7 +799,7 @@ export function AppShell() {
             onViewHuddleChannel={viewHuddleChannel}
             onVisibilityChange={handleHuddleVisibilityChange}
           >
-            {hasCommunityRail && !isHuddleRoom && serverBarMode === "pinned" ? (
+            {hasCommunityRail && !isHuddleRoom && railPinned ? (
               <CommunityRail
                 activeCommunityId={communitiesHook.activeCommunity?.id ?? null}
                 onAddCommunity={addCommunityDialog.openDialog}
@@ -804,7 +809,10 @@ export function AppShell() {
                 communities={communitiesHook.communities}
               />
             ) : null}
-            {hasCommunityRail && !isHuddleRoom && serverBarMode === "hover" ? (
+            {hasCommunityRail &&
+            !isHuddleRoom &&
+            serverBar.position === "left" &&
+            serverBar.autoHide ? (
               <HoverServerBar>
                 <CommunityRail
                   activeCommunityId={
@@ -829,13 +837,12 @@ export function AppShell() {
                     <AppTopChrome
                       canGoBack={canGoBack}
                       canGoForward={canGoForward}
-                      hasCommunityRail={
-                        hasCommunityRail && serverBarMode === "pinned"
-                      }
+                      hasCommunityRail={hasCommunityRail && railPinned}
                       onGoBack={goBack}
                       onGoForward={goForward}
+                      serverBarAutoHide={serverBar.autoHide}
                       serverBar={
-                        hasCommunityRail && serverBarMode === "top" ? (
+                        hasCommunityRail && serverBar.position === "top" ? (
                           <CommunityRail
                             activeCommunityId={
                               communitiesHook.activeCommunity?.id ?? null
@@ -1005,9 +1012,7 @@ export function AppShell() {
                         onChange={setTerminalContextOverride}
                       >
                         <AppShellChannelSurface
-                          hasCommunityRail={
-                            hasCommunityRail && serverBarMode === "pinned"
-                          }
+                          hasCommunityRail={hasCommunityRail && railPinned}
                           isHuddleRoom={isHuddleRoom}
                           isHuddleRoomStarting={isHuddleRoomStarting}
                           mainInsetRef={mainInsetRef}
@@ -1022,9 +1027,7 @@ export function AppShell() {
                         <RelayConnectionOverlay
                           card={relayConnectionCard}
                           errorMessage={channelsErrorMessage}
-                          hasCommunityRail={
-                            hasCommunityRail && serverBarMode === "pinned"
-                          }
+                          hasCommunityRail={hasCommunityRail && railPinned}
                           isHuddleDrawerOpen={isHuddleDrawerOpen}
                         />
                       ) : null}

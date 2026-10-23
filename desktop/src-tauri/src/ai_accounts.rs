@@ -25,6 +25,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
 
+#[path = "ai_accounts_guard.rs"]
+pub mod guard;
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Engine {
     Claude,
@@ -1189,6 +1192,14 @@ pub fn ai_accounts_sign_in(app: AppHandle, engine: String, id: String) -> Result
 #[tauri::command]
 pub fn ai_accounts_set_active(app: AppHandle, engine: String, id: String) -> Result<(), String> {
     let engine = Engine::parse(&engine)?;
+    activate(&app, engine, &id)
+}
+
+/// Make `id` ("default": this computer's sign-in) the account the engine's
+/// agents start on. Shared by the settings screen and the usage guard.
+fn activate(app: &AppHandle, engine: Engine, id: &str) -> Result<(), String> {
+    let app = app.clone();
+    let id = id.to_string();
     let mut registry = load_registry(&app);
     let next = if id == "default" {
         None
@@ -1263,6 +1274,26 @@ pub fn ai_accounts_remove(app: AppHandle, engine: String, id: String) -> Result<
         });
     }
     save_registry(&app, &registry)
+}
+
+/// The usage of one account, read now (blocking: it reads the CLI's logs).
+fn account_at_usage(app: &AppHandle, engine: Engine, id: &str) -> Result<Usage, String> {
+    let registry = load_registry(app);
+    let history = registry
+        .engines
+        .get(engine.key())
+        .map(|e| e.history.clone())
+        .unwrap_or_default();
+    let (home, account) = if id == "default" {
+        (engine.default_home(), None)
+    } else {
+        (profile_dir(app, engine, id)?, Some(id.to_string()))
+    };
+    Ok(match engine {
+        Engine::Claude => claude_usage(&home),
+        Engine::Codex => codex_usage(&home, account.as_deref(), &history),
+        Engine::Gemini => gemini_usage(&home),
+    })
 }
 
 #[tauri::command]

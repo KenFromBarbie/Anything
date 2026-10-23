@@ -257,6 +257,8 @@ pub fn run() {
             // an unclean exit.
             commands::set_office_agent_deployed(&app_handle, None, false);
             office::remember_app(&app_handle);
+            // Usage caps and freezes for the AI accounts (Settings → AI accounts).
+            ai_accounts::guard::start(app_handle.clone());
             // Servers on this computer start with the app.
             local_servers::start_all(&app_handle);
             // ArtCraft's background work, without a window of its own, once
@@ -586,6 +588,9 @@ pub fn run() {
             ai_accounts::ai_accounts_rename,
             ai_accounts::ai_accounts_remove,
             ai_accounts::ai_accounts_usage,
+            ai_accounts::guard::ai_accounts_guard,
+            ai_accounts::guard::ai_accounts_set_rule,
+            ai_accounts::guard::ai_accounts_freeze,
             ai_accounts::ai_accounts_add_api_key,
             ai_accounts::ai_accounts_set_api_key,
             research::research_list,

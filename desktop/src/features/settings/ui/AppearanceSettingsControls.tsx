@@ -9,9 +9,9 @@ import {
 } from "@/features/channels/lib/threadViewModePreference";
 import { useCommunities } from "@/features/communities/useCommunities";
 import {
-  setServerBarMode,
-  useServerBarMode,
-  type ServerBarMode,
+  setServerBarPrefs,
+  useServerBarPrefs,
+  type ServerBarPosition,
 } from "@/features/sidebar/lib/serverBarPreference";
 import { AvatarFramingSlider } from "@/features/profile/ui/AnimatedAvatarControls";
 import { contrastColorForBackground } from "@/features/profile/ui/ProfileAvatarEditor.utils";
@@ -721,21 +721,15 @@ export function AccentPickerContent({
   );
 }
 
-const SERVER_BAR_OPTIONS: {
-  value: ServerBarMode;
+const SERVER_BAR_POSITIONS: {
+  value: ServerBarPosition;
   label: string;
   description: string;
 }[] = [
   {
-    value: "pinned",
+    value: "left",
     label: "Left",
-    description: "Your servers in a column at the left, always shown",
-  },
-  {
-    value: "hover",
-    label: "On hover",
-    description:
-      "Tucked away; move the pointer to the window's left edge to show it",
+    description: "Your servers in a column at the left of the window",
   },
   {
     value: "top",
@@ -744,34 +738,60 @@ const SERVER_BAR_OPTIONS: {
   },
 ];
 
-/** Where the server bar sits: a column, tucked away until hovered, or a row
- *  in the top bar. */
+/** Where the server bar sits, and whether it hides until hovered: two
+ *  separate choices. */
 export function ServerBarSetting() {
-  const mode = useServerBarMode();
+  const { position, autoHide } = useServerBarPrefs();
   const active =
-    SERVER_BAR_OPTIONS.find((option) => option.value === mode) ??
-    SERVER_BAR_OPTIONS[0];
+    SERVER_BAR_POSITIONS.find((option) => option.value === position) ??
+    SERVER_BAR_POSITIONS[0];
 
   return (
-    <SettingsOptionRow data-testid="server-bar-row">
-      <div className="min-w-0">
-        <p className="text-sm font-medium">Server bar</p>
-        <p
-          className="text-sm font-normal text-muted-foreground/70"
-          data-settings-subcopy
-        >
-          {active.description}
-        </p>
-      </div>
-      <SegmentedControl
-        size="compact"
-        legend="Server bar"
-        onValueChange={setServerBarMode}
-        optionTestIdPrefix="server-bar"
-        options={SERVER_BAR_OPTIONS}
-        testId="server-bar-control"
-        value={mode}
-      />
-    </SettingsOptionRow>
+    <>
+      <SettingsOptionRow data-testid="server-bar-row">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">Server bar</p>
+          <p
+            className="text-sm font-normal text-muted-foreground/70"
+            data-settings-subcopy
+          >
+            {active.description}
+          </p>
+        </div>
+        <SegmentedControl
+          size="compact"
+          legend="Server bar position"
+          onValueChange={(value) => setServerBarPrefs({ position: value })}
+          optionTestIdPrefix="server-bar"
+          options={SERVER_BAR_POSITIONS}
+          testId="server-bar-control"
+          value={position}
+        />
+      </SettingsOptionRow>
+      <SettingsOptionRow data-testid="server-bar-autohide-row">
+        <div className="min-w-0">
+          <label
+            className="text-sm font-medium"
+            htmlFor="server-bar-autohide-switch"
+          >
+            Show server bar only on hover
+          </label>
+          <p
+            className="text-sm font-normal text-muted-foreground/70"
+            data-settings-subcopy
+          >
+            {position === "left"
+              ? "Tucked away; move the pointer to the window's left edge to show it"
+              : "Hidden in the top bar until the pointer is over it"}
+          </p>
+        </div>
+        <Switch
+          checked={autoHide}
+          data-testid="server-bar-autohide-toggle"
+          id="server-bar-autohide-switch"
+          onCheckedChange={(on) => setServerBarPrefs({ autoHide: on })}
+        />
+      </SettingsOptionRow>
+    </>
   );
 }

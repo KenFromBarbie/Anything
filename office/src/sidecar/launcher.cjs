@@ -66,12 +66,47 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 // Identities Buzz gives the floor's agents (one JSON line per update on our
 // stdin, answering the bridge's roster report). Kept until the bridge is up.
 let pendingWorkers = null;
+
+// The app's AI-account usage guard froze (or unfroze) an engine: pause every
+// agent of that provider at its next step, and later resume only the ones it
+// paused, so an agent paused by hand stays paused.
+const frozenByUsage = new Map(); // agent id → provider
+async function freezeAgents(provider, on) {
+  const handlers = shim.ipcMain.handlers;
+  const registry = handlers.get('hive:registry');
+  const snapshot = handlers.get('control:snapshot');
+  const pause = handlers.get('control:pause');
+  const resume = handlers.get('control:resume');
+  if (!registry || !snapshot || !pause || !resume) return;
+  if (!on) {
+    for (const [agentId, p] of frozenByUsage) {
+      if (p !== provider) continue;
+      try { await resume(null, agentId); } catch { /* gone */ }
+      frozenByUsage.delete(agentId);
+    }
+    return;
+  }
+  let reg;
+  try { reg = await registry(null); } catch { return; }
+  for (const agent of Object.values(reg?.agents ?? {})) {
+    if (!agent || agent.archived || (agent.provider ?? 'claude') !== provider) continue;
+    if (frozenByUsage.has(agent.id)) continue;
+    try {
+      if ((await snapshot(null, agent.id))?.paused) continue; // paused by hand
+      await pause(null, agent.id, true);
+      frozenByUsage.set(agent.id, provider);
+    } catch { /* not running */ }
+  }
+}
+
 function onShellMessage(line) {
   let msg;
   try { msg = JSON.parse(line); } catch { return; }
   // The app saw a message go out (typed, or a call transcript): look now
   // rather than at the next poll.
   if (msg?.type === 'poll-now') { buzzBridge?.pollNow(); return; }
+  // AI-account usage guard (the app's Settings → AI accounts).
+  if (msg?.type === 'freeze') { void freezeAgents(String(msg.provider ?? ''), msg.on === true); return; }
   if (msg?.type !== 'office-agents' || !Array.isArray(msg.agents)) return;
   if (buzzBridge) void buzzBridge.setWorkers(msg.agents);
   else pendingWorkers = msg.agents;

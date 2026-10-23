@@ -1,55 +1,68 @@
 import * as React from "react";
 
 /**
- * Where the server bar (the column of servers at the far left) sits.
+ * How the server bar (your servers) is shown: where it sits, and whether it
+ * hides until hovered. Two separate choices in Settings → Appearance.
  *
- * - `pinned` — always shown, as a column on the left.
- * - `hover` — tucked away; it slides out over the app while the pointer is
- *   at the window's left edge, and hides again when it leaves.
- * - `top` — a horizontal row of servers along the top bar.
+ * - `position: "left"` — a column at the window's left; `"top"` — a row in
+ *   the top bar.
+ * - `autoHide` — tucked away until the pointer reaches it: the left edge for
+ *   the column, the top bar for the row.
  *
  * Persisted in localStorage: a device-level layout choice, like the thread
  * layout, not community data.
  */
-export type ServerBarMode = "pinned" | "hover" | "top";
+export type ServerBarPosition = "left" | "top";
+export type ServerBarPrefs = { position: ServerBarPosition; autoHide: boolean };
 
-const STORAGE_KEY = "anything.sidebar.serverBarMode";
-const DEFAULT_MODE: ServerBarMode = "pinned";
+const STORAGE_KEY = "anything.sidebar.serverBar";
+/** The single setting this replaced ("pinned" | "hover" | "top"). */
+const LEGACY_KEY = "anything.sidebar.serverBarMode";
+const DEFAULT: ServerBarPrefs = { position: "left", autoHide: false };
 
 const listeners = new Set<() => void>();
 
-function parse(value: string | null | undefined): ServerBarMode {
-  return value === "hover" || value === "top" || value === "pinned"
-    ? value
-    : DEFAULT_MODE;
-}
-
-function readStored(): ServerBarMode {
+function readStored(): ServerBarPrefs {
   try {
-    return parse(globalThis.localStorage?.getItem(STORAGE_KEY));
+    const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<ServerBarPrefs>;
+      return {
+        position: parsed.position === "top" ? "top" : "left",
+        autoHide: parsed.autoHide === true,
+      };
+    }
+    const legacy = globalThis.localStorage?.getItem(LEGACY_KEY);
+    if (legacy === "hover") return { position: "left", autoHide: true };
+    if (legacy === "top") return { position: "top", autoHide: false };
   } catch {
-    return DEFAULT_MODE;
+    // Storage off or unreadable: the default.
   }
+  return DEFAULT;
 }
 
-let mode = readStored();
+let prefs = readStored();
 
-export function getServerBarMode(): ServerBarMode {
-  return mode;
+export function getServerBarPrefs(): ServerBarPrefs {
+  return prefs;
 }
 
-export function setServerBarMode(next: ServerBarMode): void {
-  if (next === mode) return;
-  mode = next;
+export function setServerBarPrefs(change: Partial<ServerBarPrefs>): void {
+  const next = { ...prefs, ...change };
+  if (next.position === prefs.position && next.autoHide === prefs.autoHide) {
+    return;
+  }
+  prefs = next;
   try {
-    globalThis.localStorage?.setItem(STORAGE_KEY, next);
+    globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(next));
+    globalThis.localStorage?.removeItem(LEGACY_KEY);
   } catch {
     // Storage off: the choice holds for this session only.
   }
   for (const listener of listeners) listener();
 }
 
-export function useServerBarMode(): ServerBarMode {
+export function useServerBarPrefs(): ServerBarPrefs {
   return React.useSyncExternalStore(
     (listener) => {
       listeners.add(listener);
@@ -57,7 +70,7 @@ export function useServerBarMode(): ServerBarMode {
         listeners.delete(listener);
       };
     },
-    () => mode,
-    () => DEFAULT_MODE,
+    () => prefs,
+    () => DEFAULT,
   );
 }

@@ -516,6 +516,11 @@ pub(crate) fn remember_app(app: &AppHandle) {
 /// posted): tell every running Office to check its feeds now, instead of at
 /// its next poll, so agents start on it straight away.
 pub(crate) fn poll_now() {
+    send_line("{\"type\":\"poll-now\"}");
+}
+
+/// Write one JSON line to every running Office's stdin.
+pub(crate) fn send_line(line: &str) {
     let Some(app) = APP.get() else {
         return;
     };
@@ -529,7 +534,8 @@ pub(crate) fn poll_now() {
     for running in guard.iter_mut() {
         if let Some(stdin) = running.stdin.as_mut() {
             let _ = stdin
-                .write_all(b"{\"type\":\"poll-now\"}\n")
+                .write_all(line.as_bytes())
+                .and_then(|_| stdin.write_all(b"\n"))
                 .and_then(|_| stdin.flush());
         }
     }
