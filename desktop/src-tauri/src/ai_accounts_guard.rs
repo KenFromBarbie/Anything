@@ -23,6 +23,15 @@ const TICK: Duration = Duration::from_secs(60);
 const WARN_EVERY_MS: i64 = 60 * 60 * 1000;
 const LOG_KEEP: usize = 100;
 
+/// One writer at a time: the minute check reads the state, takes seconds to
+/// read usage, then saves; without this a rule or freeze saved meanwhile
+/// would be overwritten.
+static GUARD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn guard_lock() -> std::sync::MutexGuard<'static, ()> {
+    GUARD_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 #[derive(Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum AtCap {
@@ -196,6 +205,7 @@ fn broadcast_freeze(engine: Engine, on: bool) {
 
 /// One pass over the engines: apply the rules to the accounts in use.
 pub fn check(app: &AppHandle) {
+    let _lock = guard_lock();
     let mut state = load(app);
     let before = serde_json::to_string(&state).unwrap_or_default();
     let mut changed_accounts = false;
@@ -323,19 +333,29 @@ fn check_soon(app: &AppHandle) {
 
 #[tauri::command]
 pub fn ai_accounts_guard(app: AppHandle) -> GuardState {
+    // Read without the lock: a check may be mid-way, and the screen only
+    // needs the last saved state.
     let mut state = load(&app);
     state.log.reverse(); // newest first
     state
 }
 
 #[tauri::command]
-pub fn ai_accounts_set_rule(
+pub async fn ai_accounts_set_rule(
     app: AppHandle,
     engine: String,
     id: String,
     rule: Option<Rule>,
 ) -> Result<(), String> {
+    // Off the main thread: it waits for a check that may be reading usage.
+    tauri::async_runtime::spawn_blocking(move || set_rule(app, engine, id, rule))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn set_rule(app: AppHandle, engine: String, id: String, rule: Option<Rule>) -> Result<(), String> {
     let engine = Engine::parse(&engine)?;
+    let lock = guard_lock();
     let mut state = load(&app);
     let key = rule_key(engine, &id);
     let empty = |r: &Rule| {
@@ -350,14 +370,22 @@ pub fn ai_accounts_set_rule(
         }
     }
     save(&app, &state)?;
+    drop(lock);
     check_soon(&app);
     Ok(())
 }
 
 /// Freeze or unfreeze an engine's agents by hand.
 #[tauri::command]
-pub fn ai_accounts_freeze(app: AppHandle, engine: String, on: bool) -> Result<(), String> {
+pub async fn ai_accounts_freeze(app: AppHandle, engine: String, on: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || freeze(app, engine, on))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn freeze(app: AppHandle, engine: String, on: bool) -> Result<(), String> {
     let engine = Engine::parse(&engine)?;
+    let _lock = guard_lock();
     let mut state = load(&app);
     if on {
         state.frozen.insert(

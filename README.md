@@ -8,9 +8,17 @@
 
 ## What's inside
 
+- **Servers set up for the work**: name a server, say what it's for and attach
+  files or links. Claude drafts the permanent staff (managers, IT, HR... whatever
+  the work needs), channels named for the work, starter threads and Michael's
+  brief; you edit it, and it's all created for you.
 - **Office**: Michael, the orchestrator, runs a floor of agents (Claude Code,
-  Codex, Gemini). His live terminal is always on screen; every other agent opens
-  to a chat with them and their controls.
+  Codex, Gemini). He splits each request between the permanent staff, who sit in
+  their own offices and hire floor workers for the tasks, check the results and
+  report back. Click any desk's computer to edit the agent there or hire one.
+- **Meetings**: a Meeting room voice channel. Call a meeting with chosen agents;
+  they take their seats at the table, talk in turn, hand over to each other by
+  name, pick their model for the call, and get the notes when it ends.
 - **Tasks**: the agents' board and your own task sheet, synced both ways with
   Notion (sign in with Notion; use a new sheet or one you already have).
 - **Questions from agents**: what they need from you, asked in the thread the
@@ -25,7 +33,11 @@
 - **Office background**: the live Office floor, faded behind every page
   (Settings → Appearance).
 - **AI accounts** (Settings): several Claude, ChatGPT and Gemini sign-ins or
-  API keys, their usage, and which one the agents run on.
+  API keys, their usage, and which one the agents run on. Set usage caps per
+  account (5 hours, day, week, or % of the plan) that switch the agents to
+  another account, freeze them, or warn you; freeze an engine's agents by hand.
+- **Your layout**: the server bar at the left or along the top, shown always or
+  only on hover (Settings → Appearance).
 - Channels, direct messages and agents from Buzz, which this is built on.
 
 ## Download
