@@ -175,7 +175,7 @@ class BuzzBridge {
     const fresh = () => ({ since: Math.floor(Date.now() / 1000), seen: [] });
     let s = {};
     try { s = JSON.parse(fs.readFileSync(this.statePath, 'utf8')); } catch { /* first run */ }
-    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '' };
+    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [] };
     // Older state files: one cursor (Michael's) and thread entries holding the
     // thread itself (an object, or before that just the channel id).
     if (!state.cursors[GOD]) state.cursors[GOD] = s.since !== undefined ? { since: s.since, seen: s.seen ?? [] } : fresh();
@@ -263,6 +263,7 @@ class BuzzBridge {
     }
     await this.joinDefaultChannels(this.michael);
     await this.startReplyServer();
+    this.writePostingGuide();
     this.log.log(`[buzz-bridge] Michael is ${this.pubkey.slice(0, 12)}… on ${this.relayUrl}; owner ${this.owner.slice(0, 12)}…; identity ${this.managed ? 'held by Buzz (owner-attested)' : 'local'}`);
     this.timer = setInterval(() => { void this.poll(); }, POLL_MS);
     void this.poll();
@@ -334,6 +335,76 @@ class BuzzBridge {
       this.cursor(w); // starts at now: never replay old channel history at a new agent
       await this.joinDefaultChannels(w);
       this.log.log(`[buzz-bridge] ${w.name} (${w.agentId}) is ${w.pubkey.slice(0, 12)}… on Buzz`);
+    }
+    this.saveState();
+    this.writePostingGuide();
+  }
+
+  /**
+   * How every agent posts in the server's channels, kept in the hive as
+   * BUZZ.md (each agent's prompt points there). Agents never hold a relay key:
+   * they post through buzz-post / buzz-reply, and the office signs as them.
+   * Work that didn't arrive from a channel (Michael's kickoff, a staff task)
+   * carries no posting note of its own, which left agents trying the raw CLI.
+   * Running agents are told once, too.
+   */
+  writePostingGuide() {
+    if (!this.postWrapperPath) return;
+    let root;
+    try {
+      const config = JSON.parse(fs.readFileSync(join(this.userData, 'config.json'), 'utf8'));
+      if (!config.harnessHome) return;
+      root = join(config.harnessHome, 'hive');
+    } catch {
+      return;
+    }
+    const agents = this.identities().filter((i) => i.pubkey).map((i) => `- @${i.name} (${i.agentId})`);
+    const guide = [
+      '# Posting in the server\'s channels',
+      '',
+      'You never need a relay key: the office posts for you, signed as you. Never run the `buzz` CLI yourself and never ask the owner for BUZZ_PRIVATE_KEY.',
+      '',
+      '## Start a post in a channel (by name or id; you join it if needed)',
+      'Write the text to a file, then run:',
+      '',
+      `    ${this.postCommand()} --channel <name> --text-file "<file>"`,
+      '',
+      '## Answer a message that was delivered to you from a channel',
+      'Use the reply command given in that delivery (it carries --reply-to).',
+      '',
+      '## Mentions',
+      'Write @Name in the text to bring an office agent in. Agents who can post:',
+      ...agents,
+      '',
+      'Floor workers hired for a task have no channel identity: they report to whoever hired them, who posts.',
+      '',
+    ].join('\n');
+    try {
+      fs.mkdirSync(root, { recursive: true });
+      const file = join(root, 'BUZZ.md');
+      const old = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+      if (old !== guide) {
+        const tmp = `${file}.tmp`;
+        fs.writeFileSync(tmp, guide);
+        fs.renameSync(tmp, file);
+      }
+    } catch (e) {
+      this.log.warn('[buzz-bridge] could not write BUZZ.md:', e.message);
+      return;
+    }
+    const send = this.shim.ipcMain.handlers.get('hive:send');
+    if (!send) return;
+    this.state.toldPosting ??= [];
+    for (const who of this.identities()) {
+      if (!who.pubkey || this.state.toldPosting.includes(who.agentId)) continue;
+      this.state.toldPosting.push(who.agentId);
+      void Promise.resolve(send({ sender: null, senderFrame: null }, {
+        to: who.agentId,
+        act: 'inform',
+        subject: 'How to post in the server\'s channels',
+        body: `[OFFICE NOTE] You can post in the server's channels yourself, no key needed: ${this.postCommand()} --channel <name> --text-file "<file>". The full guide is ${join(root, 'BUZZ.md')}. Never run the buzz CLI directly or ask the owner for BUZZ_PRIVATE_KEY. If you were waiting on channel access, carry on now.`,
+        requires_reply: false
+      }, 'human')).catch(() => {});
     }
     this.saveState();
   }

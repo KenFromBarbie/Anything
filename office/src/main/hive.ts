@@ -1500,6 +1500,7 @@ export class HiveManager {
     // happened. Gated on the toggle: advertising a disabled path is worse than
     // saying nothing, and COMMANDS.md documents it either way for the case where
     // the operator turns it on after god was already running.
+    const postingLine = `POSTING IN THE SERVER'S CHANNELS: follow ${inRoot('BUZZ.md')} (the buzz-post and buzz-reply commands); the office posts for you, signed as you. Never run the \`buzz\` CLI yourself and never ask for BUZZ_PRIVATE_KEY or a relay key.`;
     const staffLine = meta.isStaff
       ? `PERMANENT STAFF: you hold a standing role on this server (${meta.role ?? 'your area'}) for as long as it exists, and you own that area. Michael (god) sends you the parts of each request that fall in your area. For each one: (1) break it into tasks and put them on the board (tasks.json, with "assignee" set to whoever does each); (2) do quick things yourself, and for anything bigger or parallel HIRE FLOOR WORKERS: write ONE JSON file per worker into ${inRoot('spawn-requests')}/<id>.json with \`objective\` (a full contract: objective, expected output, references and tools, boundaries and the definition of done), \`cwd\` (the server's work folder: ${meta.cwd}), \`name\`, and \`"requestedBy": "${meta.id}"\`. Workers report back to you; (3) check their results, fix or re-task what falls short, and (4) send god ONE combined result for your part. Work outside your area goes back to god, not to a worker. Keep your area's notes in memory.md so the role carries on across sessions.`
       : '';
@@ -1530,6 +1531,7 @@ export class HiveManager {
       memoryLine,
       knowledgeLine,
       godLine,
+      postingLine,
       staffLine,
       spawnQueueLine,
       runtimeLine,
