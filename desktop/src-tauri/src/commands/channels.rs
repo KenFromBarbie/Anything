@@ -34,11 +34,8 @@ const STARTER_CHANNELS: &[StarterChannelSpec] = &[
         name: "general",
         description: "General conversation and community updates.",
     },
-    StarterChannelSpec {
-        slug: "welcome-everyone",
-        name: "welcome-everyone",
-        description: "Say hi, ask a question, or share what brought you here.",
-    },
+    // No public "welcome-everyone": the private Welcome channel is the one
+    // welcome, and a second read as a duplicate.
 ];
 
 // ── Tauri commands ────────────────────────────────────────────────────────────

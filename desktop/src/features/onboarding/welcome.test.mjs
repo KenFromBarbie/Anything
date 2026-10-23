@@ -305,31 +305,43 @@ test("ensureStarterChannels reuses existing open starter channels", async () => 
   assert.equal(ensureCalls, 0);
 });
 
-test("ensureStarterChannels resumes when one starter channel is missing", async () => {
+test("ensureStarterChannels creates #general when it's missing, with no public welcome", async () => {
   const general = makeChannel({
     id: "general-channel",
     name: "general",
     visibility: "open",
   });
-  const welcomeEveryone = makeChannel({
-    id: "welcome-everyone-channel",
-    name: "welcome-everyone",
-    visibility: "open",
-  });
   let ensureCalls = 0;
 
   const result = await ensureStarterChannels({
-    getChannels: async () => [general],
+    getChannels: async () => [],
     ensureStarterChannels: async () => {
       ensureCalls += 1;
-      return [general, welcomeEveryone];
+      return [general];
     },
   });
 
   assert.equal(result.generalChannel, general);
-  assert.equal(result.welcomeChannel, welcomeEveryone);
-  assert.deepEqual(result.channels, [general, welcomeEveryone]);
+  assert.equal(result.welcomeChannel, undefined);
+  assert.deepEqual(result.channels, [general]);
   assert.equal(ensureCalls, 1);
+});
+
+test("a server with only #general needs no starter setup", async () => {
+  const general = makeChannel({
+    id: "general-channel",
+    name: "general",
+    visibility: "open",
+  });
+  let ensureCalls = 0;
+  await ensureStarterChannels({
+    getChannels: async () => [general],
+    ensureStarterChannels: async () => {
+      ensureCalls += 1;
+      return [general];
+    },
+  });
+  assert.equal(ensureCalls, 0);
 });
 
 test("isWelcomeExperienceChannel matches legacy Welcome and starter welcome-everyone", () => {

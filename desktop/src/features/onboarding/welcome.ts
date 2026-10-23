@@ -42,7 +42,9 @@ type StarterChannelsClient = {
 export type StarterChannelsResult = {
   channels: Channel[];
   generalChannel: Channel;
-  welcomeChannel: Channel;
+  /** The public #welcome-everyone, on servers made before it was dropped
+   *  (new servers have only the private Welcome). */
+  welcomeChannel?: Channel;
 };
 
 type WelcomeChannelOptions = {
@@ -96,11 +98,13 @@ export function findStarterChannels(
     STARTER_WELCOME_CHANNEL_NAME,
   );
 
-  if (!generalChannel || !welcomeChannel) {
+  if (!generalChannel) {
     return null;
   }
 
-  return { generalChannel, welcomeChannel };
+  return welcomeChannel
+    ? { generalChannel, welcomeChannel }
+    : { generalChannel };
 }
 
 function hasOnlyCurrentOrAllowedMembers(
