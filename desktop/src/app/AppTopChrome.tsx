@@ -71,11 +71,15 @@ export function AppTopChrome({
   // Cmd +/- text zoom (rem), so rem-based clearance shrinks under them when
   // zoomed out. This is a deliberate exception to the rem-first rule.
   const macChrome = isMacPlatform() && !isFullscreen;
+  // Elsewhere there are no lights to clear: the row reaches back over the
+  // rail's empty top so the buttons sit at the window's left edge.
   const navRowPaddingClass = macChrome
     ? hasCommunityRail
       ? "pl-[32px]"
       : "pl-[80px]"
-    : "pl-3";
+    : hasCommunityRail
+      ? "-ml-14 pl-2"
+      : "pl-2";
   const navRowAlignmentClass = macChrome ? "translate-y-[3px]" : null;
 
   React.useLayoutEffect(() => {

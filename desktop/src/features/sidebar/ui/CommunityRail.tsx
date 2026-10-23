@@ -36,6 +36,7 @@ import {
 } from "@/shared/ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 import { cn } from "@/shared/lib/cn";
+import { isMacPlatform } from "@/shared/lib/platform";
 import { getInitials } from "@/shared/lib/initials";
 import { writeTextToClipboard } from "@/shared/lib/clipboard";
 
@@ -376,7 +377,14 @@ export function CommunityRail({
   return (
     <nav
       aria-label="Communities"
-      className="relative z-20 flex w-14 shrink-0 flex-col items-center gap-2.5 overflow-y-auto bg-sidebar px-2.5 pb-5 pt-[calc(var(--buzz-top-chrome-height,40px)+7px)]"
+      className={cn(
+        "relative z-20 flex w-14 shrink-0 flex-col items-center gap-2.5 overflow-y-auto bg-sidebar px-2.5 pb-5",
+        // Off macOS the top bar reaches over the rail's top (its buttons sit
+        // at the window's left edge), so the rail starts below it.
+        isMacPlatform()
+          ? "pt-[calc(var(--buzz-top-chrome-height,40px)+7px)]"
+          : "mt-(--buzz-top-chrome-height,40px) pt-[7px]",
+      )}
       data-testid="community-rail"
     >
       <DndContext
