@@ -6,11 +6,13 @@ import {
   WELCOME_CANVAS_CONTENT,
 } from "./welcomeCanvas.ts";
 
-test("welcome canvas covers purpose, agent use, a first challenge, and help", () => {
-  assert.match(WELCOME_CANVAS_CONTENT, /private channel is your home base/i);
-  assert.match(WELCOME_CANVAS_CONTENT, /Mention an agent/i);
-  assert.match(WELCOME_CANVAS_CONTENT, /quick challenge/i);
-  assert.match(WELCOME_CANVAS_CONTENT, /Anything user guide/i);
+test("welcome canvas covers how the office works, how to start, and what to ask", () => {
+  assert.match(WELCOME_CANVAS_CONTENT, /Michael/);
+  assert.match(WELCOME_CANVAS_CONTENT, /permanent staff/i);
+  assert.match(WELCOME_CANVAS_CONTENT, /## Start here/);
+  assert.match(WELCOME_CANVAS_CONTENT, /## Things you can ask for/);
+  assert.match(WELCOME_CANVAS_CONTENT, /Meeting room/);
+  assert.doesNotMatch(WELCOME_CANVAS_CONTENT, /Fizz|Honey|Pollen/);
 });
 
 test("ensureWelcomeCanvas seeds a fresh channel with no canvas", async () => {

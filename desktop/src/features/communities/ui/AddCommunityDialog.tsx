@@ -93,7 +93,7 @@ export function AddCommunityDialog({
       open={open}
     >
       <DialogContent
-        className="max-w-lg gap-0 overflow-hidden p-0"
+        className="max-w-lg gap-0 overflow-hidden p-0 transition-[max-width] has-[[data-testid=local-server-plan]]:max-w-2xl"
         data-testid="add-community-dialog"
       >
         <DialogHeader className="px-6 pb-3 pt-5 pr-14">

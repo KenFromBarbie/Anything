@@ -69,7 +69,9 @@ export function LocalServerCreateForm({
     const value = link.trim();
     if (!value) return;
     const url = /^[a-z]+:\/\//i.test(value) ? value : `https://${value}`;
-    setLinks((current) => (current.includes(url) ? current : [...current, url]));
+    setLinks((current) =>
+      current.includes(url) ? current : [...current, url],
+    );
     setLink("");
   };
 
@@ -101,7 +103,9 @@ export function LocalServerCreateForm({
         files,
         links: pending,
       });
-      setPlan(planFromDraft(name.trim(), purpose.trim(), draft, files, pending));
+      setPlan(
+        planFromDraft(name.trim(), purpose.trim(), draft, files, pending),
+      );
     } catch (e) {
       setPlan(draftPlan(name.trim(), purpose.trim(), files, pending));
       setPlanNote(
@@ -298,61 +302,85 @@ export function LocalServerCreateForm({
 
   return (
     <div
-      className="grid max-h-[70vh] min-w-0 gap-4 overflow-x-hidden overflow-y-auto pr-1"
+      className="-mr-3 grid max-h-[68vh] min-w-0 gap-6 overflow-x-hidden overflow-y-auto pr-3 [scrollbar-width:thin]"
       data-testid="local-server-plan"
     >
       {planNote ? (
-        <p className="text-xs text-muted-foreground">{planNote}</p>
+        <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+          {planNote}
+        </p>
       ) : null}
+
       <Section
-        hint="Permanent roles, each with an office of their own. They split up Michael's requests and hire floor workers as the work needs."
+        hint="Standing roles with an office each. They split up Michael's requests and hire floor workers."
         onAdd={() =>
           edit((p) => ({ ...p, agents: [...p.agents, { name: "", role: "" }] }))
         }
         title="Permanent staff"
       >
-        {plan.agents.map((agent, index) => (
-          <Row
-            // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place
-            key={index}
-            onRemove={() =>
-              edit((p) => ({
-                ...p,
-                agents: p.agents.filter((_, i) => i !== index),
-              }))
-            }
-          >
-            <Input
-              className="h-8 w-28 shrink-0"
-              onChange={(event) =>
-                edit((p) => ({
-                  ...p,
-                  agents: p.agents.map((a, i) =>
-                    i === index ? { ...a, name: event.target.value } : a,
-                  ),
-                }))
-              }
-              placeholder="Name"
-              value={agent.name}
-            />
-            <Input
-              className="h-8"
-              onChange={(event) =>
-                edit((p) => ({
-                  ...p,
-                  agents: p.agents.map((a, i) =>
-                    i === index ? { ...a, role: event.target.value } : a,
-                  ),
-                }))
-              }
-              placeholder="Role: what they do"
-              value={agent.role}
-            />
-          </Row>
-        ))}
+        <div className="grid gap-2 sm:grid-cols-2">
+          {plan.agents.map((agent, index) => (
+            <div
+              className="group relative flex min-w-0 gap-3 rounded-xl border border-border/60 bg-muted/30 p-3"
+              // biome-ignore lint/suspicious/noArrayIndexKey: cards are edited in place
+              key={index}
+            >
+              <span
+                aria-hidden
+                className="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+                style={{
+                  background: `hsl(${(index * 67 + 205) % 360} 70% 50%)`,
+                }}
+              >
+                {agent.name.trim().charAt(0).toUpperCase() || "?"}
+              </span>
+              <div className="grid min-w-0 flex-1 gap-0.5 pr-5">
+                <input
+                  aria-label="Name"
+                  className={`${GHOST_FIELD} text-sm font-medium`}
+                  onChange={(event) =>
+                    edit((p) => ({
+                      ...p,
+                      agents: p.agents.map((a, i) =>
+                        i === index ? { ...a, name: event.target.value } : a,
+                      ),
+                    }))
+                  }
+                  placeholder="Name"
+                  value={agent.name}
+                />
+                <textarea
+                  aria-label="Role"
+                  className={`${GHOST_FIELD} resize-none text-xs leading-relaxed text-muted-foreground [field-sizing:content]`}
+                  onChange={(event) =>
+                    edit((p) => ({
+                      ...p,
+                      agents: p.agents.map((a, i) =>
+                        i === index ? { ...a, role: event.target.value } : a,
+                      ),
+                    }))
+                  }
+                  placeholder="Title: what they own"
+                  rows={1}
+                  value={agent.role}
+                />
+              </div>
+              <RemoveButton
+                label={`Remove ${agent.name || "this role"}`}
+                onClick={() =>
+                  edit((p) => ({
+                    ...p,
+                    agents: p.agents.filter((_, i) => i !== index),
+                  }))
+                }
+              />
+            </div>
+          ))}
+        </div>
       </Section>
 
       <Section
+        hint="Named after this work's streams and deliverables."
         onAdd={() =>
           edit((p) => ({
             ...p,
@@ -361,49 +389,59 @@ export function LocalServerCreateForm({
         }
         title="Channels"
       >
-        {plan.channels.map((channel, index) => (
-          <Row
-            // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place
-            key={index}
-            onRemove={() =>
-              edit((p) => ({
-                ...p,
-                channels: p.channels.filter((_, i) => i !== index),
-              }))
-            }
-          >
-            <Input
-              className="h-8 w-32 shrink-0"
-              onChange={(event) =>
+        <List>
+          {plan.channels.map((channel, index) => (
+            <ListRow
+              // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place
+              key={index}
+              onRemove={() =>
                 edit((p) => ({
                   ...p,
-                  channels: p.channels.map((c, i) =>
-                    i === index ? { ...c, name: event.target.value } : c,
-                  ),
+                  channels: p.channels.filter((_, i) => i !== index),
                 }))
               }
-              placeholder="name"
-              value={channel.name}
-            />
-            <Input
-              className="h-8"
-              onChange={(event) =>
-                edit((p) => ({
-                  ...p,
-                  channels: p.channels.map((c, i) =>
-                    i === index ? { ...c, purpose: event.target.value } : c,
-                  ),
-                }))
-              }
-              placeholder="What it's for"
-              value={channel.purpose}
-            />
-          </Row>
-        ))}
+              removeLabel={`Remove #${channel.name || "channel"}`}
+            >
+              <div className="flex min-w-0 items-baseline sm:w-56 sm:shrink-0">
+                <span className="pl-1.5 text-sm text-muted-foreground">#</span>
+                <textarea
+                  aria-label="Channel name"
+                  className={`${GHOST_FIELD} resize-none break-all text-sm font-medium [field-sizing:content]`}
+                  onChange={(event) =>
+                    edit((p) => ({
+                      ...p,
+                      channels: p.channels.map((c, i) =>
+                        i === index ? { ...c, name: event.target.value } : c,
+                      ),
+                    }))
+                  }
+                  placeholder="channel-name"
+                  rows={1}
+                  value={channel.name}
+                />
+              </div>
+              <textarea
+                aria-label="What it's for"
+                className={`${GHOST_FIELD} flex-1 resize-none text-sm text-muted-foreground [field-sizing:content]`}
+                onChange={(event) =>
+                  edit((p) => ({
+                    ...p,
+                    channels: p.channels.map((c, i) =>
+                      i === index ? { ...c, purpose: event.target.value } : c,
+                    ),
+                  }))
+                }
+                placeholder="What it's for"
+                rows={1}
+                value={channel.purpose}
+              />
+            </ListRow>
+          ))}
+        </List>
       </Section>
 
       <Section
-        hint="Optional: a first post in a channel, to start a thread."
+        hint="Optional first posts that get the work going."
         onAdd={() =>
           edit((p) => ({
             ...p,
@@ -415,85 +453,94 @@ export function LocalServerCreateForm({
         }
         title="Starter threads"
       >
-        {plan.threads.map((thread, index) => (
-          <Row
-            // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place
-            key={index}
-            onRemove={() =>
-              edit((p) => ({
-                ...p,
-                threads: p.threads.filter((_, i) => i !== index),
-              }))
-            }
-          >
-            <select
-              aria-label="Channel"
-              className="h-8 w-32 shrink-0 rounded-md border border-input bg-background px-2 text-sm"
-              onChange={(event) =>
+        <List>
+          {plan.threads.map((thread, index) => (
+            <ListRow
+              // biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place
+              key={index}
+              onRemove={() =>
                 edit((p) => ({
                   ...p,
-                  threads: p.threads.map((t, i) =>
-                    i === index ? { ...t, channel: event.target.value } : t,
-                  ),
+                  threads: p.threads.filter((_, i) => i !== index),
                 }))
               }
-              value={thread.channel}
+              removeLabel="Remove this thread"
             >
-              {plan.channels.map((c) => (
-                <option key={c.name} value={c.name}>
-                  #{c.name}
-                </option>
-              ))}
-            </select>
-            <Input
-              className="h-8"
-              onChange={(event) =>
-                edit((p) => ({
-                  ...p,
-                  threads: p.threads.map((t, i) =>
-                    i === index ? { ...t, title: event.target.value } : t,
-                  ),
-                }))
-              }
-              placeholder="Thread title"
-              value={thread.title}
-            />
-          </Row>
-        ))}
+              <textarea
+                aria-label="Thread"
+                className={`${GHOST_FIELD} flex-1 resize-none text-sm [field-sizing:content]`}
+                onChange={(event) =>
+                  edit((p) => ({
+                    ...p,
+                    threads: p.threads.map((t, i) =>
+                      i === index ? { ...t, title: event.target.value } : t,
+                    ),
+                  }))
+                }
+                placeholder="What the first post asks or sets out"
+                rows={1}
+                value={thread.title}
+              />
+              <select
+                aria-label="Channel"
+                className="h-7 max-w-full shrink-0 self-start truncate rounded-full border-0 bg-foreground/5 px-2.5 text-xs text-muted-foreground outline-none hover:bg-foreground/10 focus-visible:ring-2 focus-visible:ring-ring sm:max-w-44"
+                onChange={(event) =>
+                  edit((p) => ({
+                    ...p,
+                    threads: p.threads.map((t, i) =>
+                      i === index ? { ...t, channel: event.target.value } : t,
+                    ),
+                  }))
+                }
+                value={thread.channel}
+              >
+                {plan.channels.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    #{c.name}
+                  </option>
+                ))}
+              </select>
+            </ListRow>
+          ))}
+        </List>
       </Section>
 
-      <div className="grid min-w-0 gap-1.5">
-        <span className="text-sm font-medium">Work folder and files</span>
-        <div className="flex items-center gap-2">
+      <Section title="Work folder">
+        <div className="flex min-w-0 items-center gap-3 rounded-xl border border-border/60 bg-muted/30 p-3">
+          <FolderOpen className="size-4 shrink-0 text-muted-foreground" />
+          <div className="grid min-w-0 flex-1">
+            <span className="truncate text-sm" title={folder ?? undefined}>
+              {folder ?? `~/Anything/${plan.name}`}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {folder
+                ? "The agents work here."
+                : "Made for you; the agents work here."}
+              {plan.files.length > 0
+                ? ` Your ${plan.files.length} file${plan.files.length === 1 ? " goes" : "s go"} in its inputs folder.`
+                : ""}
+            </span>
+          </div>
           <Button
             onClick={() => void chooseFolder()}
             size="sm"
             type="button"
-            variant="outline"
+            variant="ghost"
           >
-            <FolderOpen />
-            {folder ? "Change folder" : "Choose a folder"}
+            {folder ? "Change" : "Choose…"}
           </Button>
-          <span className="min-w-0 truncate text-xs text-muted-foreground">
-            {folder ??
-              `None chosen: a new folder, ~/Anything/${plan.name}, is made.`}
-          </span>
         </div>
-        <p className="text-xs text-muted-foreground">
-          The agents work here.{" "}
-          {plan.files.length > 0
-            ? `Your ${plan.files.length} attached file${plan.files.length === 1 ? " is" : "s are"} copied into its inputs folder.`
-            : "Michael starts by reading any files you put in it."}
-        </p>
-      </div>
+      </Section>
 
-      <label
-        className="grid gap-1.5 text-sm font-medium"
-        htmlFor="server-prompt"
-      >
-        Michael's starting prompt
+      <details className="group/prompt min-w-0 rounded-xl border border-border/60 bg-muted/30">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+          Michael's starting prompt
+          <span className="text-xs font-normal text-muted-foreground group-open/prompt:hidden">
+            {promptEdited ? "Edited" : "Written from the setup above"}
+          </span>
+        </summary>
         <Textarea
-          className="min-h-36 font-mono text-xs"
+          className="min-h-48 rounded-none rounded-b-xl border-0 border-t border-border/60 bg-transparent font-mono text-xs leading-relaxed focus-visible:ring-0"
           id="server-prompt"
           onChange={(event) => {
             setPromptEdited(true);
@@ -501,10 +548,10 @@ export function LocalServerCreateForm({
           }}
           value={plan.prompt}
         />
-      </label>
+      </details>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      <div className="flex justify-between gap-2">
+      <div className="sticky bottom-0 -mb-px flex justify-between gap-2 border-t border-border/60 bg-background pt-3">
         <Button
           disabled={busy}
           onClick={() => setStep("describe")}
@@ -522,6 +569,10 @@ export function LocalServerCreateForm({
   );
 }
 
+/** An inline field that reads as text until hovered or focused. */
+const GHOST_FIELD =
+  "w-full min-w-0 rounded-md border border-transparent bg-transparent px-1.5 py-0.5 outline-none transition-colors placeholder:text-muted-foreground/60 hover:bg-foreground/5 focus:border-input focus:bg-background";
+
 function Section({
   children,
   hint,
@@ -530,44 +581,79 @@ function Section({
 }: {
   children: React.ReactNode;
   hint?: string;
-  onAdd: () => void;
+  onAdd?: () => void;
   title: string;
 }) {
   return (
-    <div className="grid min-w-0 gap-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">{title}</span>
-        <Button onClick={onAdd} size="xs" type="button" variant="ghost">
-          <Plus />
-          Add
-        </Button>
+    <section className="grid min-w-0 gap-2.5">
+      <div className="flex items-end justify-between gap-3">
+        <div className="grid min-w-0 gap-0.5">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          {hint ? (
+            <p className="text-xs text-muted-foreground">{hint}</p>
+          ) : null}
+        </div>
+        {onAdd ? (
+          <Button
+            className="shrink-0"
+            onClick={onAdd}
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            <Plus />
+            Add
+          </Button>
+        ) : null}
       </div>
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
-      <div className="grid gap-1.5">{children}</div>
+      {children}
+    </section>
+  );
+}
+
+function List({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-w-0 divide-y divide-border/60 overflow-hidden rounded-xl border border-border/60 bg-muted/30">
+      {children}
     </div>
   );
 }
 
-function Row({
+function ListRow({
   children,
   onRemove,
+  removeLabel,
 }: {
   children: React.ReactNode;
   onRemove: () => void;
+  removeLabel: string;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-1.5 [&>input]:min-w-0">
+    <div className="group relative flex min-w-0 flex-col gap-1 px-2 py-2 pr-9 sm:flex-row sm:items-start sm:gap-3">
       {children}
-      <Button
-        aria-label="Remove"
-        onClick={onRemove}
-        size="icon-xs"
-        type="button"
-        variant="ghost"
-      >
-        <Trash2 />
-      </Button>
+      <RemoveButton label={removeLabel} onClick={onRemove} />
     </div>
+  );
+}
+
+function RemoveButton({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      aria-label={label}
+      className="absolute top-2 right-2 text-muted-foreground opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 hover:text-foreground"
+      onClick={onClick}
+      size="icon-xs"
+      type="button"
+      variant="ghost"
+    >
+      <Trash2 />
+    </Button>
   );
 }
 

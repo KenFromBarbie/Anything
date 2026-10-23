@@ -1,5 +1,13 @@
 import * as React from "react";
-import { Bot, FolderPlus, Plus, Sparkles, UserPlus } from "lucide-react";
+import {
+  Bot,
+  Building2,
+  FolderPlus,
+  Plus,
+  Sparkles,
+  UserPlus,
+  Users,
+} from "lucide-react";
 
 import {
   getChannelIntroDescription,
@@ -9,10 +17,22 @@ import {
   isWelcomeChannel,
   isWelcomeExperienceChannel,
 } from "@/features/onboarding/welcome";
+import { openMeetingDialog } from "@/features/office/lib/meetingRoom";
 import { useIsProjectHomeChannel } from "@/features/projects/lib/projectHomeChannel";
 import { ProjectChannelIcon } from "@/features/projects/ui/ProjectChannelIcon";
 import type { Channel } from "@/shared/api/types";
 import { HashSearch } from "@/shared/ui/icons";
+
+/** What the Welcome channel says first: how the office works and how to
+ *  get it going. */
+const WELCOME_INTRO = [
+  "Michael runs your office here. Tell him what you need and he splits it between your permanent staff, who hire floor workers for the work and report back to him. You get one answer.",
+  "",
+  "To start, mention @Michael below with what you're working on: the goal, who it's for and what done looks like. Attach files or paste links and the agents read them first. For example:",
+  '• "Plan the first month and give each of the staff their part."',
+  '• "Summarise the attached brief and list the questions you need me to answer."',
+  '• "Every Monday, send me what got done last week and what\'s next."',
+].join("\n");
 
 type ChannelIntroAction = {
   description?: string;
@@ -54,8 +74,25 @@ export function useChannelIntro({
 
     const actions: ChannelIntroAction[] = [];
     if (isWelcomeExperienceChannel(activeChannel)) {
+      actions.push({
+        description: "See who's at their desk and what they're on.",
+        icon: <Building2 aria-hidden className="h-6 w-6" />,
+        label: "Open the Office",
+        onClick: () => {
+          window.location.hash = "#/office";
+        },
+        testId: "welcome-intro-action-office",
+      });
+      actions.push({
+        description: "Talk it through out loud with the team.",
+        icon: <Users aria-hidden className="h-6 w-6" />,
+        label: "Call a meeting",
+        onClick: openMeetingDialog,
+        testId: "welcome-intro-action-meeting",
+      });
       if (onBrowseChannels) {
         actions.push({
+          description: "Every workstream has its own.",
           icon: <HashSearch aria-hidden className="h-6 w-6" />,
           label: "Browse channels",
           onClick: onBrowseChannels,
@@ -65,6 +102,7 @@ export function useChannelIntro({
 
       if (onCreateChannel) {
         actions.push({
+          description: "Start a new stream of work.",
           icon: <Plus aria-hidden className="h-6 w-6" />,
           label: "Create a channel",
           onClick: onCreateChannel,
@@ -74,8 +112,9 @@ export function useChannelIntro({
 
       if (onWelcomeAddAgent) {
         actions.push({
+          description: "Add someone for a new kind of work.",
           icon: <Bot aria-hidden className="h-6 w-6" />,
-          label: "Create an agent",
+          label: "Hire an agent",
           onClick: onWelcomeAddAgent,
           testId: "welcome-intro-action-create-agent",
         });
@@ -88,7 +127,7 @@ export function useChannelIntro({
           : getChannelIntroKind(activeChannel, projectHome),
         channelName: activeChannel.name,
         description: isWelcomeChannel(activeChannel)
-          ? null
+          ? WELCOME_INTRO
           : getChannelIntroDescription(activeChannel),
         icon: <Sparkles aria-hidden className="h-7 w-7" />,
       };

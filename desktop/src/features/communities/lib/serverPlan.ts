@@ -227,12 +227,18 @@ export function planFromDraft(
     })
     .slice(0, STAFF_SEATS);
   const channels = (draft.channels ?? [])
-    .map((c) => ({ name: channelSlug(str(c.name, 60)), purpose: str(c.purpose, 200) }))
+    .map((c) => ({
+      name: channelSlug(str(c.name, 60)),
+      purpose: str(c.purpose, 200),
+    }))
     .filter((c) => c.name)
     .slice(0, 10);
   const names = new Set(channels.map((c) => c.name));
   const threads = (draft.threads ?? [])
-    .map((t) => ({ channel: channelSlug(str(t.channel, 60)), title: str(t.title, 200) }))
+    .map((t) => ({
+      channel: channelSlug(str(t.channel, 60)),
+      title: str(t.title, 200),
+    }))
     .filter((t) => t.title && names.has(t.channel))
     .slice(0, 6);
   const plan: ServerPlan = {
@@ -301,7 +307,9 @@ export function startingPrompt(plan: ServerPlan): string {
     for (const link of plan.links) lines.push(`- Link: ${link}`);
     lines.push("");
   }
-  const first = plan.channels[0] ? `#${channelSlug(plan.channels[0].name)}` : "a channel";
+  const first = plan.channels[0]
+    ? `#${channelSlug(plan.channels[0].name)}`
+    : "a channel";
   lines.push(
     "FIRST STEPS",
     `1. Read the material${materialList(plan)}.`,

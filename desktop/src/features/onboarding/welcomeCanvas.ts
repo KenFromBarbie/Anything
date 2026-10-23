@@ -2,21 +2,32 @@ import { getCanvas, setCanvas } from "@/shared/api/tauri";
 
 export const WELCOME_CANVAS_CONTENT = `# Welcome to Anything
 
-This private channel is your home base for getting oriented. Fizz, Honey, and Pollen can help you learn the app, troubleshoot setup, and work through something you are building.
+This server runs an AI office for you. **Michael** runs it: you tell him what you need, he splits it up and hands each part to the right person, and he comes back with one answer. Under him sit your **permanent staff**, each owning one area of the work in an office of their own, and they hire **floor workers** whenever a job needs more hands.
 
-## Work with your agents
+## Start here
 
-- Mention an agent when you want its help.
-- Bring multiple agents into the same conversation when you want different perspectives.
-- Keep decisions, progress, and results in the channel so everyone shares the same context.
+1. **Tell Michael what you're working on.** Mention @Michael in any channel or message him directly: the goal, who it's for, what done looks like, and any deadline.
+2. **Hand over your material.** Attach files or paste links in your message; the agents read them before they start.
+3. **Watch it happen in the Office.** Open the Office view to see who is at their desk, what each agent is doing, and to click a desk to manage the agent sitting there.
+4. **Check the board.** Tasks shows every piece of work, who owns it and what is blocked on you.
 
-## Try something
+## Things you can ask for
 
-Bring the team something you are building, or give them a quick challenge to see how they work together.
+- "Michael, plan the first month of this project and give each of the staff their part."
+- "Research our three closest competitors and summarise what they do better than us."
+- "Draft replies to the questions in the attached file, and flag anything you're unsure of."
+- "Set up a weekly report every Monday on what got done and what's next."
+- "Hire someone to handle our bookkeeping and give them a desk."
 
-## Get help
+## Meetings
 
-Ask the team a question here, or read the [Anything user guide](https://github.com/KenFromBarbie/Anything#readme).
+Use **Meeting room** under Channels (or the button in the Office) to talk to your agents out loud. Pick who joins, ask questions, and hand tasks out; they take their seats at the table and go back to their desks when it's over.
+
+## Good habits
+
+- One request per message works best; say what done looks like.
+- Keep decisions and results in the channel they belong to, so everyone works from the same context.
+- When an agent asks you something, answer in the same thread so the work can carry on.
 `;
 
 type WelcomeCanvasClient = {

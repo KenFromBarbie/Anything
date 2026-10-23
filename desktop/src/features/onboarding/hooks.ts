@@ -17,7 +17,6 @@ import {
 } from "@/features/onboarding/welcome";
 import { forceFreshOnboarding } from "@/features/onboarding/devFreshOnboarding";
 import { ensureWelcomeCanvas } from "@/features/onboarding/welcomeCanvas";
-import { ensureWelcomeTeam } from "@/features/onboarding/welcomeGuide";
 import { useProfileQuery } from "@/features/profile/hooks";
 import { useCommunities } from "@/features/communities/useCommunities";
 import { useIdentityQuery } from "@/shared/api/hooks";
@@ -56,7 +55,8 @@ function seedWelcomeExperience(
 
   const promise = (async () => {
     try {
-      await ensureWelcomeTeam(channelId, communityScope);
+      // No starter bee team: the server's own Office (Michael and his
+      // staff) is who you work with here.
       await ensureWelcomeCanvas(channelId);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: managedAgentsQueryKey }),

@@ -19,9 +19,12 @@ test("the draft follows what the server is for", () => {
 });
 
 test("the starting prompt names the staff, channels and material, and how work flows", () => {
-  const plan = draftPlan("Race Cafe", "Open a sim racing cafe", [
-    "C:/work/race-cafe/inputs/menu.pdf",
-  ], ["https://example.com/venue"]);
+  const plan = draftPlan(
+    "Race Cafe",
+    "Open a sim racing cafe",
+    ["C:/work/race-cafe/inputs/menu.pdf"],
+    ["https://example.com/venue"],
+  );
   plan.workFolder = "C:/work/race-cafe";
   const prompt = startingPrompt(plan);
   assert.match(prompt, /Race Cafe/);
@@ -65,7 +68,10 @@ test("Claude's draft becomes the setup, cleaned up", () => {
     plan.channels.map((c) => c.name),
     ["admissions-queries", "timetables"],
   );
-  assert.deepEqual(plan.threads.map((t) => t.channel), ["admissions-queries"]);
+  assert.deepEqual(
+    plan.threads.map((t) => t.channel),
+    ["admissions-queries"],
+  );
   assert.match(plan.prompt, /Help students and staff/);
 });
 

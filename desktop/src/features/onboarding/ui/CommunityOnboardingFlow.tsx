@@ -259,11 +259,18 @@ export function CommunityOnboardingFlow({
     };
   }, [clear, isEnteringStage]);
 
-  const retry = () =>
+  const retry = () => {
+    if (isAutoSetupStage) {
+      checkedProfileTransactionRef.current = null;
+      finalizeStartedRef.current = null;
+      update({ stage: "profile", error: undefined });
+      return;
+    }
     update({
       stage: transaction?.inviteCode ? "claiming" : "connecting",
       error: undefined,
     });
+  };
   const relayUrl = transaction?.relayUrl;
   const finish = React.useCallback(async () => {
     if (!relayUrl) return;
@@ -314,23 +321,59 @@ export function CommunityOnboardingFlow({
   }, [isPending, update]);
 
   const isProfileStage = transaction?.stage === "profile";
+  // No profile or team-intro pages: you already have a name and a look, so a
+  // new community gets them as they are (from the community you came from,
+  // else your identity), and the app goes straight in.
   React.useEffect(() => {
     if (!isProfileStage || !transaction) return;
     if (checkedProfileTransactionRef.current === transaction.id) return;
 
     checkedProfileTransactionRef.current = transaction.id;
-    void getProfile()
-      .then((profile) => {
-        if (profile.hasProfileEvent) {
-          setTransitionDirection("forward");
-          update({ stage: "team-intro", error: undefined }, transaction.id);
+    const carried = queryClient.getQueryData<{
+      displayName?: string | null;
+      avatarUrl?: string | null;
+    }>(profileQueryKey);
+    void (async () => {
+      try {
+        const profile = await getProfile().catch(() => null);
+        if (!profile?.hasProfileEvent) {
+          const identity = await getIdentity();
+          const name =
+            carried?.displayName?.trim() ||
+            identity.displayName?.trim() ||
+            "Owner";
+          await updateProfile({
+            displayName: name,
+            avatarUrl: carried?.avatarUrl?.trim() || undefined,
+          });
         }
-      })
-      .catch(() => {
-        // Discovery is best-effort. Staying on the profile step preserves the
-        // existing path when the relay cannot answer the lookup.
-      });
-  }, [isProfileStage, transaction, update]);
+        setTransitionDirection("forward");
+        update({ stage: "team-intro", error: undefined }, transaction.id);
+      } catch (error) {
+        if (isRelayMembershipDeniedError(error)) {
+          const identity = await getIdentity().catch(() => null);
+          setDeniedPubkey(identity?.pubkey ?? "");
+          setIsMembershipDenied(true);
+          return;
+        }
+        update(
+          { error: error instanceof Error ? error.message : String(error) },
+          transaction.id,
+        );
+      }
+    })();
+  }, [isProfileStage, queryClient, transaction, update]);
+  const finalizeStartedRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (transaction?.stage !== "team-intro" || transaction.error) return;
+    if (finalizeStartedRef.current === transaction.id) return;
+    finalizeStartedRef.current = transaction.id;
+    void finalize();
+  }, [finalize, transaction]);
+  const isAutoSetupStage =
+    isProfileStage ||
+    transaction?.stage === "team-intro" ||
+    transaction?.stage === "finalizing";
   const isTeamStage =
     transaction?.stage === "team-intro" ||
     transaction?.stage === "finalizing" ||
@@ -492,19 +535,21 @@ export function CommunityOnboardingFlow({
       <OnboardingCard
         allowWideContent={isTeamStage}
         backAction={
-          isProfileStage
-            ? {
-                disabled: isPending || isUploadingAvatar,
-                onClick: onCancel,
-                testId: "community-profile-back",
-              }
-            : isTeamStage
+          isAutoSetupStage
+            ? undefined
+            : isProfileStage
               ? {
-                  disabled: isPending || transaction.stage === "entering",
-                  onClick: backToProfile,
-                  testId: "community-team-intro-back",
+                  disabled: isPending || isUploadingAvatar,
+                  onClick: onCancel,
+                  testId: "community-profile-back",
                 }
-              : undefined
+              : isTeamStage
+                ? {
+                    disabled: isPending || transaction.stage === "entering",
+                    onClick: backToProfile,
+                    testId: "community-team-intro-back",
+                  }
+                : undefined
         }
         current={isTeamStage ? 7 : isProfileStage ? 6 : 5}
         systemColorScheme={systemColorScheme}
@@ -526,7 +571,8 @@ export function CommunityOnboardingFlow({
             data-testid="community-onboarding-body"
           >
             {transaction.stage === "claiming" ||
-            transaction.stage === "connecting" ? (
+            transaction.stage === "connecting" ||
+            isAutoSetupStage ? (
               <>
                 <Users className="mx-auto h-10 w-10" />
                 <h1 className="mt-5 text-title font-normal">
@@ -536,7 +582,9 @@ export function CommunityOnboardingFlow({
                   {transaction.error ??
                     (transaction.stage === "claiming"
                       ? "Accepting your invite…"
-                      : "Connecting securely…")}
+                      : isAutoSetupStage
+                        ? "Setting up your place in it…"
+                        : "Connecting securely…")}
                 </p>
                 <div className="mt-6 flex justify-center gap-3">
                   {transaction.error ? (
