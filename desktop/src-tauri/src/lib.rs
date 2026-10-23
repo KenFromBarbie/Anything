@@ -57,6 +57,7 @@ mod templates;
 mod terminal_runtime;
 mod title_bar;
 mod server_planner;
+mod local_state_backup;
 #[cfg_attr(not(test), allow(dead_code))]
 mod terminal_transport;
 #[cfg(target_os = "macos")]
@@ -562,6 +563,8 @@ pub fn run() {
             local_servers::local_servers_available,
             local_servers::server_work_folder,
             server_planner::server_plan,
+            local_state_backup::local_state_backup_save,
+            local_state_backup::local_state_backup_load,
             server_planner::server_pick_files,
             server_planner::server_attach_files,
             studio::studio_status,

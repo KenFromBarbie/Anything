@@ -211,6 +211,9 @@ fn start_server(app: &AppHandle, server: &LocalServer) -> Result<(), String> {
         std::thread::sleep(Duration::from_millis(250));
     }
     if let Ok(mut running) = app.state::<LocalServers>().running.lock() {
+        // Drop this port's earlier relay if it has exited (the supervisor
+        // restarted it), so the list doesn't grow.
+        running.retain_mut(|(port, old)| *port != server.port || matches!(old.try_wait(), Ok(None)));
         running.push((server.port, child));
     }
     Ok(())
@@ -286,24 +289,38 @@ pub fn local_servers_available() -> bool {
     relay_setup().is_ok()
 }
 
-/// At launch: start every local server this app made.
+/// How often the local servers are checked and restarted if down.
+const SUPERVISE_EVERY: Duration = Duration::from_secs(15);
+/// Set at quit, so the supervisor doesn't restart what's being stopped.
+static STOPPING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// At launch: start every local server this app made, and keep them up.
+///
+/// Kept up, not just started once: at launch a relay from the previous run
+/// can still hold its port for a moment (so it was skipped) and then exit,
+/// leaving the server unreachable. Any that isn't listening is restarted,
+/// which also brings back one that crashed.
 pub fn start_all(app: &AppHandle) {
-    let servers = load_registry(app);
-    if servers.is_empty() {
-        return;
-    }
     let app = app.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        for server in servers {
-            if let Err(error) = start_server(&app, &server) {
-                eprintln!("buzz-desktop: local server {}: {error}", server.name);
+    std::thread::spawn(move || {
+        use std::sync::atomic::Ordering;
+        while !STOPPING.load(Ordering::Acquire) {
+            for server in load_registry(&app) {
+                if STOPPING.load(Ordering::Acquire) {
+                    return;
+                }
+                if let Err(error) = start_server(&app, &server) {
+                    eprintln!("buzz-desktop: local server {}: {error}", server.name);
+                }
             }
+            std::thread::sleep(SUPERVISE_EVERY);
         }
     });
 }
 
 /// At quit: stop the servers this app started.
 pub fn shutdown(app: &AppHandle) {
+    STOPPING.store(true, std::sync::atomic::Ordering::Release);
     let Some(state) = app.try_state::<LocalServers>() else {
         return;
     };

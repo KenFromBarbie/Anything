@@ -20,6 +20,10 @@ import { Toaster } from "@/shared/ui/sonner";
 import { TooltipProvider } from "@/shared/ui/tooltip";
 import { recoverLocalStorageQuotaOnStartup } from "@/shared/lib/localStorageQuota";
 import { startLocalStorageSweep } from "@/shared/lib/localStorageSweep";
+import {
+  restoreLocalStateIfWiped,
+  startLocalStateBackup,
+} from "@/shared/lib/localStateBackup";
 import { initializeConversationDensityPreference } from "@/shared/lib/conversationDensityPreference";
 import { initializeFontSizePreference } from "@/shared/lib/fontSizePreference";
 
@@ -32,14 +36,14 @@ const E2E_COMMUNITY_ID = "e2e-default-community";
 const ONBOARDING_COMPLETION_STORAGE_KEY_PREFIX = "buzz-onboarding-complete.v1:";
 const DEV_STATE_RESET_PARAM = "resetDevState";
 
-function resetDevWebviewStateFromUrl() {
+function resetDevWebviewStateFromUrl(): boolean {
   if (!import.meta.env.DEV) {
-    return;
+    return false;
   }
 
   const url = new URL(window.location.href);
   if (url.searchParams.get(DEV_STATE_RESET_PARAM) !== "1") {
-    return;
+    return false;
   }
 
   // WebKit groups every Buzz binary under one disk directory, but storage is
@@ -49,6 +53,7 @@ function resetDevWebviewStateFromUrl() {
   window.sessionStorage.clear();
   url.searchParams.delete(DEV_STATE_RESET_PARAM);
   window.history.replaceState(window.history.state, "", url);
+  return true;
 }
 
 function configureDevE2eBridgeFromUrl() {
@@ -122,7 +127,13 @@ async function installE2eBridgeIfConfigured() {
 }
 
 async function bootstrap() {
-  resetDevWebviewStateFromUrl();
+  const resetOnPurpose = resetDevWebviewStateFromUrl();
+  // A wiped store (not a reset asked for) gets its on-disk copy back before
+  // anything reads it; then the copy is kept current.
+  if (!resetOnPurpose && !(window as E2eWindow).__BUZZ_E2E__) {
+    await restoreLocalStateIfWiped();
+  }
+  startLocalStateBackup();
   configureDevE2eBridgeFromUrl();
   recoverLocalStorageQuotaOnStartup();
   initializeConversationDensityPreference();

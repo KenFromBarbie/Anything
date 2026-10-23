@@ -24,7 +24,7 @@ const QUOTA_RECOVERY_MARKER_KEY = "buzz-local-storage-quota-recovery.v1";
 // read state. localStorage strings are UTF-16, so count two bytes per code unit.
 const PURE_CACHE_BYTE_BUDGET = 2 * 1024 * 1024;
 
-function isPureCacheKey(key: string): boolean {
+export function isPureCacheKey(key: string): boolean {
   return PURE_CACHE_KEY_PREFIXES.some((prefix) => key.startsWith(prefix));
 }
 
