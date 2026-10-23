@@ -244,7 +244,7 @@ async fn client_registration(server: &AuthServer) -> Result<ClientReg, String> {
     let response = http()
         .post(endpoint)
         .json(&json!({
-            "client_name": "Buzz",
+            "client_name": "Anything",
             "redirect_uris": [redirect_uri()],
             "grant_types": ["authorization_code", "refresh_token"],
             "response_types": ["code"],
@@ -257,7 +257,7 @@ async fn client_registration(server: &AuthServer) -> Result<ClientReg, String> {
     let body: Value = response.json().await.unwrap_or(Value::Null);
     if !status.is_success() {
         return Err(format!(
-            "Notion refused to register Buzz ({}): {}",
+            "Notion refused to register Anything ({}): {}",
             status.as_u16(),
             body.get("error_description")
                 .or_else(|| body.get("error"))
@@ -446,7 +446,7 @@ async fn send(body: Value, retry_auth: bool) -> Result<Option<Value>, String> {
         }
         let Some(id) = id else { return Ok(None) };
         let reply = parse_response(&content_type, &text, id)
-            .ok_or("Notion sent an answer Buzz couldn't read.")?;
+            .ok_or("Notion sent an answer Anything couldn't read.")?;
         if let Some(error) = reply.get("error") {
             return Err(format!(
                 "Notion: {}",
@@ -475,7 +475,7 @@ async fn ensure_initialized() -> Result<(), String> {
             "params": {
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {},
-                "clientInfo": { "name": "Buzz", "version": env!("CARGO_PKG_VERSION") },
+                "clientInfo": { "name": "Anything", "version": env!("CARGO_PKG_VERSION") },
             },
         }),
         true,

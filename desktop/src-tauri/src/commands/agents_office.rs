@@ -30,9 +30,9 @@ use crate::util::now_iso;
 pub(crate) const OFFICE_BACKEND_ID: &str = "office";
 const OFFICE_AGENT_NAME: &str = "Michael";
 const OFFICE_AGENT_ABOUT: &str =
-    "Orchestrates the Office: routes work to the agents on its floor (Munder Difflin).";
+    "Orchestrates the Office: routes work to the agents on its floor.";
 const OFFICE_WORKER_ABOUT: &str =
-    "Works on the Office floor (Munder Difflin); Michael routes work to it.";
+    "Works on the Office floor; Michael routes work to it.";
 
 /// Michael's identity, as handed to the office sidecar.
 pub(crate) struct OfficeAgentIdentity {

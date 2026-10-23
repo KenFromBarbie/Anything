@@ -1490,7 +1490,7 @@ export class HiveManager {
     // us) was invisible to every investigation.
     const rt = this.runtimeInfo();
     const runtimeLine = rt
-      ? `RUNNING BUILD: Munder Difflin v${rt.version}, ${rt.packaged ? 'packaged app' : 'local dev build'}${rt.appPath ? `, from ${rt.appPath}` : ''}. Say this version if asked which one is running, and do not assume behaviour from an older one. A local dev build inherits the launching shell's environment (umask included) where a packaged app does not, so file modes and inherited env can legitimately differ between the two. \`log.jsonl\` records an \`app-start\` event on every launch, which is how you spot a restart or a build switch.`
+      ? `RUNNING BUILD: the Office v${rt.version}, ${rt.packaged ? 'packaged app' : 'local dev build'}${rt.appPath ? `, from ${rt.appPath}` : ''}. Say this version if asked which one is running, and do not assume behaviour from an older one. A local dev build inherits the launching shell's environment (umask included) where a packaged app does not, so file modes and inherited env can legitimately differ between the two. \`log.jsonl\` records an \`app-start\` event on every launch, which is how you spot a restart or a build switch.`
       : '';
     // Item 11: god could not find the spawn queue. The mechanism has worked since
     // v0.4.4, but nothing told him it existed — the prompt said "spawn" without
@@ -2894,11 +2894,11 @@ There are two shared surfaces, both in the hive root:
 
 ## Asking the human
 Where you ask depends on where the work came from:
-- **Work from a Buzz channel or DM** carries its origin on the card, \`"buzz": { "replyTo": "<event id>" }\`
-  (record it on every card you make from a Buzz request — the request tells you the event id). Ask in
+- **Work from a channel or DM** carries its origin on the card, \`"buzz": { "replyTo": "<event id>" }\`
+  (record it on every card you make from a channel request — the request tells you the event id). Ask in
   that thread: post the ask with the \`buzz-reply\` command from the request, \`--reply-to\` the card's
   \`buzz.replyTo\`. Set the card \`"status": "blocked"\` but add NO \`humanQA\` entry; the human answers in
-  the thread and the reply reaches the god as a Buzz follow-up.
+  the thread and the reply reaches the god as a channel follow-up.
 - **Everything else** goes on the card, as below; it shows in the human's Inbox.
 
 When a card can only move with the human — a question to answer, or an action only they can do

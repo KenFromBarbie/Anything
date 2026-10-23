@@ -15,6 +15,8 @@ type AppTopChromeProps = {
   onGoBack: () => void;
   onGoForward: () => void;
   hasCommunityRail?: boolean;
+  /** The server bar, when it lives in the top bar (Settings → Appearance). */
+  serverBar?: React.ReactNode;
 };
 
 // Fixed px on purpose (button box + glyph): these controls sit beside the
@@ -58,6 +60,7 @@ export function AppTopChrome({
   onGoBack,
   onGoForward,
   hasCommunityRail = false,
+  serverBar,
 }: AppTopChromeProps) {
   const topChromeRef = React.useRef<HTMLDivElement>(null);
   const isFullscreen = useIsFullscreen();
@@ -159,6 +162,11 @@ export function AppTopChrome({
           <ChevronRight />
         </Button>
       </div>
+      {serverBar ? (
+        <div className="ml-2 flex h-full min-w-0 max-w-[40%] items-center border-l border-sidebar-border/60 pl-2">
+          {serverBar}
+        </div>
+      ) : null}
       <div
         className={cn("flex min-w-0 flex-1 items-center", navRowAlignmentClass)}
         data-tauri-drag-region

@@ -11,6 +11,7 @@ import {
   SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
   verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
@@ -86,6 +87,10 @@ export function communityRailIndicators(unread: CommunityUnreadState): {
   };
 }
 
+/** True while the rail is laid out as a row (the top bar), so the active
+ *  marker sits under a server and tooltips open below. */
+const RailRowContext = React.createContext(false);
+
 function CommunityButton({
   community,
   isActive,
@@ -109,6 +114,7 @@ function CommunityButton({
 }) {
   const { mentionCount, showBadge, showDot, badgeLabel } =
     communityRailIndicators(unread);
+  const inRow = React.useContext(RailRowContext);
 
   const tooltipLabel = showBadge
     ? `${community.name} — ${mentionCount} mention${mentionCount === 1 ? "" : "s"}`
@@ -137,7 +143,11 @@ function CommunityButton({
               {isActive ? (
                 <span
                   aria-hidden="true"
-                  className="absolute -left-2.5 h-5 w-1 rounded-r-full bg-primary"
+                  className={
+                    inRow
+                      ? "absolute -bottom-1 h-1 w-5 rounded-t-full bg-primary"
+                      : "absolute -left-2.5 h-5 w-1 rounded-r-full bg-primary"
+                  }
                   data-testid={`community-rail-active-${community.id}`}
                 />
               ) : null}
@@ -177,7 +187,7 @@ function CommunityButton({
             </button>
           </ContextMenuTrigger>
         </TooltipTrigger>
-        <TooltipContent side="right" sideOffset={8}>
+        <TooltipContent side={inRow ? "bottom" : "right"} sideOffset={8}>
           {tooltipLabel}
         </TooltipContent>
       </Tooltip>
@@ -312,7 +322,14 @@ export function CommunityRail({
   onAddCommunity,
   onUpdateCommunity,
   onReorderCommunities,
-}: CommunityRailProps) {
+  layout = "column",
+  className,
+}: CommunityRailProps & {
+  /** `column`: the rail at the left. `row`: servers across the top bar. */
+  layout?: "column" | "row";
+  className?: string;
+}) {
+  const inRow = layout === "row";
   const { unreadByCommunity, markCommunityRead } = useCommunityUnread(
     communities,
     activeCommunityId,
@@ -375,78 +392,91 @@ export function CommunityRail({
   };
 
   return (
-    <nav
-      aria-label="Communities"
-      className={cn(
-        "relative z-20 flex w-14 shrink-0 flex-col items-center gap-2.5 overflow-y-auto bg-sidebar px-2.5 pb-5",
-        // Off macOS the top bar reaches over the rail's top (its buttons sit
-        // at the window's left edge), so the rail starts below it.
-        isMacPlatform()
-          ? "pt-[calc(var(--buzz-top-chrome-height,40px)+7px)]"
-          : "mt-(--buzz-top-chrome-height,40px) pt-[7px]",
-      )}
-      data-testid="community-rail"
-    >
-      <DndContext
-        onDragEnd={handleDragEnd}
-        onDragStart={handleDragStart}
-        sensors={sensors}
+    <RailRowContext.Provider value={inRow}>
+      <nav
+        aria-label="Communities"
+        className={cn(
+          inRow
+            ? "relative flex h-full min-w-0 shrink items-center gap-2 overflow-x-auto px-1 [scrollbar-width:none] [&_button]:scale-90"
+            : cn(
+                "relative z-20 flex w-14 shrink-0 flex-col items-center gap-2.5 overflow-y-auto bg-sidebar px-2.5 pb-5",
+                // Off macOS the top bar reaches over the rail's top (its buttons
+                // sit at the window's left edge), so the rail starts below it.
+                isMacPlatform()
+                  ? "pt-[calc(var(--buzz-top-chrome-height,40px)+7px)]"
+                  : "mt-(--buzz-top-chrome-height,40px) pt-[7px]",
+              ),
+          className,
+        )}
+        data-layout={layout}
+        data-testid="community-rail"
       >
-        <SortableContext
-          items={communityIds}
-          strategy={verticalListSortingStrategy}
+        <DndContext
+          onDragEnd={handleDragEnd}
+          onDragStart={handleDragStart}
+          sensors={sensors}
         >
-          {communities.map((community) => (
-            <SortableCommunityButton
-              key={community.id}
-              activeCommunityId={activeCommunityId}
-              canInvite={
-                community.id === activeCommunityId && canInviteToActiveCommunity
-              }
-              community={community}
-              iconsByCommunity={iconsByCommunity}
-              unreadByCommunity={unreadByCommunity}
-              onInvite={() => onOpenSettings?.("community-members")}
-              onMarkAllRead={handleMarkAllRead}
-              onSetEditingCommunity={setEditingCommunity}
-              onSwitchCommunity={onSwitchCommunity}
-            />
-          ))}
-        </SortableContext>
-        <DragOverlay>
-          {draggingCommunity ? (
-            <CommunityDragOverlay
-              community={draggingCommunity}
-              iconUrl={iconsByCommunity[draggingCommunity.id] ?? null}
-            />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            aria-label="Add community"
-            className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sidebar-accent/60 text-sidebar-foreground/70 outline-hidden transition-all hover:rounded-xl hover:bg-primary/80 hover:text-primary-foreground focus:outline-none focus-visible:outline-none"
-            data-testid="community-rail-add"
-            onClick={onAddCommunity}
-            type="button"
+          <SortableContext
+            items={communityIds}
+            strategy={
+              inRow
+                ? horizontalListSortingStrategy
+                : verticalListSortingStrategy
+            }
           >
-            <Plus className="h-4 w-4" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right" sideOffset={8}>
-          Add community
-        </TooltipContent>
-      </Tooltip>
-      <EditCommunityDialog
-        onOpenChange={(open) => {
-          if (!open) setEditingCommunity(null);
-        }}
-        onSave={onUpdateCommunity}
-        open={editingCommunity !== null}
-        community={editingCommunity}
-        showIconEditor={editingCommunity?.id === activeCommunityId}
-      />
-    </nav>
+            {communities.map((community) => (
+              <SortableCommunityButton
+                key={community.id}
+                activeCommunityId={activeCommunityId}
+                canInvite={
+                  community.id === activeCommunityId &&
+                  canInviteToActiveCommunity
+                }
+                community={community}
+                iconsByCommunity={iconsByCommunity}
+                unreadByCommunity={unreadByCommunity}
+                onInvite={() => onOpenSettings?.("community-members")}
+                onMarkAllRead={handleMarkAllRead}
+                onSetEditingCommunity={setEditingCommunity}
+                onSwitchCommunity={onSwitchCommunity}
+              />
+            ))}
+          </SortableContext>
+          <DragOverlay>
+            {draggingCommunity ? (
+              <CommunityDragOverlay
+                community={draggingCommunity}
+                iconUrl={iconsByCommunity[draggingCommunity.id] ?? null}
+              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              aria-label="Add community"
+              className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sidebar-accent/60 text-sidebar-foreground/70 outline-hidden transition-all hover:rounded-xl hover:bg-primary/80 hover:text-primary-foreground focus:outline-none focus-visible:outline-none"
+              data-testid="community-rail-add"
+              onClick={onAddCommunity}
+              type="button"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side={inRow ? "bottom" : "right"} sideOffset={8}>
+            Add community
+          </TooltipContent>
+        </Tooltip>
+        <EditCommunityDialog
+          onOpenChange={(open) => {
+            if (!open) setEditingCommunity(null);
+          }}
+          onSave={onUpdateCommunity}
+          open={editingCommunity !== null}
+          community={editingCommunity}
+          showIconEditor={editingCommunity?.id === activeCommunityId}
+        />
+      </nav>
+    </RailRowContext.Provider>
   );
 }

@@ -92,6 +92,8 @@ import { useReminderNotifications } from "@/features/reminders/useReminderNotifi
 import { AppSidebar } from "@/features/sidebar/ui/AppSidebar";
 import { requestFocusedThreadClose } from "@/features/channels/focusedThreadCloseRequest";
 import { CommunityRail } from "@/features/sidebar/ui/CommunityRail";
+import { HoverServerBar } from "@/features/sidebar/ui/HoverServerBar";
+import { useServerBarMode } from "@/features/sidebar/lib/serverBarPreference";
 import { useChannelMutes } from "@/features/sidebar/lib/useChannelMutes";
 import { useChannelStars } from "@/features/sidebar/lib/useChannelStars";
 import { useCommunities } from "@/features/communities/useCommunities";
@@ -141,6 +143,9 @@ export function AppShell() {
     viewHuddleChannel,
   } = useHuddlePresentation();
   const hasCommunityRail = communitiesHook.communities.length > 0;
+  // Where the server bar sits (Settings → Appearance): a column at the left,
+  // tucked away until hovered, or a row in the top bar.
+  const serverBarMode = useServerBarMode();
   const addCommunityDialog = useAddCommunityDialogState();
   const [isChannelManagementOpen, setIsChannelManagementOpen] =
     React.useState(false);
@@ -789,7 +794,7 @@ export function AppShell() {
             onViewHuddleChannel={viewHuddleChannel}
             onVisibilityChange={handleHuddleVisibilityChange}
           >
-            {hasCommunityRail && !isHuddleRoom ? (
+            {hasCommunityRail && !isHuddleRoom && serverBarMode === "pinned" ? (
               <CommunityRail
                 activeCommunityId={communitiesHook.activeCommunity?.id ?? null}
                 onAddCommunity={addCommunityDialog.openDialog}
@@ -798,6 +803,21 @@ export function AppShell() {
                 onUpdateCommunity={communitiesHook.updateCommunity}
                 communities={communitiesHook.communities}
               />
+            ) : null}
+            {hasCommunityRail && !isHuddleRoom && serverBarMode === "hover" ? (
+              <HoverServerBar>
+                <CommunityRail
+                  activeCommunityId={
+                    communitiesHook.activeCommunity?.id ?? null
+                  }
+                  className="mt-0 h-full pt-2"
+                  onAddCommunity={addCommunityDialog.openDialog}
+                  onReorderCommunities={communitiesHook.reorderCommunities}
+                  onSwitchCommunity={handleSwitchCommunity}
+                  onUpdateCommunity={communitiesHook.updateCommunity}
+                  communities={communitiesHook.communities}
+                />
+              </HoverServerBar>
             ) : null}
             <SidebarProvider
               className="relative z-10 min-h-0 min-w-0 flex-1 flex-col overflow-visible"
@@ -809,9 +829,28 @@ export function AppShell() {
                     <AppTopChrome
                       canGoBack={canGoBack}
                       canGoForward={canGoForward}
-                      hasCommunityRail={hasCommunityRail}
+                      hasCommunityRail={
+                        hasCommunityRail && serverBarMode === "pinned"
+                      }
                       onGoBack={goBack}
                       onGoForward={goForward}
+                      serverBar={
+                        hasCommunityRail && serverBarMode === "top" ? (
+                          <CommunityRail
+                            activeCommunityId={
+                              communitiesHook.activeCommunity?.id ?? null
+                            }
+                            layout="row"
+                            onAddCommunity={addCommunityDialog.openDialog}
+                            onReorderCommunities={
+                              communitiesHook.reorderCommunities
+                            }
+                            onSwitchCommunity={handleSwitchCommunity}
+                            onUpdateCommunity={communitiesHook.updateCommunity}
+                            communities={communitiesHook.communities}
+                          />
+                        ) : undefined
+                      }
                     />
                   ) : null}
                   {settingsOpen ? (
@@ -966,7 +1005,9 @@ export function AppShell() {
                         onChange={setTerminalContextOverride}
                       >
                         <AppShellChannelSurface
-                          hasCommunityRail={hasCommunityRail}
+                          hasCommunityRail={
+                            hasCommunityRail && serverBarMode === "pinned"
+                          }
                           isHuddleRoom={isHuddleRoom}
                           isHuddleRoomStarting={isHuddleRoomStarting}
                           mainInsetRef={mainInsetRef}
@@ -981,7 +1022,9 @@ export function AppShell() {
                         <RelayConnectionOverlay
                           card={relayConnectionCard}
                           errorMessage={channelsErrorMessage}
-                          hasCommunityRail={hasCommunityRail}
+                          hasCommunityRail={
+                            hasCommunityRail && serverBarMode === "pinned"
+                          }
                           isHuddleDrawerOpen={isHuddleDrawerOpen}
                         />
                       ) : null}

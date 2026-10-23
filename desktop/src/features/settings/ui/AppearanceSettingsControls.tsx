@@ -8,6 +8,11 @@ import {
   type ThreadViewMode,
 } from "@/features/channels/lib/threadViewModePreference";
 import { useCommunities } from "@/features/communities/useCommunities";
+import {
+  setServerBarMode,
+  useServerBarMode,
+  type ServerBarMode,
+} from "@/features/sidebar/lib/serverBarPreference";
 import { AvatarFramingSlider } from "@/features/profile/ui/AnimatedAvatarControls";
 import { contrastColorForBackground } from "@/features/profile/ui/ProfileAvatarEditor.utils";
 import {
@@ -712,6 +717,61 @@ export function AccentPickerContent({
           })}
         </div>
       </div>
+    </SettingsOptionRow>
+  );
+}
+
+const SERVER_BAR_OPTIONS: {
+  value: ServerBarMode;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "pinned",
+    label: "Left",
+    description: "Your servers in a column at the left, always shown",
+  },
+  {
+    value: "hover",
+    label: "On hover",
+    description:
+      "Tucked away; move the pointer to the window's left edge to show it",
+  },
+  {
+    value: "top",
+    label: "Top",
+    description: "Your servers in a row along the top bar",
+  },
+];
+
+/** Where the server bar sits: a column, tucked away until hovered, or a row
+ *  in the top bar. */
+export function ServerBarSetting() {
+  const mode = useServerBarMode();
+  const active =
+    SERVER_BAR_OPTIONS.find((option) => option.value === mode) ??
+    SERVER_BAR_OPTIONS[0];
+
+  return (
+    <SettingsOptionRow data-testid="server-bar-row">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">Server bar</p>
+        <p
+          className="text-sm font-normal text-muted-foreground/70"
+          data-settings-subcopy
+        >
+          {active.description}
+        </p>
+      </div>
+      <SegmentedControl
+        size="compact"
+        legend="Server bar"
+        onValueChange={setServerBarMode}
+        optionTestIdPrefix="server-bar"
+        options={SERVER_BAR_OPTIONS}
+        testId="server-bar-control"
+        value={mode}
+      />
     </SettingsOptionRow>
   );
 }

@@ -537,7 +537,7 @@ pub fn render_dynamic_section(
         .filter(|a| !is_archived(a, archived))
         .collect();
     let active_agents = if live.is_empty() {
-        "## Active Agents\n\n*(No agents deployed yet. Add agents in the Buzz desktop app.)*"
+        "## Active Agents\n\n*(No agents deployed yet. Add agents in the Anything desktop app.)*"
             .to_string()
     } else {
         let mut table =

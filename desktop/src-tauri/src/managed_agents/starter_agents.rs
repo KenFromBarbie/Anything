@@ -40,7 +40,7 @@ pub(crate) fn set_starter_agents_removed<R: tauri::Runtime>(
     if removed {
         std::fs::write(
             &path,
-            "The Buzz starter agents were removed by the owner.\n",
+            "The Anything starter agents were removed by the owner.\n",
         )
         .map_err(|e| format!("failed to write {}: {e}", path.display()))
     } else if path.exists() {

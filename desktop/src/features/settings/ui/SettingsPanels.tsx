@@ -52,6 +52,7 @@ import {
   GlassBackgroundSetting,
   LinkPreviewStyleSetting,
   ProminentActiveTabSetting,
+  ServerBarSetting,
   ThreadLayoutSetting,
 } from "./AppearanceSettingsControls";
 import { OfficeBackdropSetting } from "./OfficeBackdropSetting";
@@ -749,6 +750,7 @@ function ThemeSettingsCard() {
           <ConversationDisplaySettings />
           <LinkPreviewStyleSetting />
           <ThreadLayoutSetting />
+          <ServerBarSetting />
         </SettingsOptionGroup>
       </SettingsOptionGroupList>
     </section>

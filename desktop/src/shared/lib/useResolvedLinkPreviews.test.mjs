@@ -55,7 +55,7 @@ test("pending Buzz entity metadata remains image-less", () => {
   const entityPreview = {
     kind: "buzz-repository",
     href: `buzz://repo?owner=${"cd".repeat(32)}&d=buzz`,
-    provider: "Buzz",
+    provider: "Anything",
     title: "buzz",
     typeLabel: "repo",
   };
@@ -219,7 +219,7 @@ test("withEntityFallbacks re-adds previews dropped by null metadata", () => {
   const entityPreview = {
     kind: "buzz-pull-request",
     href: `buzz://pr?id=${"ab".repeat(32)}&owner=${"cd".repeat(32)}&d=buzz`,
-    provider: "Buzz",
+    provider: "Anything",
     title: `buzz #${"ab".repeat(4)}`,
     typeLabel: "Review",
   };
@@ -233,14 +233,14 @@ test("withEntityFallbacks keeps resolved previews and preserves order", () => {
   const first = {
     kind: "buzz-repository",
     href: `buzz://repo?owner=${"cd".repeat(32)}&d=buzz`,
-    provider: "Buzz",
+    provider: "Anything",
     title: "buzz",
     typeLabel: "repo",
   };
   const second = {
     kind: "buzz-issue",
     href: `buzz://issue?id=${"ef".repeat(32)}&owner=${"cd".repeat(32)}&d=buzz`,
-    provider: "Buzz",
+    provider: "Anything",
     title: `buzz #${"ef".repeat(4)}`,
     typeLabel: "Task",
   };

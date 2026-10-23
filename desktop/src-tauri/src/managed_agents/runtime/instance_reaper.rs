@@ -3,6 +3,7 @@ use super::*;
 /// Binary names for the Buzz desktop/Tauri process. Used by dead-instance
 /// detection to confirm the owning desktop is still alive.
 const DESKTOP_BINARY_NAMES: &[&str] = &[
+    "Anything",
     "Buzz",
     "buzz-desktop",
     "buzz_desktop",

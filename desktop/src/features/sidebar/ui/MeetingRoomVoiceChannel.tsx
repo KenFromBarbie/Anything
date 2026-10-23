@@ -78,7 +78,10 @@ export function MeetingRoomVoiceChannel() {
         ) : null}
       </SidebarMenuItem>
       {inMeeting ? (
-        <ul className="ml-7 grid gap-0.5 pb-1" data-testid="meeting-room-people">
+        <ul
+          className="ml-7 grid gap-0.5 pb-1"
+          data-testid="meeting-room-people"
+        >
           <li className="flex h-6 items-center gap-1.5 text-xs text-sidebar-foreground">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
             <span className="truncate font-medium">You</span>

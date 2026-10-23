@@ -43,7 +43,7 @@ const CONTEXT_SAVE_MS = 2000;
 const CLI_TIMEOUT_MS = 30000;
 const SEEN_CAP = 1000;
 const MAX_REPLY_BYTES = 64 * 1024;
-const PROFILE = { name: 'Michael', about: 'Runs the Office: an agent floor (Munder Difflin) hosted in Buzz.' };
+const PROFILE = { name: 'Michael', about: 'Runs the Office: splits your requests between the staff and brings back one answer.' };
 const AUTO_JOIN = ['general'];
 const GOD = 'god';
 /** Agent-authored messages relayed per thread before the bridge stops passing
@@ -574,10 +574,10 @@ class BuzzBridge {
     }
     const where = inCall && !opts.asWork
       ? 'a live voice call (what the owner said, transcribed)'
-      : route.why === 'dm' ? 'a direct message' : route.why === 'followup' ? 'a follow-up in a Buzz thread you are in' : 'a Buzz channel mention';
+      : route.why === 'dm' ? 'a direct message' : route.why === 'followup' ? 'a follow-up in a channel thread you are in' : 'a channel mention';
     const from = fromAgent ? `from ${fromAgent.name}, one of the office's agents` : 'from the office owner';
     const body = [
-      `[BUZZ ${fromAgent ? 'MESSAGE' : 'REQUEST'} — ${where}, ${from}. No one is watching this terminal.]`,
+      `[CHANNEL ${fromAgent ? 'MESSAGE' : 'REQUEST'} — ${where}, ${from}. No one is watching this terminal.]`,
       fromAgent
         ? 'Help with what they ask if it is yours to do; otherwise say so in the thread.'
         : 'Handle it as you would any request from the human: do it yourself or route it to the right agent.',
@@ -615,7 +615,7 @@ class BuzzBridge {
       {
         to: who.agentId,
         act: 'request',
-        subject: `Buzz: ${ev.content.replace(/\s+/g, ' ').slice(0, 70)}`,
+        subject: `Channel: ${ev.content.replace(/\s+/g, ' ').slice(0, 70)}`,
         body,
         conversation: `buzz-${root}`,
         requires_reply: true
@@ -877,7 +877,7 @@ class BuzzBridge {
           to: agentId,
           act: 'inform',
           subject: `${who.name} replied in a thread you're in`,
-          body: `[BUZZ UPDATE — ${who.name} replied in a Buzz thread you were also asked in. No reply needed; use it to avoid repeating or redoing their work.]\n\n${text.slice(0, 1500)}`,
+          body: `[CHANNEL UPDATE — ${who.name} replied in a channel thread you were also asked in. No reply needed; use it to avoid repeating or redoing their work.]\n\n${text.slice(0, 1500)}`,
           conversation: `buzz-${thread.root}`,
           requires_reply: false
         }, 'human')).catch(() => {});
@@ -890,7 +890,7 @@ class BuzzBridge {
   /** Start a conversation in a channel (by name or id), as the calling agent. */
   async postAs(msg) {
     const who = this.byAgent(String(msg.as ?? ''));
-    if (!who) return [403, { ok: false, error: 'only office agents with a Buzz identity can post (is this agent on the floor?)' }];
+    if (!who) return [403, { ok: false, error: 'only office agents with a channel identity can post (is this agent on the floor?)' }];
     const text = String(msg.text ?? '').trim();
     const wanted = String(msg.channel ?? '').trim().replace(/^#/, '');
     if (!text) return [400, { ok: false, error: 'empty message' }];
