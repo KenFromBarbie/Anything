@@ -29,6 +29,10 @@ pub struct Kit {
     pub relay: PathBuf,
     postgres_bin: PathBuf,
     garnet: PathBuf,
+    /// Linux builds carry the kit zipped (`hosting/kit.zip`: the AppImage
+    /// packager chokes on the programs' libraries otherwise); it's unpacked
+    /// into the app's data folder before first use.
+    archive: Option<(PathBuf, PathBuf)>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -55,14 +59,27 @@ fn exe(name: &str) -> String {
     }
 }
 
-/// The kit in this build's resources, if it has one.
-pub fn find(app: &AppHandle) -> Option<Kit> {
-    let dir = app.path().resource_dir().ok()?.join("hosting");
-    let kit = Kit {
+fn kit_in(dir: &Path, archive: Option<(PathBuf, PathBuf)>) -> Kit {
+    Kit {
         relay: dir.join("relay").join(exe("buzz-relay")),
         postgres_bin: dir.join("postgres").join("bin"),
         garnet: dir.join("garnet").join(exe("GarnetServer")),
-    };
+        archive,
+    }
+}
+
+/// The kit in this build's resources, if it has one. Cheap: a zipped kit is
+/// only unpacked by `prepare` (from `ensure_running`).
+pub fn find(app: &AppHandle) -> Option<Kit> {
+    let dir = app.path().resource_dir().ok()?.join("hosting");
+    let zipped = dir.join("kit.zip");
+    if zipped.is_file() {
+        // Unpacked per build (by the archive's size), so an update unpacks anew.
+        let size = std::fs::metadata(&zipped).ok()?.len();
+        let dest = data_dir(app).ok()?.join(format!("kit-{size}"));
+        return Some(kit_in(&dest, Some((zipped, dest.clone()))));
+    }
+    let kit = kit_in(&dir, None);
     let complete = kit.relay.is_file()
         && kit.postgres_bin.join(exe("postgres")).is_file()
         && kit.garnet.is_file();
@@ -73,6 +90,28 @@ pub fn find(app: &AppHandle) -> Option<Kit> {
 }
 
 impl Kit {
+    /// Unpack a zipped kit on first use (once per build).
+    fn prepare(&self) -> Result<(), String> {
+        let Some((zipped, dest)) = &self.archive else {
+            return Ok(());
+        };
+        let done = dest.join(".unpacked");
+        if !done.is_file() {
+            let _ = std::fs::remove_dir_all(dest);
+            std::fs::create_dir_all(dest).map_err(|e| format!("make {}: {e}", dest.display()))?;
+            let file =
+                std::fs::File::open(zipped).map_err(|e| format!("open the hosting kit: {e}"))?;
+            let mut archive =
+                zip::ZipArchive::new(file).map_err(|e| format!("read the hosting kit: {e}"))?;
+            archive
+                .extract(dest)
+                .map_err(|e| format!("unpack the hosting kit: {e}"))?;
+            std::fs::write(&done, b"").map_err(|e| e.to_string())?;
+        }
+        self.ensure_executable();
+        Ok(())
+    }
+
     /// Packaging can drop the executable bit on macOS and Linux; put it back
     /// (best effort: a read-only install that kept it needs nothing).
     fn ensure_executable(&self) {
@@ -323,6 +362,7 @@ fn start_services(
     kit: &Kit,
     dir: &Path,
 ) -> Result<Vec<(String, String)>, String> {
+    kit.prepare()?;
     let settings = settings(dir, services.any_running())?;
     init_database(kit, dir, &settings)?;
     start_database(services, kit, dir, &settings)?;
@@ -411,6 +451,7 @@ mod tests {
             relay: PathBuf::from(var("ANYTHING_KIT_TEST_RELAY")),
             postgres_bin: PathBuf::from(var("ANYTHING_KIT_TEST_PG_BIN")),
             garnet: PathBuf::from(var("ANYTHING_KIT_TEST_GARNET")),
+            archive: None,
         };
         let dir = tempfile::tempdir().unwrap();
         let services = HostingServices::default();

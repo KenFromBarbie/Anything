@@ -162,6 +162,15 @@ jobs:
           find "$kit/garnet" -name "*.pdb" -delete
           test -f "$kit/garnet/GarnetServer$ext" || { echo "missing GarnetServer"; exit 1; }
           du -sh "$kit"/*
+          # The AppImage packager inspects every program in the bundle and
+          # fails on the kit's libraries: Linux ships the kit zipped, and the
+          # app unpacks it on first use (hosting_kit.rs).
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            (cd "$kit" && zip -qr -9 ../hosting-kit.zip .)
+            rm -rf "$kit" && mkdir -p "$kit"
+            mv desktop/src-tauri/hosting-kit.zip "$kit/kit.zip"
+            du -sh "$kit/kit.zip"
+          fi
 
       - name: Build the app
         shell: bash
