@@ -74,3 +74,19 @@
 .buzz-card-textured-dark.buzz-card-textured-compact {
   --buzz-card-textured-source: url("./assets/card-texture-dark-compact.png");
 }
+
+/*
+ * On Anything's first-run screens the powder texture (Buzz's look) gives way
+ * to plain cards: a dark surface, a thin border, rounded corners. Unlayered,
+ * like the rules above, so it wins over them.
+ */
+.buzz-onboarding-neutral-theme .buzz-card-textured {
+  --buzz-card-textured-safe-inset: 1.25rem;
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid hsl(var(--border));
+  border-image: none;
+  border-radius: 1rem;
+  background-color: hsl(var(--card));
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+}

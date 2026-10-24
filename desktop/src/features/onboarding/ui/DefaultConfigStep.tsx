@@ -258,7 +258,7 @@ function AgentDefaultsSection({
                 className={
                   cardLayout
                     ? `${ONBOARDING_CARD_INPUT_CLASS} py-2 text-sm`
-                    : "h-12 rounded-2xl border-foreground/15 bg-white px-4 py-2 text-sm shadow-none hover:bg-white/95"
+                    : "h-12 rounded-2xl border-border bg-background/70 px-4 py-2 text-sm shadow-none hover:bg-background"
                 }
                 id="global-agent-default-harness"
                 onValueChange={handleHarnessChange}
@@ -302,7 +302,7 @@ function AgentDefaultsSection({
             selectClassName={
               cardLayout
                 ? `${ONBOARDING_CARD_INPUT_CLASS} py-2 text-sm`
-                : "h-12 rounded-2xl border-foreground/15 bg-white px-4 py-2 text-sm shadow-none hover:bg-white/95"
+                : "h-12 rounded-2xl border-border bg-background/70 px-4 py-2 text-sm shadow-none hover:bg-background"
             }
             showApiKeyEnvVarName={!cardLayout}
             stackModelAndEffortHorizontally={

@@ -47,11 +47,13 @@
     --sidebar-accent-foreground: 234 16.02% 35.49%;
     --sidebar-border: 225 13.56% 76.86%;
     --sidebar-ring: 225 13.56% 76.86%;
-    /* Exact Buzz palette tokens; components consume these semantically. */
-    --buzz-gradient-light-top: #e6e6b6;
-    --buzz-gradient-light-bottom: #c4d0da;
-    --buzz-gradient-dark-top: #4a4616;
-    --buzz-gradient-dark-bottom: #0a1423;
+    /* Anything's backdrop gradient (was Buzz's olive/chartreuse): cool slate
+       to warm sand in light mode, deep slate with a hint of the app mark's
+       orange in dark mode. Components consume these semantically. */
+    --buzz-gradient-light-top: #e3e8ef;
+    --buzz-gradient-light-bottom: #efe7da;
+    --buzz-gradient-dark-top: #262019;
+    --buzz-gradient-dark-bottom: #0c1117;
     --buzz-content-dark: 0 0% 10.1960784314%;
     /* Hosted-community onboarding intentionally keeps this light palette in
        both app themes; semantic tokens keep component code color-agnostic. */

@@ -18,7 +18,6 @@ import {
   replaceCommunityDestinationRoute,
 } from "@/app/communityViewTransition";
 import { deriveShellRoute } from "@/app/AppShell.helpers";
-import { ThemeGrainientBackground } from "@/app/ThemeGrainientBackground";
 import { CommunityThemeController } from "@/shared/theme/CommunityThemeController";
 import { useReloadShortcut } from "@/app/useReloadShortcut";
 import { useCloseWindowShortcut } from "@/app/useCloseWindowShortcut";
@@ -137,17 +136,17 @@ function useBootSplashHold(): BootSplashPhase {
   return phase;
 }
 
-// Cold boot gate: the theme-adaptive grainient background with the app's mark
-// floating over it; "Setting up your community" stays as an sr-only caption.
+// Cold boot gate: Anything's first-run floor (the same dark tiled backdrop as
+// setup) with the app's mark floating over it; "Setting up your community"
+// stays as an sr-only caption.
 function AppLoadingGate() {
   return (
     <div
-      className="buzz-setup-loading-shell flex min-h-dvh flex-col items-center justify-center overflow-hidden px-6 py-10"
+      className="buzz-onboarding-neutral-theme buzz-startup-shell buzz-setup-loading-shell flex min-h-dvh flex-col items-center justify-center overflow-hidden px-6 py-10"
       data-testid="app-loading-gate"
       role="status"
     >
       <StartupWindowDragRegion />
-      <ThemeGrainientBackground />
       <span className="sr-only">{LOADING_TEXT}</span>
       <AppMark className="relative z-10 h-24 w-24" loading />
     </div>

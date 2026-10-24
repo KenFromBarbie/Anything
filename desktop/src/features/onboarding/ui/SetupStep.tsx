@@ -43,6 +43,9 @@ type SetupStepProps = {
   initialMethod?: HarnessConnectionMethod | null;
   onInitialListBack?: () => void;
   onBackActionChange?: (backAction: () => void) => void;
+  /** True while on the first view (choosing how to connect), where Back
+   *  leaves the step. */
+  onAtStartChange?: (atStart: boolean) => void;
   onMethodChange?: (method: HarnessConnectionMethod | null) => void;
   onReadyRuntimeIdsChange: (runtimeIds: readonly string[]) => void;
 };
@@ -241,7 +244,7 @@ function RuntimeStatus({
     return (
       <div
         aria-label={`Installing ${runtime.label}`}
-        className="flex h-5 items-center gap-2 rounded-md bg-white/60 px-2.5 text-xs font-medium text-foreground/70"
+        className="flex h-5 items-center gap-2 rounded-md bg-foreground/10 px-2.5 text-xs font-medium text-foreground/70"
         role="status"
       >
         <Spinner className="h-3 w-3 border-2 text-foreground" />
@@ -504,7 +507,7 @@ function RuntimeCard({
       <div
         className={cn(
           "group relative flex min-h-14 w-full items-center rounded-xl px-2 py-2 text-left text-sm text-foreground",
-          detailCopy && "bg-[#e2e2e2]/30 px-4 py-4",
+          detailCopy && "bg-foreground/[0.06] px-4 py-4",
           onOpenDetails &&
             "transition-colors duration-150 ease-out hover:bg-foreground/[0.04] motion-reduce:transition-none",
           installError && "ring-1 ring-destructive/40",
@@ -819,7 +822,7 @@ function RuntimeProvidersSection({
           <RuntimeProvidersLoadingState />
         ) : errorMessage ? null : (
           <p
-            className="max-w-[560px] rounded-2xl bg-white/70 px-6 py-6 text-sm text-muted-foreground"
+            className="max-w-[560px] rounded-2xl bg-card/70 px-6 py-6 text-sm text-muted-foreground"
             data-testid="onboarding-acp-empty"
           >
             No supported harnesses are available for this connection method.
@@ -880,7 +883,7 @@ function RuntimeSetupGuide({
 
         <div className="mt-8 flex min-h-0 flex-1 flex-col">
           <div
-            className="flex items-center gap-3 rounded-xl bg-[#e2e2e2]/30 px-4 py-4"
+            className="flex items-center gap-3 rounded-xl bg-foreground/[0.06] px-4 py-4"
             data-testid="onboarding-harness-setup-guide-card"
           >
             <RuntimeIcon className="size-9 shrink-0" runtime={runtime} />
@@ -934,7 +937,7 @@ function RuntimeSetupGuide({
       <div className="mt-8 flex min-h-0 flex-1 flex-col">
         <div
           className={cn(
-            !subscriptionDetail && "rounded-xl bg-[#e2e2e2]/30 px-2 py-2",
+            !subscriptionDetail && "rounded-xl bg-foreground/[0.06] px-2 py-2",
           )}
         >
           <RuntimeCard
@@ -966,6 +969,7 @@ function SetupStepContent({
   initialMethod = null,
   onInitialListBack,
   onBackActionChange,
+  onAtStartChange,
   onMethodChange,
   onRefresh,
   onReadyRuntimeIdsChange,
@@ -1055,6 +1059,10 @@ function SetupStepContent({
   React.useEffect(() => {
     onBackActionChange?.(navigateBack);
   }, [navigateBack, onBackActionChange]);
+
+  React.useEffect(() => {
+    onAtStartChange?.(stage === "method");
+  }, [onAtStartChange, stage]);
 
   React.useLayoutEffect(() => {
     if (stage !== "detail" || !selectedRuntime || !selectedRuntimeIsReady) {
@@ -1165,6 +1173,7 @@ export function SetupStep({
   direction,
   initialMethod,
   onInitialListBack,
+  onAtStartChange,
   onBackActionChange,
   onMethodChange,
   onReadyRuntimeIdsChange,
@@ -1176,6 +1185,7 @@ export function SetupStep({
       direction={direction}
       initialMethod={initialMethod}
       onInitialListBack={onInitialListBack}
+      onAtStartChange={onAtStartChange}
       onBackActionChange={onBackActionChange}
       onMethodChange={onMethodChange}
       onRefresh={onRefresh}

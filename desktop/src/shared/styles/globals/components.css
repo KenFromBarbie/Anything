@@ -282,69 +282,73 @@
     min-height: 0;
   }
 
+  /*
+   * Anything's first-run look (not Buzz's chartreuse): a dark workshop floor,
+   * faint office-tile grid, a warm glow from the app mark's orange, dark cards
+   * and orange primary actions. One theme for every first-run screen.
+   */
   .buzz-onboarding-neutral-theme.buzz-startup-shell {
-    /* Dot grid over the chartreuse→light-blue gradient (dots layer first so
-       they sit on top). The welcome page overrides this with dots over a flat
-       chartreuse fill below. */
+    background-color: #0e1318;
     background-image:
-      radial-gradient(circle, rgb(0 0 0 / 0.08) 1px, transparent 1px),
-      linear-gradient(
-        to bottom,
-        var(--buzz-welcome-chartreuse),
-        var(--buzz-onboarding-shell-bottom)
-      );
+      radial-gradient(
+        ellipse 70% 45% at 50% -8%,
+        rgb(245 158 11 / 0.16),
+        transparent 70%
+      ),
+      linear-gradient(rgb(148 163 184 / 0.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(148 163 184 / 0.055) 1px, transparent 1px),
+      linear-gradient(to bottom, #111820 0%, #0b0f14 100%);
     background-size:
-      24px 24px,
+      auto,
+      32px 32px,
+      32px 32px,
       auto;
   }
 
   .buzz-onboarding-neutral-theme.buzz-startup-shell.buzz-onboarding-welcome {
-    background-color: var(--buzz-welcome-chartreuse);
-    /* Landing is a flat chartreuse field, so the docked-footer scrim must match
-       it (not the gradient's light-blue bottom) to stay invisible. */
-    --buzz-onboarding-shell-bottom: var(--buzz-welcome-chartreuse);
-    /* Subtle dot grid: 2px dots spaced on a 24px lattice. */
-    background-image: radial-gradient(
-      circle,
-      rgb(0 0 0 / 0.08) 1px,
-      transparent 1px
-    );
-    background-size: 24px 24px;
+    /* The landing keeps the same floor; the docked-footer scrim matches its
+       bottom so content scrolling under the actions fades into the page. */
+    --buzz-onboarding-shell-bottom: #0b0f14;
   }
 
   .buzz-onboarding-neutral-theme {
-    /* Landing "chartreuse" — the welcome background; reused for the CTA label. */
-    --buzz-welcome-chartreuse: #d7d72e;
-    /* Bottom stop of the onboarding shell gradient; also the docked-footer
-       scrim color so content scrolling under the CTA fades into the page. */
-    --buzz-onboarding-shell-bottom: #d7e7f6;
-    /* Label color for the primary onboarding CTA (light blue on the dark pill). */
-    --buzz-onboarding-cta-label: #d7e6f0;
-    /* Olive ink for the backup step's private key and its "never share" caption,
-       reading against the fuzzy-white key frame. */
-    --buzz-onboarding-backup-ink: #717106;
-    --background: 0 0% 100%;
-    --foreground: 0 0% 9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 9%;
-    --buzz-onboarding-emoji-picker-background: 245, 245, 245;
-    --buzz-onboarding-emoji-picker-color: 23, 23, 23;
-    --buzz-onboarding-emoji-picker-input: 255, 255, 255;
-    --buzz-onboarding-avatar-dialog-bg: 255 255 255;
-    --buzz-onboarding-avatar-accent-bg: 240 240 205;
-    --buzz-onboarding-avatar-accent-fg: 113 113 6;
-    --buzz-onboarding-avatar-action-bg: 23 23 23;
-    --buzz-onboarding-avatar-action-fg: 240 240 205;
-    --buzz-onboarding-avatar-control-fg: 113 113 6;
+    color-scheme: dark;
+    /* Label on the landing's primary action (dark ink on the orange pill).
+       The name is Buzz's; the value is Anything's. */
+    --buzz-welcome-chartreuse: #14100a;
+    /* Bottom of the shell; also the docked-footer scrim color. */
+    --buzz-onboarding-shell-bottom: #0b0f14;
+    /* Label for primary onboarding actions: dark ink on orange. */
+    --buzz-onboarding-cta-label: #14100a;
+    --buzz-onboarding-backup-ink: #f5b544;
+    --background: 214 26% 8%;
+    --foreground: 210 20% 96%;
+    --card: 214 22% 12%;
+    --card-foreground: 210 20% 96%;
+    --popover: 214 22% 11%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 37 92% 55%;
+    --primary-foreground: 30 40% 6%;
+    --secondary: 214 18% 17%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 214 18% 15%;
+    --muted-foreground: 215 14% 66%;
+    --accent: 214 18% 18%;
+    --accent-foreground: 210 20% 96%;
+    --destructive: 0 80% 66%;
+    --destructive-foreground: 0 0% 4%;
+    --border: 214 16% 22%;
+    --input: 214 16% 24%;
+    --ring: 37 92% 55%;
+    --buzz-onboarding-emoji-picker-background: 23, 29, 37;
+    --buzz-onboarding-emoji-picker-color: 241, 245, 249;
+    --buzz-onboarding-emoji-picker-input: 14, 19, 24;
+    --buzz-onboarding-avatar-dialog-bg: 23 29 37;
+    --buzz-onboarding-avatar-accent-bg: 58 44 18;
+    --buzz-onboarding-avatar-accent-fg: 245 181 68;
+    --buzz-onboarding-avatar-action-bg: 245 165 36;
+    --buzz-onboarding-avatar-action-fg: 20 16 10;
+    --buzz-onboarding-avatar-control-fg: 245 181 68;
     --buzz-onboarding-avatar-dialog-shadow: 0 0 0;
   }
 
@@ -404,90 +408,6 @@
 
   .buzz-onboarding-key-text-v3 {
     @apply text-left text-nsec-key-card font-medium text-foreground;
-  }
-
-  .dark .buzz-onboarding-neutral-theme:not(.buzz-startup-shell) {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --buzz-onboarding-emoji-picker-background: 38, 38, 38;
-    --buzz-onboarding-emoji-picker-color: 250, 250, 250;
-    --buzz-onboarding-emoji-picker-input: 10, 10, 10;
-    --buzz-onboarding-avatar-dialog-bg: 24 24 20;
-    --buzz-onboarding-avatar-accent-bg: 211 211 163;
-    --buzz-onboarding-avatar-accent-fg: 24 24 20;
-    --buzz-onboarding-avatar-action-bg: 113 113 6;
-    --buzz-onboarding-avatar-action-fg: 240 240 205;
-    --buzz-onboarding-avatar-control-fg: 224 224 176;
-    --buzz-onboarding-avatar-dialog-shadow: 0 0 0;
-  }
-
-  .buzz-onboarding-neutral-theme[data-system-color-scheme="light"],
-  .dark
-    .buzz-onboarding-neutral-theme[data-system-color-scheme="light"]:not(
-      .buzz-startup-shell
-    ) {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 9%;
-    --buzz-onboarding-emoji-picker-background: 245, 245, 245;
-    --buzz-onboarding-emoji-picker-color: 23, 23, 23;
-    --buzz-onboarding-emoji-picker-input: 255, 255, 255;
-    --buzz-onboarding-avatar-dialog-bg: 255 255 255;
-    --buzz-onboarding-avatar-accent-bg: 240 240 205;
-    --buzz-onboarding-avatar-accent-fg: 113 113 6;
-    --buzz-onboarding-avatar-action-bg: 23 23 23;
-    --buzz-onboarding-avatar-action-fg: 240 240 205;
-    --buzz-onboarding-avatar-control-fg: 113 113 6;
-    --buzz-onboarding-avatar-dialog-shadow: 0 0 0;
-  }
-
-  .buzz-onboarding-neutral-theme[data-system-color-scheme="dark"]:not(
-    .buzz-startup-shell
-  ) {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --buzz-onboarding-emoji-picker-background: 38, 38, 38;
-    --buzz-onboarding-emoji-picker-color: 250, 250, 250;
-    --buzz-onboarding-emoji-picker-input: 10, 10, 10;
-    --buzz-onboarding-avatar-dialog-bg: 24 24 20;
-    --buzz-onboarding-avatar-accent-bg: 211 211 163;
-    --buzz-onboarding-avatar-accent-fg: 24 24 20;
-    --buzz-onboarding-avatar-action-bg: 113 113 6;
-    --buzz-onboarding-avatar-action-fg: 240 240 205;
-    --buzz-onboarding-avatar-control-fg: 224 224 176;
-    --buzz-onboarding-avatar-dialog-shadow: 0 0 0;
   }
 
   /* The key-import card is viewport-centered on ordinary windows, independent

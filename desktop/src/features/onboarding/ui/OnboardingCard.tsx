@@ -58,11 +58,11 @@ export function OnboardingCard({
       ) : null}
       <Card
         className={cn(
-          "flex h-[min(41.5rem,calc(100dvh-3rem))] min-w-0 flex-col overflow-hidden rounded-[2rem] border-0 bg-white p-6 text-left shadow-lg min-[44rem]:p-12",
+          "flex h-[min(41.5rem,calc(100dvh-3rem))] min-w-0 flex-col overflow-hidden rounded-[1.5rem] border border-border/80 bg-card p-6 text-left shadow-[0_24px_64px_rgb(0_0_0/0.45)] min-[44rem]:p-12",
           stableWideWidth
             ? "w-[min(calc(100vw-2rem),50rem)]"
             : "w-[min(calc(100vw-2rem),calc(38rem+2px))]",
-          "[--buzz-onboarding-cta-label:#fff] [&_.buzz-onboarding-slide]:min-h-0",
+          "[&_.buzz-onboarding-slide]:min-h-0",
           "[&_.buzz-onboarding-transition-content]:w-full [&_.buzz-onboarding-transition-content]:min-w-0 [&_.buzz-onboarding-transition-content]:!text-left",
           "[&_.buzz-onboarding-transition-line]:justify-start [&_h1+p]:!mx-0 [&_h1+p]:!mt-2 [&_h1+p]:!text-left [&_h1+p]:!text-base [&_h1+p]:!leading-6",
           "[&_h1]:!text-left [&_h1]:!text-2xl [&_h1]:!leading-8 [&_h1]:!text-foreground",

@@ -100,6 +100,7 @@ export function MachineOnboardingFlow({
    *  step: back it up any time in Settings). */
   const [autoCreated, setAutoCreated] = React.useState(false);
   const [autoCreateFailed, setAutoCreateFailed] = React.useState(false);
+  const [setupAtStart, setSetupAtStart] = React.useState(true);
   const [readyRuntimeIds, setReadyRuntimeIds] = React.useState<string[]>([]);
   const [setupBackAction, setSetupBackAction] = React.useState<
     (() => void) | null
@@ -353,10 +354,10 @@ export function MachineOnboardingFlow({
                   },
                 }
               : page === "setup"
-                ? setupBackAction
-                  ? { onClick: setupBackAction }
-                  : autoCreated
-                    ? undefined
+                ? autoCreated && setupAtStart
+                  ? undefined
+                  : setupBackAction
+                    ? { onClick: setupBackAction }
                     : { onClick: backFromSetup }
                 : page === "config"
                   ? {
@@ -675,6 +676,7 @@ export function MachineOnboardingFlow({
           onInitialListBack={
             isChoosingDifferentHarness ? returnToApiConfig : undefined
           }
+          onAtStartChange={setSetupAtStart}
           onBackActionChange={handleSetupBackActionChange}
           onMethodChange={setHarnessConnectionMethod}
           onReadyRuntimeIdsChange={handleReadyRuntimeIdsChange}
