@@ -737,7 +737,7 @@ test("community onboarding: profile and starter-team cards", async ({
   await page.getByTestId("community-profile-name-key").fill("Ada Lovelace");
   await page.getByTestId("community-profile-next").click();
   await expect(
-    page.getByRole("heading", { name: "Meet your starter team" }),
+    page.getByRole("heading", { name: "Opening your server" }),
   ).toBeVisible();
   await expectSharedCardGeometry(page);
   await waitForAnimations(page);
