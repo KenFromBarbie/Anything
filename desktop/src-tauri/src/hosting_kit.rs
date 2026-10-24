@@ -59,6 +59,20 @@ fn exe(name: &str) -> String {
     }
 }
 
+/// A Windows path without the `\\?\` verbatim prefix Tauri's path API can
+/// return: Postgres's tools can't find their own programs through it (initdb
+/// failed with "program postgres is needed ... but was not found").
+fn plain(path: PathBuf) -> PathBuf {
+    let text = path.to_string_lossy();
+    if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) if rest.chars().nth(1) == Some(':') => PathBuf::from(rest),
+        _ => path,
+    }
+}
+
 fn kit_in(dir: &Path, archive: Option<(PathBuf, PathBuf)>) -> Kit {
     Kit {
         relay: dir.join("relay").join(exe("buzz-relay")),
@@ -71,7 +85,7 @@ fn kit_in(dir: &Path, archive: Option<(PathBuf, PathBuf)>) -> Kit {
 /// The kit in this build's resources, if it has one. Cheap: a zipped kit is
 /// only unpacked by `prepare` (from `ensure_running`).
 pub fn find(app: &AppHandle) -> Option<Kit> {
-    let dir = app.path().resource_dir().ok()?.join("hosting");
+    let dir = plain(app.path().resource_dir().ok()?).join("hosting");
     let zipped = dir.join("kit.zip");
     if zipped.is_file() {
         // Unpacked per build (by the archive's size), so an update unpacks anew.
@@ -138,11 +152,12 @@ impl Kit {
 }
 
 fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("no app data folder: {e}"))?
-        .join("hosting");
+    let dir = plain(
+        app.path()
+            .app_data_dir()
+            .map_err(|e| format!("no app data folder: {e}"))?,
+    )
+    .join("hosting");
     std::fs::create_dir_all(&dir).map_err(|e| format!("make {}: {e}", dir.display()))?;
     Ok(dir)
 }
@@ -436,6 +451,22 @@ fn stop_services(services: &HostingServices, kit: Option<&Kit>, dir: Option<&Pat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn verbatim_windows_paths_become_plain() {
+        assert_eq!(
+            plain(PathBuf::from(r"\\?\C:\Users\a\AppData\Local\Anything")),
+            PathBuf::from(r"C:\Users\a\AppData\Local\Anything")
+        );
+        assert_eq!(
+            plain(PathBuf::from(r"\\?\UNC\srv\share")),
+            PathBuf::from(r"\\srv\share")
+        );
+        assert_eq!(
+            plain(PathBuf::from("/usr/lib/anything")),
+            PathBuf::from("/usr/lib/anything")
+        );
+    }
 
     /// The whole kit against real programs: a private database, the cache,
     /// the file store, then a relay that sets up its tables and listens.

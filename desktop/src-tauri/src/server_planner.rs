@@ -28,7 +28,11 @@ fn claude_bin() -> PathBuf {
         .or_else(|| std::env::var_os("HOME"))
         .map(PathBuf::from)
         .unwrap_or_default();
-    let exe = if cfg!(windows) { "claude.exe" } else { "claude" };
+    let exe = if cfg!(windows) {
+        "claude.exe"
+    } else {
+        "claude"
+    };
     let local = home.join(".local").join("bin").join(exe);
     if local.is_file() {
         local
@@ -76,7 +80,9 @@ fn planning_prompt(name: &str, purpose: &str, files: &[String], links: &[String]
 Server name: {name}\nWhat the work is: {purpose}\n"
     );
     if !links.is_empty() {
-        out.push_str("\nLinks the owner attached (read them if they help you understand the work):\n");
+        out.push_str(
+            "\nLinks the owner attached (read them if they help you understand the work):\n",
+        );
         for link in links {
             out.push_str(&format!("- {link}\n"));
         }
@@ -113,6 +119,36 @@ Reply with ONLY this JSON, nothing before or after it:\n\
     out
 }
 
+/// Claude's answer from its JSON result, or its own reason when it failed
+/// (signed out, out of credits, unknown model...), so the owner sees why.
+fn reply_text(output: &str) -> Result<String, String> {
+    let Ok(result) = serde_json::from_str::<Value>(output.trim()) else {
+        // An older CLI, or plain text: use it as the answer.
+        return Ok(output.to_string());
+    };
+    let text = result
+        .get("result")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if result.get("is_error").and_then(Value::as_bool) == Some(true) {
+        let why = if text.is_empty() {
+            result
+                .get("terminal_reason")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown error")
+                .to_string()
+        } else {
+            text.chars().take(200).collect()
+        };
+        return Err(format!(
+            "Claude said: {why}. Check the account in Settings → AI accounts"
+        ));
+    }
+    Ok(text)
+}
+
 /// The JSON object in Claude's reply (it may wrap it in a code fence).
 fn parse_plan(reply: &str) -> Result<Value, String> {
     let start = reply.find('{').ok_or("the planner gave no plan")?;
@@ -135,7 +171,7 @@ fn run_planner(app: &AppHandle, prompt: &str, browse: bool) -> Result<String, St
             "--model",
             PLAN_MODEL,
             "--output-format",
-            "text",
+            "json",
             "--no-session-persistence",
             "--disable-slash-commands",
             "--strict-mcp-config",
@@ -214,7 +250,7 @@ pub async fn server_plan(
     let prompt = planning_prompt(name.trim(), purpose.trim(), &files, &links);
     let browse = !links.is_empty();
     tauri::async_runtime::spawn_blocking(move || {
-        parse_plan(&run_planner(&app, &prompt, browse)?)
+        parse_plan(&reply_text(&run_planner(&app, &prompt, browse)?)?)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -243,11 +279,14 @@ pub async fn server_pick_files(app: AppHandle) -> Result<Vec<String>, String> {
 #[tauri::command]
 pub fn server_attach_files(work_folder: String, files: Vec<String>) -> Result<Vec<String>, String> {
     let inputs = Path::new(&work_folder).join("inputs");
-    std::fs::create_dir_all(&inputs).map_err(|e| format!("could not make {}: {e}", inputs.display()))?;
+    std::fs::create_dir_all(&inputs)
+        .map_err(|e| format!("could not make {}: {e}", inputs.display()))?;
     let mut copied = Vec::new();
     for file in files {
         let from = Path::new(&file);
-        let Some(name) = from.file_name() else { continue };
+        let Some(name) = from.file_name() else {
+            continue;
+        };
         let to = inputs.join(name);
         std::fs::copy(from, &to).map_err(|e| format!("could not copy {}: {e}", from.display()))?;
         copied.push(to.display().to_string());
@@ -267,6 +306,15 @@ mod tests {
     }
 
     #[test]
+    fn claude_failures_come_back_with_their_reason() {
+        let failed = r#"{"is_error":true,"terminal_reason":"api_error","result":"Failed to authenticate: OAuth session expired"}"#;
+        let err = reply_text(failed).unwrap_err();
+        assert!(err.contains("OAuth session expired"), "{err}");
+        let ok = r#"{"is_error":false,"result":"{\"staff\":[],\"channels\":[],\"threads\":[]}"}"#;
+        assert!(parse_plan(&reply_text(ok).unwrap()).is_ok());
+    }
+
+    #[test]
     fn a_reply_without_a_plan_is_an_error() {
         assert!(parse_plan("I can't do that").is_err());
         assert!(parse_plan("{\"staff\":[]}").is_err());
@@ -274,7 +322,12 @@ mod tests {
 
     #[test]
     fn the_prompt_carries_the_links_and_the_cast() {
-        let prompt = planning_prompt("w", "University assistant", &[], &["https://example.edu".into()]);
+        let prompt = planning_prompt(
+            "w",
+            "University assistant",
+            &[],
+            &["https://example.edu".into()],
+        );
         assert!(prompt.contains("https://example.edu"));
         assert!(prompt.contains("Dwight"));
         assert!(!prompt.contains("Michael,"));
