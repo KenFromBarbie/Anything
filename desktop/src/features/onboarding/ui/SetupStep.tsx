@@ -16,6 +16,10 @@ import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { Card } from "@/shared/ui/card";
 import { Spinner } from "@/shared/ui/spinner";
+import {
+  type Engine,
+  signInAiAccount,
+} from "@/features/settings/lib/aiAccounts";
 import { ConnectionMethodSection } from "./ConnectionMethodSection";
 import {
   getReadyOnboardingRuntimes,
@@ -116,6 +120,13 @@ function RuntimeReadinessIndicator({
   );
 }
 
+/** Runtimes whose sign-in is their own CLI's login (`claude /login` etc.). */
+const CLI_LOGIN_ENGINES: Partial<Record<string, Engine>> = {
+  claude: "claude",
+  codex: "codex",
+  gemini: "gemini",
+};
+
 function RuntimeStatus({
   installError,
   isInstalling,
@@ -132,9 +143,13 @@ function RuntimeStatus({
   const shouldSignIn =
     runtime.availability === "available" &&
     runtime.authStatus.status === "logged_out";
+  const cliEngine = CLI_LOGIN_ENGINES[runtime.id] ?? null;
   const methodsQuery = useAcpAuthMethodsQuery(runtime.id, {
-    enabled: shouldSignIn && prominent,
+    enabled: shouldSignIn && prominent && cliEngine === null,
   });
+  const [cliSignInError, setCliSignInError] = React.useState<string | null>(
+    null,
+  );
   const connectMutation = useConnectAcpRuntimeMutation();
   // Child rows share the surface owner's forced query state + refresh callback
   // (`useSetupStepState` owns the single force-on-mount). Each row must not
@@ -199,6 +214,16 @@ function RuntimeStatus({
               void runtimesQuery.forceRefresh();
               return;
             }
+            if (cliEngine) {
+              // Sign in through the CLI itself: a terminal runs its login,
+              // and the readiness probe notices once it's done.
+              setCliSignInError(null);
+              signInAiAccount(cliEngine, "default").then(
+                () => setIsWaitingForSignIn(true),
+                (error: unknown) => setCliSignInError(String(error)),
+              );
+              return;
+            }
             if (!authMethod) {
               void methodsQuery.refetch();
               return;
@@ -222,17 +247,17 @@ function RuntimeStatus({
               ? "Check again"
               : "Sign in"}
         </Button>
-        {methodsQuery.error instanceof Error ? (
+        {cliEngine === null && methodsQuery.error instanceof Error ? (
           <RuntimeErrorTooltip
-            className="absolute inset-x-3 bottom-2 truncate text-xs leading-4 text-destructive"
+            className="max-w-full truncate text-xs leading-4 text-destructive"
             detail="Couldn’t load sign-in options."
             label="Sign-in unavailable"
           />
         ) : null}
-        {connectMutation.error instanceof Error ? (
+        {connectMutation.error instanceof Error || cliSignInError ? (
           <RuntimeErrorTooltip
-            className="absolute inset-x-3 bottom-2 truncate text-xs leading-4 text-destructive"
-            detail="Couldn’t start sign-in. Try again."
+            className="max-w-full truncate text-xs leading-4 text-destructive"
+            detail={cliSignInError ?? "Couldn’t start sign-in. Try again."}
             label="Sign-in failed"
           />
         ) : null}
@@ -862,7 +887,7 @@ function RuntimeSetupGuide({
   const subscriptionDetail =
     method === "subscription"
       ? {
-          description: `Anything will open a sign-in window for ${label}.`,
+          description: `Anything opens a terminal running ${label}’s own sign-in. Finish there and this updates by itself.`,
           title: SUBSCRIPTION_NAMES[runtime.id] ?? label,
         }
       : undefined;
