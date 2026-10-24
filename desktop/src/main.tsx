@@ -24,6 +24,7 @@ import {
   restoreLocalStateIfWiped,
   startLocalStateBackup,
 } from "@/shared/lib/localStateBackup";
+import { applyAppName } from "@/shared/lib/appName";
 import { initializeConversationDensityPreference } from "@/shared/lib/conversationDensityPreference";
 import { initializeFontSizePreference } from "@/shared/lib/fontSizePreference";
 
@@ -134,6 +135,7 @@ async function bootstrap() {
     await restoreLocalStateIfWiped();
   }
   startLocalStateBackup();
+  applyAppName();
   configureDevE2eBridgeFromUrl();
   recoverLocalStorageQuotaOnStartup();
   initializeConversationDensityPreference();

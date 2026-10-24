@@ -22,6 +22,7 @@ import {
   ProfileAvatarEditor,
 } from "@/features/profile/ui/ProfileAvatarEditor";
 import { getProfile, updateProfile } from "@/shared/api/tauriProfiles";
+import { getOwnerName } from "@/shared/lib/appName";
 import { getIdentity, importIdentity } from "@/shared/api/tauriIdentity";
 import { listPersonas } from "@/shared/api/tauriPersonas";
 import { relayClient } from "@/shared/api/relayClient";
@@ -337,10 +338,12 @@ export function CommunityOnboardingFlow({
       try {
         const profile = await getProfile().catch(() => null);
         if (!profile?.hasProfileEvent) {
-          const identity = await getIdentity();
+          // The name given at first run; never the shortened key the
+          // identity reports as its display name.
+          const carriedName = carried?.displayName?.trim() ?? "";
           const name =
-            carried?.displayName?.trim() ||
-            identity.displayName?.trim() ||
+            (carriedName.startsWith("npub1") ? "" : carriedName) ||
+            getOwnerName() ||
             "Owner";
           await updateProfile({
             displayName: name,

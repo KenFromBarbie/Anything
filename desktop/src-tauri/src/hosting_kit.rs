@@ -200,6 +200,13 @@ fn settings(dir: &Path, ours_running: bool) -> Result<Settings, String> {
     };
     // A port something else took since: pick another (ours isn't running yet).
     if !ours_running {
+        // Another database there (an older install's, say) would turn the
+        // relay away with a wrong password; ours, still up from an earlier
+        // run, is used as it is.
+        if listening(settings.pg_port) && !our_database_on(dir, settings.pg_port) {
+            settings.pg_port =
+                free_port(settings.pg_port + 1).ok_or("no free port for the database")?;
+        }
         if listening(settings.redis_port) {
             settings.redis_port =
                 free_port(settings.redis_port + 1).ok_or("no free port for the cache")?;
@@ -212,6 +219,15 @@ fn settings(dir: &Path, ours_running: bool) -> Result<Settings, String> {
     let text = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
     crate::managed_agents::storage::atomic_write_json(&file, text.as_bytes())?;
     Ok(settings)
+}
+
+/// Whether the Postgres listening on `port` runs on this folder's data: its
+/// lock file names the port (fourth line).
+fn our_database_on(dir: &Path, port: u16) -> bool {
+    std::fs::read_to_string(dir.join("pgdata").join("postmaster.pid"))
+        .ok()
+        .and_then(|pid| pid.lines().nth(3).map(|line| line.trim() == port.to_string()))
+        .unwrap_or(false)
 }
 
 fn quiet(cmd: &mut Command) -> &mut Command {
@@ -311,6 +327,10 @@ fn start_database(
             .arg(dir.join("pgdata"))
             .args(["-p", &settings.pg_port.to_string()])
             .args(["-c", "listen_addresses=127.0.0.1"])
+            // Every server on this computer is its own relay on this one
+            // database, ~21 connections each (local_servers.rs sizes their
+            // pools): room for many.
+            .args(["-c", "max_connections=400"])
             .stdin(Stdio::null())
             .stdout(out)
             .stderr(err),
@@ -451,6 +471,26 @@ fn stop_services(services: &HostingServices, kit: Option<&Kit>, dir: Option<&Pat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_database_on_our_data_counts_as_ours() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(!our_database_on(dir.path(), 15432));
+        std::fs::create_dir_all(dir.path().join("pgdata")).unwrap();
+        std::fs::write(
+            dir.path().join("pgdata").join("postmaster.pid"),
+            "1234
+C:/data/pgdata
+1700000000
+15432
+
+127.0.0.1
+",
+        )
+        .unwrap();
+        assert!(our_database_on(dir.path(), 15432));
+        assert!(!our_database_on(dir.path(), 15433));
+    }
 
     #[test]
     fn verbatim_windows_paths_become_plain() {

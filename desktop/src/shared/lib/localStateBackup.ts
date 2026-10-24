@@ -49,16 +49,33 @@ async function currentPubkey(): Promise<string | null> {
   }
 }
 
-/** Before the app reads storage: restore the copy if storage was wiped. */
+/** Whether this identity finished setup in the current storage. */
+function setUpFor(pubkey: string): boolean {
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (
+      key?.startsWith("buzz-machine-onboarding-complete") &&
+      key.endsWith(pubkey)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Before the app reads storage: restore the copy if storage was wiped, or
+ *  holds another identity's setup (an installed build that shared the data
+ *  folder overwrote it). */
 export async function restoreLocalStateIfWiped(): Promise<boolean> {
   try {
-    if (!isWiped()) return false;
+    const pubkey = await currentPubkey();
+    if (!isWiped() && (!pubkey || setUpFor(pubkey))) return false;
     const json = await invoke<string | null>("local_state_backup_load");
     if (!json) return false;
     const saved = JSON.parse(json) as Record<string, string>;
     const owner = saved[OWNER_KEY];
     delete saved[OWNER_KEY];
-    if (!owner || owner !== (await currentPubkey())) return false;
+    if (!owner || owner !== pubkey) return false;
     if (
       !SETUP_MARKERS.some((m) =>
         Object.keys(saved).some((k) => k.startsWith(m)),
@@ -70,7 +87,7 @@ export async function restoreLocalStateIfWiped(): Promise<boolean> {
       if (typeof value === "string") localStorage.setItem(key, value);
     }
     console.warn(
-      `[localStateBackup] storage was empty; restored ${Object.keys(saved).length} entries from the on-disk copy`,
+      `[localStateBackup] storage was empty or another identity's; restored ${Object.keys(saved).length} entries from the on-disk copy`,
     );
     return true;
   } catch (error) {
@@ -83,8 +100,8 @@ let lastSaved = "";
 let owner: string | null = null;
 
 function save(): void {
-  // Never overwrite a good copy with a wiped store.
-  if (isWiped() || !owner) return;
+  // Never overwrite a good copy with a wiped store, or another identity's.
+  if (isWiped() || !owner || !setUpFor(owner)) return;
   const json = JSON.stringify({ ...snapshot(), [OWNER_KEY]: owner });
   if (json === lastSaved) return;
   lastSaved = json;

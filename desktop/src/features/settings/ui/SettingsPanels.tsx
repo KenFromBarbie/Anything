@@ -52,6 +52,7 @@ import {
   GlassBackgroundSetting,
   LinkPreviewStyleSetting,
   ProminentActiveTabSetting,
+  AppNameSetting,
   ServerBarSetting,
   ThreadLayoutSetting,
 } from "./AppearanceSettingsControls";
@@ -750,6 +751,7 @@ function ThemeSettingsCard() {
           <ConversationDisplaySettings />
           <LinkPreviewStyleSetting />
           <ThreadLayoutSetting />
+          <AppNameSetting />
           <ServerBarSetting />
         </SettingsOptionGroup>
       </SettingsOptionGroupList>

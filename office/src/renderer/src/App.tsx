@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore, selectedAgent } from '@/store/store';
 import { startMockLoop, stopMockLoop } from '@/store/mockEvents';
 import type { HarnessConfig } from '@/store/config';
@@ -205,6 +205,37 @@ export function App() {
     setClosing(null);
   };
 
+  // Inside Buzz (Anything) the app's own first run already chose the AI
+  // provider and where work goes, and every server gets an Office of its own:
+  // its setup wizard would ask again for each, and until it's finished Michael
+  // doesn't start, so a new server's team is never hired. Finish it with the
+  // wizard's own defaults instead.
+  const autoOnboarding = useRef(false);
+  useEffect(() => {
+    if (!hostedInBuzz || !config || config.onboardingComplete) return;
+    if (autoOnboarding.current) return;
+    autoOnboarding.current = true;
+    void (async () => {
+      const harnessHome = config.harnessHome || '~/Anything';
+      const ensured = await window.cth.ensureHarnessHome(harnessHome);
+      if (!ensured.ok) {
+        autoOnboarding.current = false;
+        return;
+      }
+      const next = await window.cth.updateConfig({
+        onboardingComplete: true,
+        audience: config.audience ?? 'technical',
+        harnessHome,
+        registeredRepos: config.registeredRepos ?? [],
+        autoMode: config.autoMode ?? true,
+        godProvider: config.godProvider ?? 'claude',
+        telemetryEnabled: false
+      });
+      setConfig(next);
+      setHiveOpened(true);
+    })();
+  }, [config]);
+
   // Inside Buzz the Office runs in the background (Michael's delivery loop, the
   // Tasks and Agents pages), so it opens the current hive without the picker.
   const hiveEntered = hiveOpened || (hostedInBuzz && !!config?.harnessHome);
@@ -277,6 +308,11 @@ export function App() {
   if (!config) {
     // Inside the app the floor behind shows while the settings load.
     return <div style={{ width: '100vw', height: '100vh', background: hostedInBuzz ? 'transparent' : 'var(--cth-cream-100)' }} />;
+  }
+
+  if (!config.onboardingComplete && hostedInBuzz) {
+    // Being finished for you (above).
+    return <div style={{ width: '100vw', height: '100vh', background: 'transparent' }} />;
   }
 
   if (!config.onboardingComplete) {

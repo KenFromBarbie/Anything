@@ -1,5 +1,6 @@
 import * as React from "react";
 import { AppMark } from "@/shared/ui/AppMark";
+import { getOwnerName, useAppName } from "@/shared/lib/appName";
 import type { QueryClient } from "@tanstack/react-query";
 import { motion, useReducedMotion } from "motion/react";
 
@@ -39,6 +40,7 @@ import {
   type OnboardingTransitionDirection,
   OnboardingSlideTransition,
 } from "./OnboardingSlideTransition";
+import { NamesStep } from "./NamesStep";
 import { SetupStep } from "./SetupStep";
 import type { HarnessConnectionMethod } from "./harnessConnectionOptions";
 import type { DefaultConfigDraft } from "./types";
@@ -49,6 +51,7 @@ export type MachineOnboardingPage =
   | "identity-key-help"
   | "key-import"
   | "backup"
+  | "names"
   | "setup"
   | "config";
 
@@ -127,6 +130,7 @@ export function MachineOnboardingFlow({
   // subview keeps the created backup, password, and test progress.
   const backupSession = useEncryptedBackupSession();
   const reduceMotion = useReducedMotion() ?? false;
+  const appName = useAppName();
   const setupSelectionHandoffRef = React.useRef(false);
   const handleReadyRuntimeIdsChange = React.useCallback(
     (runtimeIds: readonly string[]) => {
@@ -188,7 +192,7 @@ export function MachineOnboardingFlow({
         setIdentityStorage(identity.storage);
         setAutoCreated(true);
         setTransitionDirection("forward");
-        setPage("setup");
+        setPage(getOwnerName() ? "setup" : "names");
       } catch (cause) {
         setAutoCreateFailed(true);
         setError(
@@ -290,8 +294,12 @@ export function MachineOnboardingFlow({
   }, [backupSession]);
 
   const backFromSetup = React.useCallback(() => {
-    // An identity made for you has no key or backup step to go back to.
-    if (autoCreated) return;
+    // An identity made for you has no key or backup step: back is the names.
+    if (autoCreated) {
+      setTransitionDirection("backward");
+      setPage("names");
+      return;
+    }
     if (identityWasImported) {
       setKeyImportFormKey((current) => current + 1);
       setKeyImportStage("key-entry");
@@ -354,8 +362,8 @@ export function MachineOnboardingFlow({
                   },
                 }
               : page === "setup"
-                ? autoCreated && setupAtStart
-                  ? undefined
+                ? setupAtStart
+                  ? { onClick: backFromSetup }
                   : setupBackAction
                     ? { onClick: setupBackAction }
                     : { onClick: backFromSetup }
@@ -376,7 +384,7 @@ export function MachineOnboardingFlow({
         <div className="flex items-center gap-4">
           <AppMark className="h-20 w-20" loading />
           <h1 className="text-6xl font-semibold tracking-tight text-foreground">
-            Anything
+            {appName}
           </h1>
         </div>
       </div>
@@ -400,7 +408,7 @@ export function MachineOnboardingFlow({
               <div className="flex items-center gap-4">
                 <AppMark className="h-20 w-20" />
                 <h1 className="text-6xl font-semibold tracking-tight text-foreground">
-                  Anything
+                  {appName}
                 </h1>
               </div>
               <p className="mt-2 max-w-[560px] text-center text-2xl font-normal leading-none text-foreground">
@@ -645,6 +653,14 @@ export function MachineOnboardingFlow({
             returningFromSecurity={returningFromSecurity}
           />
         )
+      ) : page === "names" ? (
+        <NamesStep
+          direction={transitionDirection}
+          onNext={() => {
+            setTransitionDirection("forward");
+            setPage("setup");
+          }}
+        />
       ) : page === "setup" ? (
         <SetupStep
           actions={{

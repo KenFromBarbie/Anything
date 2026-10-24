@@ -31,6 +31,8 @@ const LAST_PORT: u16 = 3099;
 const HEALTH_BASE: u16 = 18000;
 const METRICS_BASE: u16 = 19000;
 const READY_TIMEOUT: Duration = Duration::from_secs(60);
+/// Database connections per pool for a local server's relay.
+const LOCAL_RELAY_POOL: &str = "8";
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -204,7 +206,13 @@ fn start_server(app: &AppHandle, server: &LocalServer) -> Result<(), String> {
         .env("BUZZ_HEALTH_PORT", (HEALTH_BASE + offset).to_string())
         .env("BUZZ_METRICS_PORT", (METRICS_BASE + offset).to_string())
         // Needs S3 (MinIO), which the local stack doesn't run.
-        .env("BUZZ_GIT_CONFORMANCE_PROBE", "false");
+        .env("BUZZ_GIT_CONFORMANCE_PROBE", "false")
+        // Each server is a small relay sharing one database with the others
+        // (and, in development, the main relay): the default pool of 50
+        // would let two of them use up its 100 connections.
+        .env("BUZZ_DB_POOL_SIZE", LOCAL_RELAY_POOL)
+        .env("BUZZ_DB_READ_POOL_SIZE", LOCAL_RELAY_POOL)
+        .env("BUZZ_REDIS_POOL_SIZE", "4");
     if let Some(owner) = owner_pubkey(app) {
         cmd.env("RELAY_OWNER_PUBKEY", owner);
     }

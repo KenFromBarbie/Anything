@@ -104,8 +104,12 @@ jobs:
           node node_modules/electron/install.js
           npm run postinstall
           npm run build
-          npx vite build --config sidecar.web.vite.config.ts --outDir ../desktop/public/office-app --emptyOutDir
+          # An absolute outDir: the config's root is src/sidecar-web, so a
+          # relative one landed in office/src/desktop/... and the installers
+          # shipped without the Office ("Not Found").
+          npx vite build --config sidecar.web.vite.config.ts --outDir "$GITHUB_WORKSPACE/desktop/public/office-app" --emptyOutDir
           cd ..
+          test -f desktop/public/office-app/index.html || { echo "the Office UI wasn't built into desktop/public/office-app"; exit 1; }
           node scripts/stage-office-runtime.mjs
 
       - name: Helper binaries
@@ -177,6 +181,9 @@ jobs:
         run: |
           cd desktop
           pnpm tauri build --ci --bundles ${{ matrix.bundles }} --config src-tauri/tauri.release.conf.json
+          # The window's pages are embedded in the app: make sure the Office
+          # UI made it into what was packaged.
+          test -f dist/office-app/index.html || { echo "dist/office-app is missing from the app"; exit 1; }
 
       # Plain lower-case names for downloads:
       # anything_<version>_<arch>.<ext>.

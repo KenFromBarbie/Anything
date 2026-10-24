@@ -77,27 +77,47 @@ function update(
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Setups being carried out, by server: shared by every mounted runner, so
+ *  two of them (a remount while one is mid-way) never create the channels or
+ *  hire the team twice. */
+const inProgress = new Set<string>();
+const relayKey = (relayUrl: string) =>
+  relayUrl.trim().replace(/\/+$/, "").toLowerCase();
+
+function claim(relayUrl: string): boolean {
+  const key = relayKey(relayUrl);
+  if (inProgress.has(key)) return false;
+  inProgress.add(key);
+  return true;
+}
+
+function release(relayUrl: string): void {
+  inProgress.delete(relayKey(relayUrl));
+}
+
 /** Carry out the active server's pending setup, if it has one. */
 export function useServerSetupRunner(relayUrl: string | undefined): void {
   const { data: channels, isSuccess } = useChannelsQuery();
   const { loaded: officeLoaded } = useOfficeAgents();
   const queryClient = useQueryClient();
-  const running = React.useRef(false);
   // A step that failed isn't retried until the app restarts (no error loop).
   const failed = React.useRef(false);
   const [phase, setPhase] = React.useState(0);
 
   // Relay side: channels, then a first message per starter thread.
   React.useEffect(() => {
-    if (!relayUrl || !isSuccess || running.current || failed.current) return;
-    const setup = loadAll().find((s) => sameRelay(s.relayUrl, relayUrl));
-    if (!setup || (setup.done.channels && setup.done.threads)) {
-      if (setup) setPhase(1);
+    if (!relayUrl || !isSuccess || failed.current) return;
+    const pending = loadAll().find((s) => sameRelay(s.relayUrl, relayUrl));
+    if (!pending || (pending.done.channels && pending.done.threads)) {
+      if (pending) setPhase(1);
       return;
     }
-    running.current = true;
+    if (!claim(relayUrl)) return;
     void (async () => {
       try {
+        // Read again now it's ours: another runner may have just finished.
+        const setup = loadAll().find((s) => sameRelay(s.relayUrl, relayUrl));
+        if (!setup) return;
         const byName = new Map(
           (channels ?? []).map((c) => [c.name.toLowerCase(), c.id]),
         );
@@ -137,7 +157,7 @@ export function useServerSetupRunner(relayUrl: string | undefined): void {
           `Setting up the server's channels failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       } finally {
-        running.current = false;
+        release(relayUrl);
       }
     })();
   }, [relayUrl, isSuccess, channels, queryClient]);
@@ -145,13 +165,13 @@ export function useServerSetupRunner(relayUrl: string | undefined): void {
   // Office side: hire the team, then hand Michael the starting prompt.
   React.useEffect(() => {
     if (!relayUrl || phase < 1) return;
-    const setup = loadAll().find((s) => sameRelay(s.relayUrl, relayUrl));
-    if (!setup) return;
+    if (!loadAll().some((s) => sameRelay(s.relayUrl, relayUrl))) return;
     startOffice();
-    if (!officeLoaded || running.current || failed.current) return;
-    running.current = true;
+    if (!officeLoaded || failed.current || !claim(relayUrl)) return;
     void (async () => {
       try {
+        const setup = loadAll().find((s) => sameRelay(s.relayUrl, relayUrl));
+        if (!setup) return;
         const hired = new Set(setup.done.agents ?? []);
         if (setup.agents.some((a) => !hired.has(a.name))) {
           const options = await callOffice<{ defaultProvider: string }>(
@@ -189,7 +209,7 @@ export function useServerSetupRunner(relayUrl: string | undefined): void {
           `Setting up the server's team failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       } finally {
-        running.current = false;
+        release(relayUrl);
       }
     })();
   }, [relayUrl, phase, officeLoaded]);

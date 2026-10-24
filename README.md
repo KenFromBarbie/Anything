@@ -6,6 +6,8 @@
 
 <p align="center">One desktop app for running a team of AI agents: chat, tasks, research and a studio, with your own Claude, ChatGPT and Gemini accounts.</p>
 
+<p align="center"><b>Munder Difflin + Buzz + me (<a href="https://github.com/KenFromBarbie">KenFromBarbie</a>)</b>: the <a href="CREDITS.md">Munder Difflin</a> Office and <a href="CREDITS.md">Buzz</a> (Block) chat, relay and agent runtime, put together and built on into one app.</p>
+
 ## What's inside
 
 - **Servers set up for the work**: name a server, say what it's for and attach

@@ -46,6 +46,8 @@ import {
 } from "@/shared/theme/ThemeProvider";
 
 import { Switch } from "@/shared/ui/switch";
+import { Input } from "@/shared/ui/input";
+import { DEFAULT_APP_NAME, setAppName, useAppName } from "@/shared/lib/appName";
 import { SettingsOptionRow } from "./SettingsOptionGroup";
 import { SegmentedControl } from "@/shared/ui/segmented-control";
 
@@ -793,5 +795,42 @@ export function ServerBarSetting() {
         />
       </SettingsOptionRow>
     </>
+  );
+}
+
+/** The app is called Anything, so it can be called anything. */
+export function AppNameSetting() {
+  const appName = useAppName();
+  const [draft, setDraft] = React.useState(appName);
+  React.useEffect(() => setDraft(appName), [appName]);
+  const commit = () => setAppName(draft);
+
+  return (
+    <SettingsOptionRow data-testid="app-name-row">
+      <div className="min-w-0">
+        <label className="text-sm font-medium" htmlFor="app-name-input">
+          App name
+        </label>
+        <p
+          className="text-sm font-normal text-muted-foreground/70"
+          data-settings-subcopy
+        >
+          Shown in the window title and on the start screen
+        </p>
+      </div>
+      <Input
+        className="h-8 w-48"
+        data-testid="app-name-input"
+        id="app-name-input"
+        maxLength={40}
+        onBlur={commit}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") commit();
+        }}
+        placeholder={DEFAULT_APP_NAME}
+        value={draft}
+      />
+    </SettingsOptionRow>
   );
 }
