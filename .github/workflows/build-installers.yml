@@ -156,7 +156,7 @@ jobs:
           done
 
           git clone --quiet --depth 1 --branch "$GARNET_VERSION" https://github.com/microsoft/garnet.git garnet-src
-          dotnet publish garnet-src/main/GarnetServer/GarnetServer.csproj -c Release -f net10.0 -r "$rid"             --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true             -o "$kit/garnet"
+          dotnet publish garnet-src/main/GarnetServer/GarnetServer.csproj -c Release -f net10.0 -r "$rid"             --self-contained             -o "$kit/garnet"
           rm -rf garnet-src
           # Garnet embeds files that need debug symbols to build; ship it without them.
           find "$kit/garnet" -name "*.pdb" -delete
