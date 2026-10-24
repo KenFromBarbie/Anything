@@ -4,7 +4,8 @@
   "bundle": {
     "createUpdaterArtifacts": false,
     "resources": {
-      "office-runtime/": "office/"
+      "office-runtime/": "office/",
+      "hosting-kit/": "hosting/"
     }
   }
 }

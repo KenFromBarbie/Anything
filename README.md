@@ -57,9 +57,10 @@ They aren't code-signed yet:
 The agents need their CLIs installed and signed in on your machine: Claude
 Code, Codex and/or Gemini CLI.
 
-Installed copies join servers by address or invite link. Hosting a server on
-the same computer currently needs the developer setup (the relay, Postgres and
-a cache from this repository); a built-in server for the installers is planned.
+Installed copies can host servers on their own computer too: the installers
+carry the relay, a private Postgres and a cache (Garnet), which the app sets up
+in its data folder the first time you create a server and keeps on this
+computer only. You can also join a server elsewhere by address or invite link.
 
 ## Repository layout
 

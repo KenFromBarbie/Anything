@@ -25,6 +25,8 @@ pub(crate) fn shut_down_app(app: &tauri::AppHandle, shutdown_done: &std::sync::a
             .shutdown_all();
         crate::office::shutdown(app);
         crate::local_servers::shutdown(app);
+        // After the relays: the hosting kit's database (stopped cleanly) and cache.
+        crate::hosting_kit::shutdown(app, crate::hosting_kit::find(app).as_ref());
         if let Err(error) = shutdown_managed_agents(app) {
             eprintln!("buzz-desktop: failed to stop managed agents: {error}");
         }

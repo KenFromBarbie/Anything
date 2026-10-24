@@ -118,6 +118,49 @@ jobs:
           fi
           ./scripts/bundle-sidecars.sh
 
+      # What lets an installed app host servers on its own computer: the
+      # relay, a portable Postgres and a self-contained Garnet (the cache),
+      # bundled under hosting/ (see desktop/src-tauri/src/hosting_kit.rs).
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Hosting kit
+        shell: bash
+        env:
+          POSTGRES_VERSION: "17.4.1"
+          GARNET_VERSION: "v2.2.4"
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS" in
+            Windows) triple=x86_64-pc-windows-msvc; rid=win-x64; ext=.exe ;;
+            macOS)   triple=aarch64-apple-darwin;   rid=osx-arm64; ext= ;;
+            Linux)   triple=x86_64-unknown-linux-gnu; rid=linux-x64; ext= ;;
+          esac
+          kit=desktop/src-tauri/hosting-kit
+          rm -rf "$kit" && mkdir -p "$kit/relay" "$kit/postgres" "$kit/garnet"
+
+          cargo build --release -p buzz-relay
+          cp "target/release/buzz-relay$ext" "$kit/relay/"
+
+          curl -fsSL -o pg.tar.gz             "https://github.com/theseus-rs/postgresql-binaries/releases/download/$POSTGRES_VERSION/postgresql-$POSTGRES_VERSION-$triple.tar.gz"
+          mkdir pg-unpacked && tar -xzf pg.tar.gz -C pg-unpacked
+          pg_bin="$(dirname "$(find pg-unpacked -type f -name "postgres$ext" -path '*/bin/*' | head -1)")"
+          pg_root="$(dirname "$pg_bin")"
+          for part in bin lib share; do
+            [[ -d "$pg_root/$part" ]] && cp -R "$pg_root/$part" "$kit/postgres/"
+          done
+          rm -rf pg.tar.gz pg-unpacked
+          for tool in postgres initdb pg_ctl; do
+            test -f "$kit/postgres/bin/$tool$ext" || { echo "missing $tool"; exit 1; }
+          done
+
+          git clone --quiet --depth 1 --branch "$GARNET_VERSION" https://github.com/microsoft/garnet.git garnet-src
+          dotnet publish garnet-src/main/GarnetServer/GarnetServer.csproj -c Release -f net8.0 -r "$rid"             --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true             -p:DebugType=none -o "$kit/garnet"
+          rm -rf garnet-src
+          test -f "$kit/garnet/GarnetServer$ext" || { echo "missing GarnetServer"; exit 1; }
+          du -sh "$kit"/*
+
       - name: Build the app
         shell: bash
         run: |

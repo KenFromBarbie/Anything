@@ -10,9 +10,11 @@
 //! The app starts the servers it knows (`<app data>/local-servers.json`) when
 //! it starts, and stops them when it quits.
 //!
-//! The relay binary and its settings come from the source checkout: the
-//! repository is the parent of `BUZZ_OFFICE_DIR` (the development launch sets
-//! it), or `BUZZ_LOCAL_RELAY_BIN` / `BUZZ_LOCAL_RELAY_ENV` point at them.
+//! The relay binary and its settings come from the source checkout when there
+//! is one: the repository is the parent of `BUZZ_OFFICE_DIR` (the development
+//! launch sets it), or `BUZZ_LOCAL_RELAY_BIN` / `BUZZ_LOCAL_RELAY_ENV` point
+//! at them. An installed app uses its bundled hosting kit instead
+//! (`hosting_kit`: its own Postgres, cache and file store).
 
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
@@ -93,7 +95,10 @@ fn relay_setup() -> Result<(PathBuf, PathBuf), String> {
     };
     let bin = std::env::var_os("BUZZ_LOCAL_RELAY_BIN")
         .map(PathBuf::from)
-        .or_else(|| repo.as_ref().map(|r| r.join("target").join("debug").join(bin_name)));
+        .or_else(|| {
+            repo.as_ref()
+                .map(|r| r.join("target").join("debug").join(bin_name))
+        });
     let env = std::env::var_os("BUZZ_LOCAL_RELAY_ENV")
         .map(PathBuf::from)
         .or_else(|| repo.as_ref().map(|r| r.join(".env")));
@@ -121,9 +126,7 @@ fn read_env_file(path: &Path) -> Vec<(String, String)> {
             let (key, value) = line.split_once('=')?;
             let key = key.trim();
             let valid = !key.is_empty()
-                && key
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || c == '_')
+                && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
                 && !key.starts_with(|c: char| c.is_ascii_digit());
             valid.then(|| (key.to_string(), value.trim().trim_matches('"').to_string()))
         })
@@ -150,21 +153,52 @@ fn log_file(app: &AppHandle, port: u16) -> Option<std::fs::File> {
     std::fs::File::create(dir.join(format!("relay-{port}.log"))).ok()
 }
 
+/// Where a relay comes from: the source checkout, or the bundled kit.
+enum RelaySource {
+    Checkout { bin: PathBuf, env_file: PathBuf },
+    Kit(crate::hosting_kit::Kit),
+}
+
+fn relay_source(app: &AppHandle) -> Result<RelaySource, String> {
+    match relay_setup() {
+        Ok((bin, env_file)) => Ok(RelaySource::Checkout { bin, env_file }),
+        Err(error) => crate::hosting_kit::find(app)
+            .map(RelaySource::Kit)
+            .ok_or(error),
+    }
+}
+
 /// Start one server's relay (if its port isn't already serving) and wait
 /// until it listens.
 fn start_server(app: &AppHandle, server: &LocalServer) -> Result<(), String> {
     if port_in_use(server.port) {
         return Ok(());
     }
-    let (bin, env_file) = relay_setup()?;
     let offset = server.port - 3000;
-    let mut cmd = Command::new(&bin);
-    if let Some(dir) = env_file.parent() {
-        cmd.current_dir(dir);
-    }
-    for (key, value) in read_env_file(&env_file) {
-        cmd.env(key, value);
-    }
+    let mut cmd = match relay_source(app)? {
+        RelaySource::Checkout { bin, env_file } => {
+            let mut cmd = Command::new(&bin);
+            if let Some(dir) = env_file.parent() {
+                cmd.current_dir(dir);
+            }
+            for (key, value) in read_env_file(&env_file) {
+                cmd.env(key, value);
+            }
+            cmd
+        }
+        RelaySource::Kit(kit) => {
+            // The kit's database, cache and file store, started on demand.
+            let env = crate::hosting_kit::ensure_running(app, &kit)?;
+            let mut cmd = Command::new(&kit.relay);
+            if let Some(dir) = kit.relay.parent() {
+                cmd.current_dir(dir);
+            }
+            for (key, value) in env {
+                cmd.env(key, value);
+            }
+            cmd
+        }
+    };
     cmd.env("BUZZ_BIND_ADDR", format!("127.0.0.1:{}", server.port))
         .env("RELAY_URL", server.relay_url())
         .env("BUZZ_HEALTH_PORT", (HEALTH_BASE + offset).to_string())
@@ -213,7 +247,8 @@ fn start_server(app: &AppHandle, server: &LocalServer) -> Result<(), String> {
     if let Ok(mut running) = app.state::<LocalServers>().running.lock() {
         // Drop this port's earlier relay if it has exited (the supervisor
         // restarted it), so the list doesn't grow.
-        running.retain_mut(|(port, old)| *port != server.port || matches!(old.try_wait(), Ok(None)));
+        running
+            .retain_mut(|(port, old)| *port != server.port || matches!(old.try_wait(), Ok(None)));
         running.push((server.port, child));
     }
     Ok(())
@@ -243,13 +278,19 @@ fn clean_name(name: &str) -> Result<String, String> {
 
 /// Create a server on this computer and start it; returns its address.
 #[tauri::command]
-pub async fn local_server_create(app: AppHandle, name: String) -> Result<CreatedLocalServer, String> {
+pub async fn local_server_create(
+    app: AppHandle,
+    name: String,
+) -> Result<CreatedLocalServer, String> {
     let name = clean_name(&name)?;
-    relay_setup()?;
+    relay_source(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let mut servers = load_registry(&app);
         let port = free_port(&servers).ok_or("No free port for another local server.")?;
-        let server = LocalServer { name: name.clone(), port };
+        let server = LocalServer {
+            name: name.clone(),
+            port,
+        };
         start_server(&app, &server)?;
         servers.push(server.clone());
         save_registry(&app, &servers)?;
@@ -273,20 +314,29 @@ pub fn server_work_folder(app: AppHandle, name: String) -> Result<String, String
     let cleaned: String = name
         .trim()
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { ' ' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' {
+                c
+            } else {
+                ' '
+            }
+        })
         .collect();
     let cleaned = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
-    let folder = home
-        .join("Anything")
-        .join(if cleaned.is_empty() { "Server".to_string() } else { cleaned });
+    let folder = home.join("Anything").join(if cleaned.is_empty() {
+        "Server".to_string()
+    } else {
+        cleaned
+    });
     std::fs::create_dir_all(&folder).map_err(|e| format!("make {}: {e}", folder.display()))?;
     Ok(folder.to_string_lossy().into_owned())
 }
 
-/// Whether servers can be made on this computer (the local relay is there).
+/// Whether servers can be made on this computer: the source checkout's relay,
+/// or the hosting kit an installed app carries.
 #[tauri::command]
-pub fn local_servers_available() -> bool {
-    relay_setup().is_ok()
+pub fn local_servers_available(app: AppHandle) -> bool {
+    relay_setup().is_ok() || crate::hosting_kit::find(&app).is_some()
 }
 
 /// How often the local servers are checked and restarted if down.
@@ -364,7 +414,10 @@ mod tests {
 
     #[test]
     fn servers_live_on_localhost_ports() {
-        let server = LocalServer { name: "A".into(), port: 3004 };
+        let server = LocalServer {
+            name: "A".into(),
+            port: 3004,
+        };
         assert_eq!(server.relay_url(), "ws://localhost:3004");
     }
 }

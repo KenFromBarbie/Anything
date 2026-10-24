@@ -36,6 +36,8 @@ public/studio-app/
 
 # Office runtime staged for installers (scripts/stage-office-runtime.mjs)
 src-tauri/office-runtime/
+# Hosting kit (relay, Postgres, Garnet) staged for installers by CI
+src-tauri/hosting-kit/
 
 # The Studio UI (just studio-web): a separate download, not in the app bundle
 studio-dist/

@@ -58,6 +58,8 @@ mod terminal_runtime;
 mod title_bar;
 mod server_planner;
 mod local_state_backup;
+mod hosting_kit;
+mod hosting_media;
 #[cfg_attr(not(test), allow(dead_code))]
 mod terminal_transport;
 #[cfg(target_os = "macos")]
@@ -249,6 +251,7 @@ pub fn run() {
         .manage(archive::sync::ArchiveSyncState::default())
         .manage(office::OfficeState::default())
         .manage(local_servers::LocalServers::default())
+        .manage(hosting_kit::HostingServices::default())
         .manage(native_relay_client::NativeRelayClient::default())
         .manage(observed_unread::ObservedUnreadStore::default())
         .manage(channel_head_cache::ChannelHeadCacheStore::default())
