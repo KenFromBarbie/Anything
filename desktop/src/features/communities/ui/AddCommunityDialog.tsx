@@ -120,6 +120,7 @@ export function AddCommunityDialog({
           ) : (
             <LocalServerCreateForm
               onCancel={handleClose}
+              onJoinInstead={() => setMode("join")}
               onCreated={(relayUrl, name) => {
                 const started = communityOnboarding.start({
                   source: "add-community",

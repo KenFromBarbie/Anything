@@ -35,9 +35,12 @@ import { Textarea } from "@/shared/ui/textarea";
 export function LocalServerCreateForm({
   onCancel,
   onCreated,
+  onJoinInstead,
 }: {
   onCancel: () => void;
   onCreated: (relayUrl: string, name: string) => void;
+  /** Where to go when this computer can't host a server: joining one. */
+  onJoinInstead?: () => void;
 }) {
   const [step, setStep] = React.useState<"describe" | "plan">("describe");
   const [name, setName] = React.useState("");
@@ -172,16 +175,23 @@ export function LocalServerCreateForm({
 
   if (!isLoading && available === false) {
     return (
-      <div className="grid gap-3">
-        <p className="text-sm text-muted-foreground">
-          Servers on this computer need the local relay from the source
-          checkout, which isn't set up here. You can still join a server you
-          have the address of.
+      <div className="grid gap-3" data-testid="local-server-unavailable">
+        <p className="text-sm font-medium text-foreground">
+          This computer can't host a server yet.
         </p>
-        <div className="flex justify-end">
-          <Button onClick={onCancel} variant="outline">
+        <p className="text-sm text-muted-foreground">
+          Hosting needs the server software that comes with the developer setup,
+          which isn't installed here. You can join a server that's already
+          running, on another computer or online, with its address or an invite
+          link.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button onClick={onCancel} variant="ghost">
             Back
           </Button>
+          {onJoinInstead ? (
+            <Button onClick={onJoinInstead}>Join a server</Button>
+          ) : null}
         </div>
       </div>
     );

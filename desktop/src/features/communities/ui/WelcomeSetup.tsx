@@ -234,6 +234,7 @@ export function WelcomeSetup({
               <div className="w-full max-w-[560px] text-left">
                 <LocalServerCreateForm
                   onCancel={() => showPage("welcome")}
+                  onJoinInstead={() => showPage("join")}
                   onCreated={(relayUrl, name) => {
                     communityOnboarding.start({
                       source: "first-community",

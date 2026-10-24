@@ -57,6 +57,10 @@ They aren't code-signed yet:
 The agents need their CLIs installed and signed in on your machine: Claude
 Code, Codex and/or Gemini CLI.
 
+Installed copies join servers by address or invite link. Hosting a server on
+the same computer currently needs the developer setup (the relay, Postgres and
+a cache from this repository); a built-in server for the installers is planned.
+
 ## Repository layout
 
 | Path | What |
