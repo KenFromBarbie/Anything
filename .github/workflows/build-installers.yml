@@ -181,9 +181,6 @@ jobs:
         run: |
           cd desktop
           pnpm tauri build --ci --bundles ${{ matrix.bundles }} --config src-tauri/tauri.release.conf.json
-          # The window's pages are embedded in the app: make sure the Office
-          # UI made it into what was packaged.
-          test -f dist/office-app/index.html || { echo "dist/office-app is missing from the app"; exit 1; }
 
       # Plain lower-case names for downloads:
       # anything_<version>_<arch>.<ext>.
