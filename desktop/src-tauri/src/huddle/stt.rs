@@ -193,10 +193,14 @@ impl Drop for SttPipeline {
 /// This favors natural conversational pauses over the lower latency of the
 /// previous 19-frame / 304 ms window.
 ///
+/// The tests' window; calls use the owner's pause length
+/// (`meeting_pause::silence_flush_frames`, 1.2 s unless changed).
+///
 /// This window is a turn-taking quality knob, not a latency lever: an earlier
 /// env override (`BUZZ_STT_FLUSH_MS`) let it be lowered to 150 ms, which split
 /// natural mid-sentence pauses into separate messages and confused the
 /// listening agents. Reverted — the window is fixed at the production value.
+#[cfg_attr(not(test), allow(dead_code))]
 const SILENCE_FLUSH_FRAMES: usize = 31;
 
 /// earshot requires exactly 256 samples per frame at 16 kHz.
@@ -605,7 +609,8 @@ fn process_stt_input(
             &mut stream.leftover_16k,
             &mut stream.vad,
             &mut stream.endpoint,
-            SILENCE_FLUSH_FRAMES,
+            // The owner's pause length (Settings → Meetings).
+            super::meeting_pause::silence_flush_frames(),
             (speculative_enabled, &mut stream.speculative),
             recognizer,
             text_tx,

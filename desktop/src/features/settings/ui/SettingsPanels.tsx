@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
+  Download,
   Gauge,
+  Mic,
   BellRing,
   Bot,
   ChevronDown,
@@ -58,6 +60,8 @@ import {
 } from "./AppearanceSettingsControls";
 import { OfficeBackdropSetting } from "./OfficeBackdropSetting";
 import { ChannelTemplatesSettingsCard } from "./ChannelTemplatesSettingsCard";
+import { MeetingSettingsCard } from "./MeetingSettingsCard";
+import { UpdatesSettingsCard } from "./UpdatesSettingsCard";
 import { ExperimentalFeaturesCard } from "./ExperimentalFeaturesCard";
 import { KeyboardShortcutsCard } from "./KeyboardShortcutsCard";
 import { NotificationSettingsCard } from "./NotificationSettingsCard";
@@ -78,6 +82,8 @@ export type SettingsSection =
   | "experimental"
   | "agents"
   | "ai-accounts"
+  | "meetings"
+  | "updates"
   | "channel-templates"
   | "appearance"
   | "shortcuts"
@@ -92,6 +98,8 @@ const SETTINGS_SECTION_VALUES: readonly SettingsSection[] = [
   "experimental",
   "agents",
   "ai-accounts",
+  "meetings",
+  "updates",
   "channel-templates",
   "appearance",
   "shortcuts",
@@ -160,6 +168,16 @@ export const settingsSections: SettingsSectionDescriptor[] = [
     value: "ai-accounts",
     label: "AI accounts",
     icon: Gauge,
+  },
+  {
+    value: "meetings",
+    label: "Meetings",
+    icon: Mic,
+  },
+  {
+    value: "updates",
+    label: "Updates",
+    icon: Download,
   },
   {
     value: "channel-templates",
@@ -794,6 +812,10 @@ export function renderSettingsSection(
       return <AgentsSettingsPanel />;
     case "ai-accounts":
       return <AiAccountsSettingsCard />;
+    case "meetings":
+      return <MeetingSettingsCard />;
+    case "updates":
+      return <UpdatesSettingsCard />;
     case "channel-templates":
       return <ChannelTemplatesSettingsCard />;
     case "appearance":

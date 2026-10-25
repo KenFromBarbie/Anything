@@ -8,7 +8,7 @@ import test from "node:test";
 const { validateSettingsSearch } = await import("./settings.tsx");
 
 test("removed sections fall back to the default", () => {
-  for (const section of ["moderation", "relay-admin", "compute", "updates"]) {
+  for (const section of ["moderation", "relay-admin", "compute"]) {
     assert.equal(validateSettingsSearch({ section }).section, undefined);
   }
 });
@@ -31,4 +31,9 @@ test("unknown section resolves to undefined (falls back to default)", () => {
 test("missing section resolves to undefined", () => {
   const result = validateSettingsSearch({});
   assert.equal(result.section, undefined);
+});
+
+test("the updates and meetings sections open", () => {
+  assert.equal(validateSettingsSearch({ section: "updates" }).section, "updates");
+  assert.equal(validateSettingsSearch({ section: "meetings" }).section, "meetings");
 });

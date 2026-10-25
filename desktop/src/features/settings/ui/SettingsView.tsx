@@ -65,7 +65,7 @@ export const settingsNavGroups: Array<{
   },
   {
     label: "App",
-    sections: ["agents", "ai-accounts", "experimental"],
+    sections: ["agents", "ai-accounts", "meetings", "updates", "experimental"],
   },
 ];
 

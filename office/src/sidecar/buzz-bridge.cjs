@@ -46,6 +46,10 @@ const MAX_REPLY_BYTES = 64 * 1024;
 const PROFILE = { name: 'Michael', about: 'Runs the Office: splits your requests between the staff and brings back one answer.' };
 const AUTO_JOIN = ['general'];
 const GOD = 'god';
+/** A DM reply longer than this (characters) is posted as a thread under the
+ *  message instead of inline. */
+const LONG_DM_REPLY = 1200;
+
 /** Agent-authored messages relayed per thread before the bridge stops passing
  *  them on (until the owner speaks in that thread again): two agents that keep
  *  @mentioning each other would otherwise loop forever. */
@@ -468,6 +472,15 @@ class BuzzBridge {
     who.callChannels = new Set(
       list.filter((c) => /(^|\s)(call|huddle)$/i.test(String(c.name ?? '').trim())).map((c) => c.channel_id)
     );
+    // A meeting this agent was in that's gone from its list has ended: the
+    // list leaves archived channels out, so an ended call never shows up as
+    // archived here, and waiting for that meant nobody got the notes.
+    // (Only from a list that came back: a failed one would end every meeting.)
+    if (Array.isArray(channels)) {
+      for (const [channel, attendees] of this.meetingAttendees) {
+        if (attendees.has(who.agentId) && !who.knownChannels.has(channel)) this.debriefMeeting(channel);
+      }
+    }
     // The app's meeting room: its calls get quick answers (see answerInMeeting).
     const meetings = list.filter((c) => /^meeting room call$/i.test(String(c.name ?? '').trim()));
     who.meetingChannels = new Set(meetings.map((c) => c.channel_id));
@@ -492,8 +505,14 @@ class BuzzBridge {
   classify(ev, who) {
     const channel = ev.tags?.find((t) => t[0] === 'h')?.[1];
     if (!channel) return null;
+    // A DM first: its messages p-tag the agent too, and a mention is answered
+    // in a thread, where a DM is a conversation answered inline (unless the
+    // owner wrote inside a thread there).
+    if (who.dmChannels?.has(channel)) {
+      const inThread = this.threadRootOf(ev);
+      return inThread ? { why: 'dm', channel, root: inThread, inThread: true } : { why: 'dm', channel };
+    }
     if (ev.tags.some((t) => t[0] === 'p' && t[1] === who.pubkey)) return { why: 'mention', channel };
-    if (who.dmChannels?.has(channel)) return { why: 'dm', channel };
     for (const t of ev.tags) {
       if (t[0] !== 'e') continue;
       const known = this.thread(t[1]);
@@ -539,8 +558,9 @@ class BuzzBridge {
     }
     const send = this.shim.ipcMain.handlers.get('hive:send');
     if (!send) return false;
-    // In channels the agent answers in the thread; in a DM it answers inline.
-    const threaded = route.why !== 'dm';
+    // In channels the agent answers in the thread; in a DM it answers inline
+    // (in its thread when the owner wrote in one; long answers get a thread).
+    const threaded = route.why !== 'dm' || route.inThread === true;
     const root = route.root ?? ev.id;
     const inCall = !!channel && who.callChannels?.has(channel);
     // A meeting: a call with several of the office's agents (each transcript
@@ -714,9 +734,32 @@ class BuzzBridge {
     const log = this.meetingLog.get(channel) ?? [];
     const who = [...(this.meetingAttendees.get(channel) ?? [])];
     const send = this.shim.ipcMain.handlers.get('hive:send');
-    if (!log.length || !who.length || !send) return;
+    if (!log.length || !send) return;
     const transcript = log.map((l) => `${l.name}: ${l.text.replace(/\s+/g, ' ')}`).join('\n');
+    const saved = this.saveMeetingNotes(channel, log, transcript);
+    // Michael runs the floor: he reads every meeting, whether he was in it or
+    // not, and sees to it that what was agreed gets done.
+    if (this.michael) {
+      void Promise.resolve(send({ sender: null, senderFrame: null }, {
+        to: this.michael.agentId,
+        act: 'request',
+        subject: 'A meeting ended: follow up',
+        body: [
+          '[MEETING ENDED — read what was said and follow up. No one is watching this terminal.]',
+          '1. Record the decisions and who took on what in your memory.md.',
+          '2. Every task agreed in the meeting needs an owner: put it on the board and hand it to the right agent (or do it yourself), unless whoever took it on already has.',
+          '3. Post a short summary for the owner (decisions, who does what, what is still open) in the channel the work belongs to, or the general channel.',
+          saved ? `The notes are saved at ${saved}.` : '',
+          '',
+          'What was said:',
+          transcript.slice(-8000)
+        ].filter(Boolean).join('\n'),
+        conversation: `meeting-${channel}`,
+        requires_reply: false
+      }, 'human')).catch(() => {});
+    }
     for (const agentId of who) {
+      if (agentId === this.michael?.agentId) continue;
       void Promise.resolve(send({ sender: null, senderFrame: null }, {
         to: agentId,
         act: 'inform',
@@ -726,7 +769,27 @@ class BuzzBridge {
         requires_reply: false
       }, 'human')).catch(() => {});
     }
-    this.log.log(`[buzz-bridge] meeting ${channel.slice(0, 8)} ended; notes sent to ${who.length} agent(s)`);
+    this.log.log(`[buzz-bridge] meeting ${channel.slice(0, 8)} ended; notes to Michael and ${who.length} attendee(s)`);
+  }
+
+  /** Keep a meeting's notes in the hive (`hive/meetings/<when>.md`), where the
+   *  agents can read them again; returns the file, or null. */
+  saveMeetingNotes(channel, log, transcript) {
+    try {
+      const config = JSON.parse(fs.readFileSync(join(this.userData, 'config.json'), 'utf8'));
+      if (!config.harnessHome) return null;
+      const dir = join(config.harnessHome, 'hive', 'meetings');
+      fs.mkdirSync(dir, { recursive: true });
+      const started = new Date((log[0]?.at ?? Date.now() / 1000) * 1000);
+      const stamp = started.toISOString().slice(0, 16).replace(/[T:]/g, '-');
+      const file = join(dir, `${stamp}-${channel.slice(0, 8)}.md`);
+      const people = [...new Set(log.map((l) => l.name))].join(', ');
+      fs.writeFileSync(file, `# Meeting, ${started.toLocaleString()}\n\nWho spoke: ${people}\n\n${transcript}\n`);
+      return file;
+    } catch (e) {
+      this.log.warn('[buzz-bridge] saving meeting notes failed:', e?.message ?? e);
+      return null;
+    }
   }
 
   /** Answer the owner in the meeting room as `who`, quickly and aloud.
@@ -863,6 +926,9 @@ class BuzzBridge {
     // the channel itself (--in-channel: a quick answer, or when asked to).
     const inChannel = msg.inChannel === true;
     if (thread.threaded && !inChannel) args.push('--reply-to', thread.root);
+    // A DM answer is inline, like a chat; a long one goes in a thread under
+    // the message so the conversation stays readable.
+    else if (!thread.threaded && text.length > LONG_DM_REPLY) args.push('--reply-to', thread.root);
     const r = await this.run(args, text, who);
     // Replying to the agent's own message counts as a follow-up in this thread.
     if (r?.event_id) {

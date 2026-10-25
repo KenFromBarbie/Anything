@@ -1,9 +1,10 @@
 import type { OfficeTask } from "@/features/tasks/lib/useTasksData";
 
 /**
- * What Ask Me shows, by the Office's own rules: a task waits on you when it's
- * blocked with an unanswered, undismissed question; newest ask first; and with
- * it, the open tasks stuck behind it.
+ * What the Inbox asks you, by the Office's own rules: a task waits on you
+ * when it's blocked, with an unanswered question or none at all (often it
+ * waits on an approval nobody wrote down as a question), until you reply or
+ * dismiss it; newest ask first; and with it, the open tasks stuck behind it.
  */
 
 type Ask = NonNullable<OfficeTask["humanQA"]>[number];
@@ -25,21 +26,29 @@ export function openQuestion(task: OfficeTask): Ask | undefined {
   return undefined;
 }
 
-export function waitsOnYou(task: OfficeTask): boolean {
-  return task.status === "blocked" && !!openQuestion(task);
+/** Whether you've already replied to (or dismissed) a blocked task that has
+ *  no open question: its latest entry is settled. */
+function settled(task: OfficeTask): boolean {
+  const last = task.humanQA?.at(-1);
+  return !!last && (!!last.a || !!last.dismissedAt);
 }
 
-function askedAtMs(ask: Ask | undefined): number | null {
-  if (!ask?.askedAt) return null;
-  const ms = Date.parse(ask.askedAt);
+export function waitsOnYou(task: OfficeTask): boolean {
+  return task.status === "blocked" && (!!openQuestion(task) || !settled(task));
+}
+
+function askedAtMs(task: OfficeTask): number | null {
+  const at = openQuestion(task)?.askedAt ?? task.createdAt;
+  if (!at) return null;
+  const ms = Date.parse(at);
   return Number.isNaN(ms) ? null : ms;
 }
 
 /** Tasks waiting on you, newest ask first; asks with no time go last. */
 export function asksForYou(tasks: OfficeTask[]): OfficeTask[] {
   return tasks.filter(waitsOnYou).sort((a, b) => {
-    const at = askedAtMs(openQuestion(a));
-    const bt = askedAtMs(openQuestion(b));
+    const at = askedAtMs(a);
+    const bt = askedAtMs(b);
     if (at === null && bt === null) return 0;
     if (at === null) return 1;
     if (bt === null) return -1;

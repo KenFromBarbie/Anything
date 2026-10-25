@@ -1,9 +1,14 @@
 import * as React from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { PhoneOff, Volume2, X } from "lucide-react";
+import { MessageSquareText, PhoneOff, Volume2, X } from "lucide-react";
+import { toast } from "sonner";
+
+import { useAppNavigation } from "@/app/navigation/useAppNavigation";
+import { useChannelsQuery } from "@/features/channels/hooks";
 
 import { useHuddle } from "@/features/huddle/HuddleContext";
 import {
+  isMeetingCallName,
   openMeetingDialog,
   useMeetingState,
 } from "@/features/office/lib/meetingRoom";
@@ -14,6 +19,12 @@ import {
   SidebarMenuItem,
 } from "@/shared/ui/sidebar";
 import { SidebarMenuLabel } from "@/shared/ui/sidebar-menu-label";
+
+/** When a meeting call was last active: its last message, else when it ended. */
+const latestAt = (c: {
+  lastMessageAt: string | null;
+  archivedAt: string | null;
+}) => c.lastMessageAt ?? c.archivedAt ?? "";
 
 /**
  * The Office's meeting room as a voice channel, under Channels, like a voice
@@ -27,6 +38,22 @@ export function MeetingRoomVoiceChannel() {
     useHuddle();
   const [removing, setRemoving] = React.useState<string | null>(null);
   const inMeeting = active && !!activeEphemeralChannelId;
+  const { goChannel } = useAppNavigation();
+  const { data: channels } = useChannelsQuery();
+
+  // Read the meeting's chat without joining the call: the one going on, else
+  // the latest one (each meeting is its own call channel, archived after).
+  function openChat() {
+    if (inMeeting && activeEphemeralChannelId) {
+      void goChannel(activeEphemeralChannelId);
+      return;
+    }
+    const latest = (channels ?? [])
+      .filter((c) => isMeetingCallName(c.name))
+      .sort((a, b) => latestAt(b).localeCompare(latestAt(a)))[0];
+    if (latest) void goChannel(latest.id);
+    else toast("No meetings yet: call one to start its chat.");
+  }
 
   async function remove(pubkey: string) {
     if (removing) return;
@@ -65,6 +92,19 @@ export function MeetingRoomVoiceChannel() {
           />
           <SidebarMenuLabel>Meeting room</SidebarMenuLabel>
         </SidebarMenuButton>
+        <button
+          aria-label="Open the meeting chat"
+          className={cn(
+            "absolute top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground",
+            inMeeting ? "right-8" : "right-1",
+          )}
+          data-testid="meeting-room-chat"
+          onClick={openChat}
+          title="Read the meeting chat (without joining)"
+          type="button"
+        >
+          <MessageSquareText className="h-3.5 w-3.5" />
+        </button>
         {inMeeting ? (
           <button
             aria-label="Leave the meeting"

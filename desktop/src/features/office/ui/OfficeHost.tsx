@@ -1,6 +1,12 @@
 import * as React from "react";
 
-import { resetOfficeSession } from "@/features/office/lib/officeLink";
+import { listen } from "@tauri-apps/api/event";
+import { toast } from "sonner";
+
+import {
+  callOffice,
+  resetOfficeSession,
+} from "@/features/office/lib/officeLink";
 import { clearMirrorSnapshot } from "@/features/office/lib/officeMirror";
 import {
   useOfficeAnchor,
@@ -95,6 +101,41 @@ export function OfficeHost({ active }: { active: boolean }) {
     },
     [],
   );
+
+  // An AI account switched (Settings → AI accounts, or the usage guard):
+  // agents read their account only when they start, so this Office restarts
+  // that engine's agents onto it (busy ones once they're between steps).
+  React.useEffect(() => {
+    let stop: (() => void) | undefined;
+    let gone = false;
+    void listen<string>("ai-account-switched", (event) => {
+      if (!openedThisSession) return; // not started: agents start on the new one
+      void callOffice<{ restarted: number; waiting: number }>(
+        "agents.accountChanged",
+        { engine: event.payload },
+      )
+        .then(({ restarted, waiting }) => {
+          if (restarted + waiting === 0) return;
+          toast(
+            waiting
+              ? `Switching ${restarted + waiting} agents to the new account (${waiting} when they finish their current step).`
+              : `Restarted ${restarted} agents on the new account.`,
+          );
+        })
+        .catch((error) =>
+          toast.error(
+            `Couldn't move the agents to the new account: ${error instanceof Error ? error.message : String(error)}. Restart them from the Agents page.`,
+          ),
+        );
+    }).then((unlisten) => {
+      if (gone) unlisten();
+      else stop = unlisten;
+    });
+    return () => {
+      gone = true;
+      stop?.();
+    };
+  }, []);
 
   React.useEffect(() => {
     const notify = () => setOpened(true);

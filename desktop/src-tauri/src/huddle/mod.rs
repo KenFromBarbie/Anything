@@ -34,6 +34,7 @@ pub mod jitter;
 #[cfg(test)]
 mod latency_bench;
 mod local_barge_in;
+pub mod meeting_pause;
 pub mod models;
 pub mod pipeline;
 pub mod playout;

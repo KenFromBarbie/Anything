@@ -12,7 +12,7 @@ const task = (id, fields = {}) => ({
   ...fields,
 });
 
-test("only blocked tasks with an open question wait on you, newest first", () => {
+test("blocked tasks with an open question wait on you, newest first", () => {
   const tasks = [
     task("old", { humanQA: [{ q: "a?", askedAt: "2026-10-01T10:00:00Z" }] }),
     task("new", { humanQA: [{ q: "b?", askedAt: "2026-10-09T10:00:00Z" }] }),
@@ -46,4 +46,25 @@ test("stuck tasks follow the dependency chain, skip done ones, and survive cycle
     stuckBehind("root", tasks).map((t) => t.id),
     ["a", "b", "loop"],
   );
+});
+
+test("a blocked task with no question waits on you until you reply or dismiss it", () => {
+  const tasks = [
+    task("approval"),
+    task("replied", {
+      humanQA: [{ q: "blocked", a: "go ahead", answeredAt: "x" }],
+    }),
+    task("dismissed", { humanQA: [{ q: "blocked", dismissedAt: "x" }] }),
+    task("asked-again", {
+      humanQA: [
+        { q: "blocked", a: "go ahead" },
+        { q: "which one?", askedAt: "2026-10-09T10:00:00Z" },
+      ],
+    }),
+    task("todo", { status: "todo" }),
+  ];
+  assert.deepEqual(asksForYou(tasks).map((t) => t.id).sort(), [
+    "approval",
+    "asked-again",
+  ]);
 });

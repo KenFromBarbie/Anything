@@ -1218,7 +1218,8 @@ fn activate(app: &AppHandle, engine: Engine, id: &str) -> Result<(), String> {
             return Err("No such account.".into());
         }
     }
-    if entry.active != next {
+    let changed = entry.active != next;
+    if changed {
         entry.active = next.clone();
         entry.history.push(Switch {
             at: now_ms(),
@@ -1228,7 +1229,14 @@ fn activate(app: &AppHandle, engine: Engine, id: &str) -> Result<(), String> {
             entry.history.drain(..entry.history.len() - 200);
         }
     }
-    save_registry(&app, &registry)
+    save_registry(&app, &registry)?;
+    if changed {
+        // Agents read their account only when they start: the window tells
+        // the Office to restart this engine's agents onto the new one.
+        use tauri::Emitter;
+        let _ = app.emit("ai-account-switched", engine.key());
+    }
+    Ok(())
 }
 
 #[tauri::command]

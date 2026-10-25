@@ -43,6 +43,39 @@ pub enum KeyringProbe {
 /// as a JSON map under this name within the service.
 const BLOB_KEY: &str = "secrets";
 
+/// Windows Credential Manager holds at most 2560 bytes a credential, and the
+/// keyring stores text as UTF-16: about 1280 characters. The identity, the
+/// agents' keys and Notion's sign-in together outgrow that ("keyring write:
+/// … too long", and Notion never stays signed in), so a blob longer than this
+/// is split: the main entry holds `CHUNKED_PREFIX<count>`, and the parts are
+/// `secrets.1` … `secrets.<count>`.
+const CHUNK_CHARS: usize = 1000;
+const CHUNKED_PREFIX: &str = "chunked:";
+/// Parts beyond the count are deleted on write; this bounds the sweep.
+const MAX_CHUNKS: usize = 64;
+
+#[cfg(feature = "system-keyring")]
+fn chunk_key(index: usize) -> String {
+    format!("{BLOB_KEY}.{index}")
+}
+
+/// Split `value` into parts of at most `CHUNK_CHARS` characters (never
+/// inside a character).
+fn split_chunks(value: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut rest = value;
+    while !rest.is_empty() {
+        let end = rest
+            .char_indices()
+            .nth(CHUNK_CHARS)
+            .map(|(i, _)| i)
+            .unwrap_or(rest.len());
+        parts.push(&rest[..end]);
+        rest = &rest[end..];
+    }
+    parts
+}
+
 // ── Interprocess advisory lock ─────────────────────────────────────────────
 //
 // Two concurrent Buzz processes (e.g. the signed DMG build and an unsigned dev
@@ -355,14 +388,30 @@ impl SecretStore {
     fn read_blob_raw_keyring(&self) -> Result<Option<Vec<u8>>, String> {
         let entry =
             keyring_entry(&self.service, BLOB_KEY).map_err(|e| format!("keyring entry: {e}"))?;
-        match entry.get_password() {
-            Ok(s) => Ok(Some(s.into_bytes())),
-            Err(keyring::Error::NoEntry) => Ok(None),
+        let head = match entry.get_password() {
+            Ok(s) => s,
+            Err(keyring::Error::NoEntry) => return Ok(None),
             Err(e) if is_keyring_availability_error(&e.to_string()) => {
-                Err(format!("keyring unavailable: {e}"))
+                return Err(format!("keyring unavailable: {e}"));
             }
-            Err(e) => Err(format!("keyring read: {e}")),
+            Err(e) => return Err(format!("keyring read: {e}")),
+        };
+        let Some(count) = head.strip_prefix(CHUNKED_PREFIX) else {
+            return Ok(Some(head.into_bytes()));
+        };
+        let count: usize = count
+            .trim()
+            .parse()
+            .map_err(|_| "keyring read: bad chunk count".to_string())?;
+        let mut whole = String::new();
+        for index in 1..=count {
+            let part = keyring_entry(&self.service, &chunk_key(index))
+                .map_err(|e| format!("keyring entry: {e}"))?
+                .get_password()
+                .map_err(|e| format!("keyring read part {index}: {e}"))?;
+            whole.push_str(&part);
         }
+        Ok(Some(whole.into_bytes()))
     }
 
     /// Atomically load the blob, apply `f` to a candidate map, write back if
@@ -467,9 +516,45 @@ impl SecretStore {
         let value = std::str::from_utf8(bytes).map_err(|e| format!("blob utf8 encode: {e}"))?;
         let entry =
             keyring_entry(&self.service, BLOB_KEY).map_err(|e| format!("keyring entry: {e}"))?;
+        let parts = if value.chars().count() > CHUNK_CHARS {
+            split_chunks(value)
+        } else {
+            Vec::new()
+        };
+        if parts.len() > MAX_CHUNKS {
+            return Err("keyring write: secrets too large".into());
+        }
+        // Parts first, then the head that points at them: a reader never sees
+        // a count whose parts aren't written yet.
+        for (index, part) in parts.iter().enumerate() {
+            keyring_entry(&self.service, &chunk_key(index + 1))
+                .map_err(|e| format!("keyring entry: {e}"))?
+                .set_password(part)
+                .map_err(|e| format!("keyring write part {}: {e}", index + 1))?;
+        }
+        let head = if parts.is_empty() {
+            value.to_string()
+        } else {
+            format!("{CHUNKED_PREFIX}{}", parts.len())
+        };
         entry
-            .set_password(value)
-            .map_err(|e| format!("keyring write: {e}"))
+            .set_password(&head)
+            .map_err(|e| format!("keyring write: {e}"))?;
+        self.delete_chunks_from(parts.len() + 1);
+        Ok(())
+    }
+
+    /// Delete leftover parts from `first` on (a blob that shrank).
+    #[cfg(feature = "system-keyring")]
+    fn delete_chunks_from(&self, first: usize) {
+        for index in first..=MAX_CHUNKS {
+            let Ok(entry) = keyring_entry(&self.service, &chunk_key(index)) else {
+                return;
+            };
+            if let Err(keyring::Error::NoEntry) = entry.delete_credential() {
+                return; // parts are contiguous: none after a missing one
+            }
+        }
     }
 
     /// Probe whether `key` exists and whether the backend is reachable.
@@ -812,7 +897,8 @@ impl SecretStore {
                 }
             }
 
-            // Step 4: delete the main blob entry.
+            // Step 4: delete the main blob entry (and its parts, if split).
+            self.delete_chunks_from(1);
             {
                 let entry = keyring_entry(&self.service, BLOB_KEY)
                     .map_err(|e| format!("keyring entry constructor blob: {e}"))?;
@@ -918,6 +1004,21 @@ impl SecretStore {
             let _ = key;
             Err("system-keyring feature disabled".to_string())
         }
+    }
+}
+
+#[cfg(test)]
+mod chunk_tests {
+    use super::*;
+
+    #[test]
+    fn long_blobs_split_into_whole_characters() {
+        let value = "é".repeat(CHUNK_CHARS * 2 + 5);
+        let parts = split_chunks(&value);
+        assert_eq!(parts.len(), 3);
+        assert!(parts.iter().all(|p| p.chars().count() <= CHUNK_CHARS));
+        assert_eq!(parts.concat(), value);
+        assert!(split_chunks("").is_empty());
     }
 }
 
@@ -1203,6 +1304,29 @@ mod tests {
         // Cleanup.
         let _ = store.delete("key_a");
         let _ = store.delete("key_b");
+    }
+
+    /// Secrets past the Windows credential size limit (Notion's sign-in on top
+    /// of the identity and agent keys) round-trip, and shrinking cleans up.
+    #[ignore = "requires real OS keychain (run locally)"]
+    #[test]
+    fn long_blobs_round_trip_and_shrink() {
+        let store = SecretStore::keyring("buzz-test-blob-long");
+        let token = "t".repeat(5000);
+        store.store("notion.mcp.tokens", &token).unwrap();
+        store.store("identity", "nsec1test").unwrap();
+        // A fresh store reads it back from the keychain, not the cache.
+        let fresh = SecretStore::keyring("buzz-test-blob-long");
+        assert_eq!(fresh.load("notion.mcp.tokens").unwrap(), Some(token));
+        assert_eq!(fresh.load("identity").unwrap(), Some("nsec1test".to_string()));
+        store.delete("notion.mcp.tokens").unwrap();
+        let fresh = SecretStore::keyring("buzz-test-blob-long");
+        assert_eq!(fresh.load("notion.mcp.tokens").unwrap(), None);
+        assert!(keyring_entry("buzz-test-blob-long", &chunk_key(1))
+            .unwrap()
+            .get_password()
+            .is_err());
+        let _ = store.delete("identity");
     }
 
     #[ignore = "requires real OS keychain (run locally)"]

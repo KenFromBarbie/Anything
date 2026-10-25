@@ -41,6 +41,7 @@ mod notion_mcp;
 mod observed_unread;
 mod app_job;
 mod local_servers;
+mod updater;
 mod office;
 mod persona_catalog;
 mod prevent_sleep;
@@ -367,6 +368,7 @@ pub fn run() {
                 *guard = Some(app_handle.clone());
             }
 
+            huddle::meeting_pause::load_for_app(&app_handle);
             let (tts_settings, tts_settings_load_error) =
                 huddle::tts_settings::load_for_app(&app_handle);
             if let Ok(mut guard) = state.huddle_audio.tts.lock() {
@@ -562,6 +564,10 @@ pub fn run() {
             title_bar::set_title_bar_colors,
             title_bar::window_control,
             studio::studio_theme,
+            updater::updater_check,
+            updater::updater_install,
+            updater::updater_settings_get,
+            updater::updater_settings_set,
             local_servers::local_server_create,
             local_servers::local_servers_available,
             local_servers::server_work_folder,
@@ -909,6 +915,8 @@ pub fn run() {
             get_model_status,
             set_tts_enabled,
             huddle::tts_settings::get_tts_settings,
+            huddle::meeting_pause::meeting_settings_get,
+            huddle::meeting_pause::meeting_settings_set_pause,
             huddle::tts_settings::list_voice_registry,
             huddle::tts_settings::set_pocket_voice,
             huddle::tts_settings::preview_pocket_voice,

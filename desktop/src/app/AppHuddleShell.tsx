@@ -2,6 +2,7 @@ import * as React from "react";
 import { AppHuddleBar } from "@/app/AppHuddleBar";
 import * as BuzzTheme from "@/app/BuzzThemeSurfaces";
 import { HuddleProvider, useHuddle } from "@/features/huddle";
+import { useAutoUpdate } from "@/features/settings/lib/useAutoUpdate";
 import { HUDDLE_SHORTCUT_EVENT } from "@/shared/lib/keyboard-shortcuts";
 import { RemindMeLaterProvider } from "@/features/reminders/ui/RemindMeLaterProvider";
 import { cn } from "@/shared/lib/cn";
@@ -38,6 +39,8 @@ function HuddleShortcutHandler({ children }: HuddleShortcutHandlerProps) {
     return () =>
       window.removeEventListener(HUDDLE_SHORTCUT_EVENT, handleHuddleShortcut);
   }, [activeEphemeralChannelId, leaveHuddle]);
+  // Updating automatically (when turned on) waits until you're not in a call.
+  useAutoUpdate(!!activeEphemeralChannelId);
 
   return children;
 }

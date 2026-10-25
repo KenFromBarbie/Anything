@@ -107,14 +107,16 @@ export function useOfficeTaskActions() {
 export function useAskMeActions() {
   const client = useQueryClient();
   const settle = () => client.invalidateQueries({ queryKey: OFFICE_TASKS_KEY });
+  // The reply answers the task's open question, or, when it has none, what
+  // the blocked task waits on (the Office records it and tells Michael).
   const answer = useMutation({
     mutationFn: (fields: { taskId: string; q: string; text: string }) =>
-      callOffice("askme.answer", fields),
+      callOffice("tasks.reply", { taskId: fields.taskId, text: fields.text }),
     onSettled: settle,
   });
   const dismiss = useMutation({
     mutationFn: (fields: { taskId: string; q: string }) =>
-      callOffice("askme.dismiss", fields),
+      callOffice("tasks.dismissBlocked", { taskId: fields.taskId }),
     onSettled: settle,
   });
   return { answer, dismiss };

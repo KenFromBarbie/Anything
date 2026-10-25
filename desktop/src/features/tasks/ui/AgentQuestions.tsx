@@ -1,5 +1,12 @@
 import * as React from "react";
-import { ChevronDown, ChevronRight, Loader2, Send, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Reply,
+  Send,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { accentDotClass } from "@/features/office/lib/agentAccent";
@@ -73,7 +80,7 @@ export function AgentQuestionsInbox() {
         ) : (
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         )}
-        Questions from agents
+        Waiting on you
         <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">
           {asks.length}
         </span>
@@ -125,6 +132,13 @@ function AskCard({
   const key = draftKey(task.id, question);
   const [text, setText] = React.useState(() => drafts.get(key) ?? "");
   const [historyOpen, setHistoryOpen] = React.useState(false);
+  const [replying, setReplying] = React.useState(() => !!drafts.get(key));
+  // No question written down: it's blocked on something (often an approval).
+  const shown =
+    question ||
+    (task.description?.trim()
+      ? `**Blocked.** ${task.description.trim()}`
+      : "**Blocked**, waiting on you: an approval, a decision or access. Reply to tell the team what to do.");
   const history = (task.humanQA ?? []).filter((entry) => entry !== open);
   const stuck = stuckBehind(task.id, tasks);
   const assignee = task.assignee
@@ -145,6 +159,7 @@ function AskCard({
       {
         onSuccess: () => {
           update("");
+          setReplying(false);
           toast.success("Sent. The work can continue.");
         },
         onError: (error) => toast.error(error.message),
@@ -205,7 +220,7 @@ function AskCard({
       </header>
 
       <div className="rounded-xl bg-muted/40 px-4 py-3 text-sm">
-        <Markdown className="leading-6" content={question || " "} />
+        <Markdown className="leading-6" content={shown} />
       </div>
 
       {history.length > 0 ? (
@@ -243,8 +258,22 @@ function AskCard({
         </div>
       ) : null}
 
-      <div className="grid gap-2">
+      {!replying ? (
+        <div className="flex justify-end">
+          <Button
+            data-testid="agent-question-reply"
+            disabled={busy}
+            onClick={() => setReplying(true)}
+            size="sm"
+          >
+            <Reply />
+            Reply
+          </Button>
+        </div>
+      ) : null}
+      <div className={cn("grid gap-2", !replying && "hidden")}>
         <Textarea
+          autoFocus
           className="min-h-14 resize-y"
           data-testid="agent-question-answer"
           onChange={(event) => update(event.target.value)}
@@ -269,7 +298,7 @@ function AskCard({
             size="sm"
           >
             {answer.isPending ? <Loader2 className="animate-spin" /> : <Send />}
-            Respond
+            Send
           </Button>
         </div>
       </div>

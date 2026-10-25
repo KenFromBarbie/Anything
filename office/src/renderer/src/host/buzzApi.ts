@@ -11,6 +11,7 @@
  */
 import i18n from '@/i18n';
 import { useStore, type Agent } from '@/store/store';
+import { restartAgent } from '@/components/agentRestart';
 import { openQuestion, parseTasks, type HiveTask, type HumanQA } from '@/components/TasksKanban';
 import { disposeTerminal } from '@/components/terminalPool';
 import { sectionOps } from '@/host/buzzSectionsApi';
@@ -26,6 +27,15 @@ import {
   type AgentProvider,
   type HarnessConfig
 } from '@/store/config';
+
+/** The AI-account engine an agent signs in through (claude, codex, gemini). */
+function accountEngineOf(a: Agent): string {
+  const provider = inferAgentProvider(a.command, a.provider);
+  return provider === 'codex' || provider === 'gemini' ? provider : provider === 'claude' || !provider ? 'claude' : String(provider);
+}
+
+/** What a reply to a blocked card without a written question answers. */
+const BLOCKED_ASK = 'This task is blocked: what it waits on (an approval, a decision, access)';
 
 const HIRE_ACCENTS: AccentColorName[] = ['coral', 'mint', 'sky', 'lemon', 'lilac', 'peach'];
 
@@ -204,6 +214,88 @@ const ops: Record<string, Op> = {
       }, 'human'),
       'telling Michael'
     );
+    return true;
+  },
+  /** The owner's reply on a blocked card, from the Inbox: to its open
+   *  question if it has one, else to the card being blocked (often it waits on
+   *  an approval nobody wrote down as a question). Recorded in humanQA; Michael
+   *  and whoever has the card are told, so it's unblocked and the work goes on. */
+  'tasks.reply': async (a) => {
+    const reply = text(a.text, 8000);
+    if (!reply) throw new Error('write a reply');
+    const task = parseTasks(await window.cth.hiveTasks()).find((x) => x.id === text(a.taskId, 80));
+    if (!task) throw new Error('that task is gone');
+    const now = new Date().toISOString();
+    const open = openQuestion(task);
+    const question = open?.q ?? BLOCKED_ASK;
+    const humanQA = open
+      ? (task.humanQA ?? []).map((e) => (e === open ? { ...e, a: reply, answeredAt: now } : e))
+      : [...(task.humanQA ?? []), { q: BLOCKED_ASK, askedAt: now, a: reply, answeredAt: now }];
+    checked(await window.cth.hivePatchTask(task.id, { humanQA }), 'saving the reply');
+    const body = [
+      `The human replied on task ${task.id} ("${task.title}"), which is ${task.status}:`,
+      `Q: ${question}`,
+      `A: ${reply}`,
+      "It's recorded in the card's humanQA. If it approves or answers what the card waits on, unblock it and continue the work; if it asks for something else, do that."
+    ].join('\n');
+    checked(
+      await window.cth.hiveSend({ to: 'god', act: 'inform', subject: `HUMAN REPLY on task "${task.title}"`, body }, 'human'),
+      'telling Michael'
+    );
+    const assignee = task.assignee && useStore.getState().agents.find((x) => x.id === task.assignee && !x.isGod);
+    if (assignee) {
+      await window.cth.hiveSend({ to: assignee.id, act: 'inform', subject: `HUMAN REPLY on your task "${task.title}"`, body }, 'human');
+    }
+    return true;
+  },
+  /** The app switched an engine's AI account (Settings → AI accounts): an
+   *  agent's CLI reads its account only when it starts, so restart this
+   *  engine's agents onto it, continuing their conversations where the CLI
+   *  can. Idle ones now; busy ones as soon as they're between steps, so no
+   *  work is cut off. */
+  'agents.accountChanged': async (a) => {
+    const engine = text(a.engine, 20);
+    const onEngine = (x: Agent) => !!x.ptyId && (accountEngineOf(x) === engine);
+    const restart = async (x: Agent) => {
+      try {
+        await restartAgent(x, x.model, { resume: true, resumeOptional: true });
+      } catch (error) {
+        console.warn(`[buzzApi] restarting ${x.name} on the new account failed:`, error);
+      }
+    };
+    const busy = (x: Agent) => x.status === 'working' || x.status === 'thinking';
+    const waiting = new Set<string>();
+    for (const agent of useStore.getState().agents.filter(onEngine)) {
+      if (busy(agent)) waiting.add(agent.id);
+      else await restart(agent);
+    }
+    if (waiting.size) {
+      const started = Date.now();
+      const tick = async () => {
+        for (const id of [...waiting]) {
+          const agent = useStore.getState().agents.find((x) => x.id === id);
+          if (!agent || !onEngine(agent)) { waiting.delete(id); continue; }
+          if (!busy(agent) || Date.now() - started > 30 * 60_000) {
+            waiting.delete(id);
+            await restart(agent);
+          }
+        }
+        if (waiting.size) setTimeout(() => void tick(), 5_000);
+      };
+      setTimeout(() => void tick(), 5_000);
+    }
+    return { restarted: useStore.getState().agents.filter(onEngine).length - waiting.size, waiting: waiting.size };
+  },
+  /** Take a blocked card out of the Inbox without replying (it stays blocked). */
+  'tasks.dismissBlocked': async (a) => {
+    const task = parseTasks(await window.cth.hiveTasks()).find((x) => x.id === text(a.taskId, 80));
+    if (!task) throw new Error('that task is gone');
+    const now = new Date().toISOString();
+    const open = openQuestion(task);
+    const humanQA = open
+      ? (task.humanQA ?? []).map((e) => (e === open ? { ...e, dismissedAt: now } : e))
+      : [...(task.humanQA ?? []), { q: BLOCKED_ASK, askedAt: now, dismissedAt: now }];
+    checked(await window.cth.hivePatchTask(task.id, { humanQA }), 'dismissing');
     return true;
   },
   /** Take an ask off Ask Me without answering; the question stays on the card. */

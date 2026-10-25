@@ -182,3 +182,68 @@ test('identities from Buzz replace the floor; departed agents stop being served'
   await b.setWorkers([{ id: 'bad', name: 'Bad', key: 'not-a-key' }]);
   assert.equal(b.workers.size, 0, 'malformed identities are ignored');
 });
+
+function dmBridge(t) {
+  const ctx = bridge(t);
+  const run = ctx.b.run;
+  ctx.b.run = async (args, input, who) => {
+    if (args[0] === 'channels' && args[1] === 'list') return [{ channel_id: 'dm-1', name: 'DM' }, { channel_id: CHANNEL, name: 'general' }];
+    return run(args, input, who);
+  };
+  return ctx;
+}
+
+function dm(from, { mention, replyTo, content = 'hi' } = {}) {
+  const ev = message(from, { mention, replyTo, content });
+  ev.tags[0] = ['h', 'dm-1'];
+  return ev;
+}
+
+const sendArgs = (calls) => calls.filter((c) => c.args[0] === 'messages' && c.args[1] === 'send').at(-1).args;
+
+test('a DM is answered inline, even though it tags the agent', async (t) => {
+  const { b, calls } = dmBridge(t);
+  await b.refreshDmChannels(b.michael);
+  const ask = dm(OWNER, { mention: b.michael.pubkey });
+  assert.equal(b.classify(ask, b.michael).why, 'dm');
+  await b.handleEvent(ask, b.michael);
+  const [code] = await b.replyAs({ replyTo: ask.id, text: 'Sure, done.' });
+  assert.equal(code, 200);
+  assert.ok(!sendArgs(calls).includes('--reply-to'), 'inline, not in a thread');
+});
+
+test('a long DM answer, or one to a message in a DM thread, goes in the thread', async (t) => {
+  const { b, calls } = dmBridge(t);
+  await b.refreshDmChannels(b.michael);
+  const ask = dm(OWNER);
+  await b.handleEvent(ask, b.michael);
+  await b.replyAs({ replyTo: ask.id, text: 'x'.repeat(2000) });
+  assert.deepEqual(sendArgs(calls).slice(-2), ['--reply-to', ask.id]);
+
+  const inThread = dm(OWNER, { replyTo: 'root-1' });
+  await b.handleEvent(inThread, b.michael);
+  await b.replyAs({ replyTo: inThread.id, text: 'short' });
+  assert.deepEqual(sendArgs(calls).slice(-2), ['--reply-to', 'root-1']);
+});
+
+test('a meeting that ended is read by Michael and saved, once', async (t) => {
+  const { b, sent } = await withJim(t);
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'md-hive-'));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(b.userData, 'config.json'), JSON.stringify({ harnessHome: home }));
+  const call = 'call-1';
+  const jim = b.byAgent('jim-1');
+  b.attend(call, jim);
+  b.noteMeeting({ id: 'm1', created_at: 1000, pubkey: OWNER, content: 'Jim, draft the menu by Friday.' }, call);
+  b.noteMeeting({ id: 'm2', created_at: 1001, pubkey: jim.pubkey, content: 'Will do.' }, call);
+  // The call channel is no longer in Jim's list: the meeting is over.
+  await b.refreshDmChannels(jim, true);
+  const toMichael = sent.filter((m) => m.to === b.michael.agentId && /meeting ended/i.test(m.subject));
+  assert.equal(toMichael.length, 1);
+  assert.equal(toMichael[0].act, 'request');
+  assert.match(toMichael[0].body, /draft the menu/);
+  assert.ok(sent.some((m) => m.to === 'jim-1' && m.subject === 'Meeting notes'));
+  assert.equal(fs.readdirSync(path.join(home, 'hive', 'meetings')).length, 1);
+  await b.refreshDmChannels(jim, true);
+  assert.equal(sent.filter((m) => m.to === b.michael.agentId && /meeting ended/i.test(m.subject)).length, 1, 'once');
+});
