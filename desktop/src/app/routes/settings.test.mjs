@@ -34,6 +34,12 @@ test("missing section resolves to undefined", () => {
 });
 
 test("the updates and meetings sections open", () => {
-  assert.equal(validateSettingsSearch({ section: "updates" }).section, "updates");
-  assert.equal(validateSettingsSearch({ section: "meetings" }).section, "meetings");
+  assert.equal(
+    validateSettingsSearch({ section: "updates" }).section,
+    "updates",
+  );
+  assert.equal(
+    validateSettingsSearch({ section: "meetings" }).section,
+    "meetings",
+  );
 });

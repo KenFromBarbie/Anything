@@ -370,7 +370,7 @@ export function PtyTerminalView({ ptyId, onStreamData, onUserPrompt, onToggleFul
 
   return (
     <div style={{
-      background: 'var(--cth-paper-100)',
+      background: 'var(--cth-terminal-surface, var(--cth-paper-100))',
       boxShadow: embedded ? 'none' : 'var(--cth-panel-border-terminal)',
       padding: embedded ? 0 : 8,
       height: '100%',

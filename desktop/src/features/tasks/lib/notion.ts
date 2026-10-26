@@ -348,8 +348,33 @@ export async function updateRow(
 
 // ─── Pages and databases ─────────────────────────────────────────────────────
 
+/** Whether a page or database still exists: Notion's search index keeps
+ *  listing ones in the trash for a while, so a result is opened before it's
+ *  offered. One that can't be opened, or says it's in the trash, is gone. */
+export async function isLive(id: string): Promise<boolean> {
+  try {
+    const fetched = await callNotion("notion-fetch", { id });
+    const text = JSON.stringify(fetched ?? "");
+    return !/"(in_trash|is_archived|archived)"\s*:\s*true|in[- ]trash|<in-trash|moved to (the )?trash/i.test(
+      text,
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Only the items that still exist (checked together, at most `limit`). */
+export async function keepLive<T extends { id: string }>(
+  items: T[],
+  limit = 20,
+): Promise<T[]> {
+  const head = items.slice(0, limit);
+  const live = await Promise.all(head.map((item) => isLive(item.id)));
+  return head.filter((_, index) => live[index]);
+}
+
 /** Pages to put the task databases under (or databases, for an existing
- *  task list). */
+ *  task list). Deleted ones are left out. */
 export async function searchPages(
   query: string,
   kind: "page" | "database" = "page",
@@ -366,7 +391,7 @@ export async function searchPages(
     if (!id) continue;
     pages.push({ id, title: plainValue(item.title) || "Untitled" });
   }
-  return pages;
+  return keepLive(pages);
 }
 
 /** The agents' board: one row per task, keyed by "Task ID". */

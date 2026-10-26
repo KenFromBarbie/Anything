@@ -592,19 +592,19 @@ export function NewMessageScreen() {
 
       {hasReachedRecipientLimit ? (
         <p
-          className="px-5 pb-2 text-sm text-muted-foreground"
+          className="bg-background px-5 pb-2 text-sm text-muted-foreground"
           data-testid="new-dm-limit"
         >
           DMs support up to nine people, including you.
         </p>
       ) : null}
       {searchError ? (
-        <p className="px-5 pb-2 text-sm text-destructive">
+        <p className="bg-background px-5 pb-2 text-sm text-destructive">
           {searchError.message}
         </p>
       ) : null}
       {submitErrorMessage ? (
-        <p className="px-5 pb-2 text-sm text-destructive">
+        <p className="bg-background px-5 pb-2 text-sm text-destructive">
           {submitErrorMessage}
         </p>
       ) : null}
@@ -612,7 +612,9 @@ export function NewMessageScreen() {
       <MessageComposer
         channelName="new message"
         channelType="dm"
-        containerClassName="px-5"
+        // The same surface as the page above: a transparent strip let the
+        // Office floor show through around the box.
+        containerClassName="bg-background px-5"
         disabled={isPending || selectedUsers.length === 0}
         isSending={isPending}
         onPrepareSendChannel={prepareSendChannel}

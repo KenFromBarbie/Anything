@@ -1,6 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import { notionId, queryRows, rowText } from "@/features/tasks/lib/notion";
+import {
+  keepLive,
+  notionId,
+  queryRows,
+  rowText,
+} from "@/features/tasks/lib/notion";
 
 /**
  * Reading Notion in the app, through the owner's Notion sign-in: search and
@@ -63,18 +68,19 @@ function itemsOf(value: unknown): NotionItem[] {
   return items;
 }
 
-/** Pages and databases matching `query`; with no query, recent ones. */
+/** Pages and databases matching `query`; with no query, recent ones.
+ *  Deleted ones are left out (search keeps listing them for a while). */
 export async function listNotion(query: string): Promise<NotionItem[]> {
   const q = query.trim();
   if (!q) {
     try {
       const recent = itemsOf(await call("notion-list-recent-pages", {}));
-      if (recent.length > 0) return recent;
+      if (recent.length > 0) return keepLive(recent);
     } catch {
       // Not offered by this workspace: fall back to a broad search.
     }
   }
-  return itemsOf(await call("notion-search", { query: q || "a" }));
+  return keepLive(itemsOf(await call("notion-search", { query: q || "a" })));
 }
 
 const decode = (s: string) =>

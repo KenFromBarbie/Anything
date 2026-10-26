@@ -113,11 +113,20 @@ const HOSTED_CSS = `
 :root[data-cth-host='buzz'] [data-cth-panel-title] { border-radius: 10px 10px 0 0; }
 :root[data-cth-host='buzz'] [data-cth-button] { border-radius: 6px; }
 :root[data-cth-host='buzz'] [data-cth-badge] { border-radius: 999px; }
+/* The app's see-through panels are the surface: the page itself paints
+   nothing, so the terminal (and the floor behind the app) shows through. */
+:root[data-cth-host='buzz'], :root[data-cth-host='buzz'] body, :root[data-cth-host='buzz'] #root {
+  background: transparent !important;
+}
 `;
 
 function applyTheme(theme: HostTheme): void {
   const root = document.documentElement;
   const c = theme.colors;
+  // The same light/dark as the app: a frame whose scheme differs from the
+  // page around it gets an opaque canvas (white), which shows now the page
+  // itself is see-through.
+  root.style.colorScheme = theme.dark ? 'dark' : 'light';
   const mix = (a: string, b: string, pct: number) => `color-mix(in srgb, ${a} ${pct}%, ${b})`;
   const tokens: Record<string, string> = {
     // Surfaces: the ground is Buzz's content background; the cream steps are
@@ -163,8 +172,44 @@ function applyTheme(theme: HostTheme): void {
       void window.cth?.updateConfig?.({ terminalTheme: mode });
     }
   }
+  // Terminals are see-through, like Buzz's panels: the floor shows faintly
+  // behind them.
+  tokens['--cth-terminal-surface'] = 'transparent';
   for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value);
-  if (!mirrorRole) setTerminalBackground(mode, c.card);
+  if (!mirrorRole) setTerminalBackground(mode, translucent(c.card, TERMINAL_OPACITY));
+}
+
+/** How much of a terminal's background is painted (the rest shows through). */
+const TERMINAL_OPACITY = 0.7;
+
+/** `color` at `opacity`, as #rrggbbaa (xterm's theme takes no CSS functions);
+ *  a colour it can't read is returned solid. */
+function translucent(color: string, opacity: number): string {
+  const alpha = Math.round(Math.min(1, Math.max(0, opacity)) * 255).toString(16).padStart(2, '0');
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim())?.[1];
+  if (hex) {
+    const full = hex.length === 3 ? [...hex].map((d) => d + d).join('') : hex;
+    return `#${full}${alpha}`;
+  }
+  const part = (n: number) => Math.round(Math.min(255, Math.max(0, n))).toString(16).padStart(2, '0');
+  const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(color.trim());
+  if (rgb) return `#${part(Number(rgb[1]))}${part(Number(rgb[2]))}${part(Number(rgb[3]))}${alpha}`;
+  // Buzz's tokens: hsl(240 6% 10%) (or with commas).
+  const hsl = /^hsla?\(\s*([\d.]+)(?:deg)?[\s,]+([\d.]+)%[\s,]+([\d.]+)%/i.exec(color.trim());
+  if (hsl) {
+    const h = Number(hsl[1]) / 360;
+    const s = Number(hsl[2]) / 100;
+    const l = Number(hsl[3]) / 100;
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const channel = (t: number) => {
+      const u = t < 0 ? t + 1 : t > 1 ? t - 1 : t;
+      const v = u < 1 / 6 ? p + (q - p) * 6 * u : u < 1 / 2 ? q : u < 2 / 3 ? p + (q - p) * (2 / 3 - u) * 6 : p;
+      return v * 255;
+    };
+    return `#${part(channel(h + 1 / 3))}${part(channel(h))}${part(channel(h - 1 / 3))}${alpha}`;
+  }
+  return color;
 }
 
 // ─── Command Center sections, driven from Buzz ──────────────────────────────

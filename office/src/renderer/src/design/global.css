@@ -29,6 +29,12 @@ body {
     );
 }
 
+/* Inside Anything the app's own (see-through) panels are the surface: no
+   cream noise between them and the terminal. */
+html[data-cth-host='buzz'] body {
+  background-image: none;
+}
+
 button, input, textarea, select {
   font-family: inherit;
   font-size: inherit;

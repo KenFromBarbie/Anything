@@ -46,7 +46,7 @@ export function SelectedRecipientChip({
   user: UserSearchResult;
 }) {
   return (
-    <div className="inline-flex h-7 max-w-56 items-center gap-1.5 rounded-full bg-muted px-1 pr-2.5 text-sm transition-colors hover:bg-muted/80">
+    <div className="inline-flex h-7 max-w-56 items-center gap-1.5 rounded-full bg-muted px-1 pr-2 text-sm transition-colors hover:bg-muted/80">
       <button
         aria-label={`Remove ${label}`}
         className={cn(
@@ -129,6 +129,21 @@ export function SelectedRecipientChip({
           className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
         />
       ) : null}
+      {/* Always visible: the avatar's hover-only ✕ wasn't found. */}
+      <button
+        aria-label={`Remove ${label}`}
+        className="-mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+        data-testid={testIds?.chip ? `${testIds.chip}-remove` : undefined}
+        disabled={disabled}
+        onClick={(event) => {
+          event.stopPropagation();
+          onRemove();
+        }}
+        title={`Remove ${label}`}
+        type="button"
+      >
+        <X aria-hidden="true" className="h-3 w-3" />
+      </button>
     </div>
   );
 }

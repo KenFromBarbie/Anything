@@ -147,6 +147,9 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
     // actual background — so it also rescues low-contrast coloured *text* on the
     // cream paper. Untouched for already-high-contrast cells (the dark theme).
     minimumContrastRatio: 4.5,
+    // Inside the app terminals are see-through, like the panel around them
+    // (a translucent theme background needs this).
+    allowTransparency: true,
     allowProposedApi: true
   });
   const fit = new FitAddon();
@@ -294,7 +297,9 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
     if (data !== '?') return false;          // only the QUERY form; a SET is not ours to handle
     if (entry.exited) return true;           // swallow it rather than write to a dead pty
     const map = (term.options.theme ?? theme) as ThemeMap | undefined;
-    const hex = index === 11 ? map?.background : map?.foreground;
+    // A see-through background (#rrggbbaa) is answered as its solid colour:
+    // the program wants to know what its text sits on.
+    const hex = (index === 11 ? map?.background : map?.foreground)?.slice(0, 7);
     const rgb = hex && parseHexColor(hex);
     if (!rgb) return false;                  // unknown colour: stay silent rather than lie
     window.cth.writePty(ptyId, `\x1b]${index};${oscColorBody(rgb)}\x1b\\`);

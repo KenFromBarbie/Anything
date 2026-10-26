@@ -43,6 +43,7 @@ export type AppSidebarProps = {
     | "channel"
     | "messages"
     | "agents"
+    | "automations"
     | "workflows"
     | "pulse"
     | "projects"

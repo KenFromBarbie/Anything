@@ -16,6 +16,7 @@ import { Route as projectsRouteImport } from "./routes/projects";
 import { Route as officeRouteImport } from "./routes/office";
 import { Route as notionRouteImport } from "./routes/notion";
 import { Route as filesRouteImport } from "./routes/files";
+import { Route as automationsRouteImport } from "./routes/automations";
 import { Route as askMeRouteImport } from "./routes/ask-me";
 import { Route as agentsRouteImport } from "./routes/agents";
 import { Route as indexRouteImport } from "./routes/index";
@@ -80,6 +81,11 @@ const filesRoute = filesRouteImport.update({
   path: "/files",
   getParentRoute: () => rootRouteImport,
 } as any);
+const automationsRoute = automationsRouteImport.update({
+  id: "/automations",
+  path: "/automations",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const askMeRoute = askMeRouteImport.update({
   id: "/ask-me",
   path: "/ask-me",
@@ -126,6 +132,7 @@ export interface FileRoutesByFullPath {
   "/": typeof indexRoute;
   "/agents": typeof agentsRoute;
   "/ask-me": typeof askMeRoute;
+  "/automations": typeof automationsRoute;
   "/files": typeof filesRoute;
   "/notion": typeof notionRoute;
   "/office": typeof officeRoute;
@@ -147,6 +154,7 @@ export interface FileRoutesByTo {
   "/": typeof indexRoute;
   "/agents": typeof agentsRoute;
   "/ask-me": typeof askMeRoute;
+  "/automations": typeof automationsRoute;
   "/files": typeof filesRoute;
   "/notion": typeof notionRoute;
   "/office": typeof officeRoute;
@@ -169,6 +177,7 @@ export interface FileRoutesById {
   "/": typeof indexRoute;
   "/agents": typeof agentsRoute;
   "/ask-me": typeof askMeRoute;
+  "/automations": typeof automationsRoute;
   "/files": typeof filesRoute;
   "/notion": typeof notionRoute;
   "/office": typeof officeRoute;
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
     | "/"
     | "/agents"
     | "/ask-me"
+    | "/automations"
     | "/files"
     | "/notion"
     | "/office"
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | "/"
     | "/agents"
     | "/ask-me"
+    | "/automations"
     | "/files"
     | "/notion"
     | "/office"
@@ -234,6 +245,7 @@ export interface FileRouteTypes {
     | "/"
     | "/agents"
     | "/ask-me"
+    | "/automations"
     | "/files"
     | "/notion"
     | "/office"
@@ -256,6 +268,7 @@ export interface RootRouteChildren {
   indexRoute: typeof indexRoute;
   agentsRoute: typeof agentsRoute;
   askMeRoute: typeof askMeRoute;
+  automationsRoute: typeof automationsRoute;
   filesRoute: typeof filesRoute;
   notionRoute: typeof notionRoute;
   officeRoute: typeof officeRoute;
@@ -353,6 +366,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof filesRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/automations": {
+      id: "/automations";
+      path: "/automations";
+      fullPath: "/automations";
+      preLoaderRoute: typeof automationsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/ask-me": {
       id: "/ask-me";
       path: "/ask-me";
@@ -416,6 +436,7 @@ const rootRouteChildren: RootRouteChildren = {
   indexRoute: indexRoute,
   agentsRoute: agentsRoute,
   askMeRoute: askMeRoute,
+  automationsRoute: automationsRoute,
   filesRoute: filesRoute,
   notionRoute: notionRoute,
   officeRoute: officeRoute,

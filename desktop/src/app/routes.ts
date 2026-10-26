@@ -3,6 +3,7 @@ import { index, rootRoute, route } from "@tanstack/virtual-file-routes";
 export const routes = rootRoute("root.tsx", [
   index("index.tsx"),
   route("/agents", "agents.tsx"),
+  route("/automations", "automations.tsx"),
   route("/pulse", "pulse.tsx"),
   route("/office", "office.tsx"),
   route("/tasks", "tasks.tsx"),

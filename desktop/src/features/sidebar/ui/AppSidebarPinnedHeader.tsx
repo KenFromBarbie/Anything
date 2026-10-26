@@ -7,6 +7,7 @@ import {
   Inbox,
   ListChecks,
   Palette,
+  Workflow,
   Zap,
 } from "lucide-react";
 
@@ -32,6 +33,7 @@ type SidebarSelectedView =
   | "channel"
   | "messages"
   | "agents"
+  | "automations"
   | "workflows"
   | "pulse"
   | "projects"
@@ -116,7 +118,8 @@ export function AppSidebarPrimaryMenu({
   projectsOverviewActive,
   selectedView,
 }: AppSidebarPrimaryMenuProps) {
-  const { goOffice, goResearch, goStudio, goTasks } = useAppNavigation();
+  const { goAutomations, goOffice, goResearch, goStudio, goTasks } =
+    useAppNavigation();
   return (
     <>
       <SidebarHeader
@@ -197,6 +200,19 @@ export function AppSidebarPrimaryMenu({
             >
               <Bot className="h-4 w-4" />
               <SidebarMenuLabel>Agents</SidebarMenuLabel>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="data-[active=true]:font-normal"
+              data-testid="open-automations-view"
+              isActive={selectedView === "automations"}
+              onClick={() => void goAutomations()}
+              tooltip="Automations"
+              type="button"
+            >
+              <Workflow className="h-4 w-4" />
+              <SidebarMenuLabel>Automations</SidebarMenuLabel>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

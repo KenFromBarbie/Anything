@@ -49,19 +49,23 @@ import { GraphSection } from "./sections/GraphSection";
 import { MemorySection } from "./sections/MemorySection";
 import { ModelsBudgetsSection } from "./sections/ModelsBudgetsSection";
 import { SkillsSection } from "./sections/SkillsSection";
-import { TriggersSection } from "./sections/TriggersSection";
 import { WorkersSection } from "./sections/WorkersSection";
 
-/** Michael's sections drawn in Buzz's own UI (the rest — a worker's git,
- *  messages and traces — still show the Office's). */
-const NATIVE_SECTIONS: Record<string, () => React.ReactElement> = {
-  floor: ModelsBudgetsSection,
-  triggers: TriggersSection,
-  memory: MemorySection,
-  graph: GraphSection,
-  activity: ActivitySection,
-  skills: SkillsSection,
-  workers: WorkersSection,
+/** Michael's panel, in Buzz's own UI: his terminal, then his sections
+ *  grouped three to a tab (Triggers are the Automations page now). */
+type GodTab = "terminal" | "team" | "knowledge" | "insights";
+const GOD_TABS: { key: GodTab; label: string; icon: LucideIcon }[] = [
+  { key: "terminal", label: "Terminal", icon: SquareTerminal },
+  { key: "team", label: "Team & models", icon: Users },
+  { key: "knowledge", label: "Memory & skills", icon: Brain },
+  { key: "insights", label: "Graph, activity & workers", icon: Network },
+];
+const GOD_TAB_PARTS: Record<
+  Exclude<GodTab, "terminal" | "team">,
+  (() => React.ReactElement)[]
+> = {
+  knowledge: [MemorySection, SkillsSection],
+  insights: [GraphSection, ActivitySection, WorkersSection],
 };
 
 /** Buzz icons for the panels' sections (keys are the Office's): Michael's
@@ -122,8 +126,17 @@ export function OfficeAgentsPage() {
   }
   const showOverview =
     !!selected && !selected.isGod && workerView === "overview";
-  const onTerminal = !section || section === "terminal";
-  const frameRef = overlay || showOverview ? undefined : setOfficeAnchor;
+  const [godTab, setGodTab] = React.useState<GodTab>("terminal");
+  const godNative = !!selected?.isGod && godTab !== "terminal";
+  const onTerminal = selected?.isGod
+    ? godTab === "terminal"
+    : !section || section === "terminal";
+  const frameRef =
+    overlay || showOverview || godNative ? undefined : setOfficeAnchor;
+  const openGodTab = (tab: GodTab) => {
+    setGodTab(tab);
+    if (tab === "terminal") openOfficeSection("terminal");
+  };
 
   const select = (id: string) =>
     void callOffice("agents.select", { id }).catch((error: Error) =>
@@ -178,7 +191,32 @@ export function OfficeAgentsPage() {
             data-testid="agents-selected"
           >
             <AgentHeader agent={selected} michaelName={michaelName} />
-            {sections.length > 0 ? (
+            {selected.isGod ? (
+              <nav
+                aria-label="Michael's sections"
+                className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-0.5"
+                data-testid="agents-sections"
+              >
+                {GOD_TABS.map(({ key, label, icon: Icon }) => (
+                  <button
+                    aria-current={godTab === key ? "page" : undefined}
+                    className={cn(
+                      "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm transition-colors",
+                      godTab === key
+                        ? "bg-muted font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                    )}
+                    data-testid={`agents-section-${key}`}
+                    key={key}
+                    onClick={() => openGodTab(key)}
+                    type="button"
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                ))}
+              </nav>
+            ) : sections.length > 0 ? (
               <nav
                 aria-label="Agent sections"
                 className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-0.5"
@@ -233,23 +271,31 @@ export function OfficeAgentsPage() {
             ) : null}
             {showOverview ? (
               <AgentOverview agent={selected} />
-            ) : section && NATIVE_SECTIONS[section] && selected.isGod ? (
-              React.createElement(NATIVE_SECTIONS[section])
+            ) : selected.isGod && godTab === "team" ? (
+              <div className="grid gap-4" data-testid="agents-tab-team">
+                <FloorMonitor
+                  agents={agents}
+                  onSelect={select}
+                  selectedId={selectedId}
+                />
+                <ModelsBudgetsSection />
+              </div>
+            ) : selected.isGod &&
+              (godTab === "knowledge" || godTab === "insights") ? (
+              <div className="grid gap-4" data-testid={`agents-tab-${godTab}`}>
+                {GOD_TAB_PARTS[godTab].map((Part) => (
+                  <Part key={Part.name} />
+                ))}
+              </div>
             ) : onTerminal ? (
               <>
+                {/* See-through: the terminal is translucent over the panel. */}
                 <div
-                  className="h-[min(60vh,36rem)] min-h-80 overflow-hidden rounded-xl border border-border/70 bg-background"
+                  className="h-[min(60vh,36rem)] min-h-80 overflow-hidden rounded-xl border border-border/70 bg-transparent"
                   data-testid="office-embed"
                   ref={frameRef}
                 />
                 <QueueComposer agent={selected} />
-                {selected.isGod ? (
-                  <FloorMonitor
-                    agents={agents}
-                    onSelect={select}
-                    selectedId={selectedId}
-                  />
-                ) : null}
               </>
             ) : (
               <div

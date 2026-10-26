@@ -118,6 +118,12 @@ export function useAppNavigation() {
     [commitNavigation, location.pathname],
   );
 
+  const goAutomations = React.useCallback(
+    (behavior?: NavigationBehavior) =>
+      commitNavigation({ to: "/automations" }, behavior),
+    [commitNavigation],
+  );
+
   const goResearch = React.useCallback(
     (projectId?: string, behavior?: NavigationBehavior) =>
       commitNavigation(
@@ -530,6 +536,7 @@ export function useAppNavigation() {
     goAgents,
     goOffice,
     goTasks,
+    goAutomations,
     goResearch,
     goStudio,
     goFiles,
