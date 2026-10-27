@@ -10,6 +10,8 @@ export const routes = rootRoute("root.tsx", [
   route("/ask-me", "ask-me.tsx"),
   route("/research", "research.tsx"),
   route("/studio", "studio.tsx"),
+  route("/artifacts", "artifacts.tsx"),
+  route("/browser", "browser.tsx"),
   route("/files", "files.tsx"),
   route("/notion", "notion.tsx"),
   route("/reminders", "reminders.tsx"),

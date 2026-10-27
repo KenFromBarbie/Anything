@@ -1,9 +1,11 @@
 import * as React from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, Search } from "lucide-react";
+import { convertFileSrc, invoke, isTauri } from "@tauri-apps/api/core";
+import { BookOpen, FolderOpen, Loader2, Network, Search } from "lucide-react";
+import { toast } from "sonner";
 
 import { officeCth } from "@/features/office/lib/officeCth";
-import { useOfficeAgents } from "@/features/office/lib/officeLink";
+import { callOffice, useOfficeAgents } from "@/features/office/lib/officeLink";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Markdown } from "@/shared/ui/markdown";
@@ -168,6 +170,119 @@ export function MemorySection() {
           ) : null}
         </SectionCard>
       </div>
+      <VaultCard />
     </div>
+  );
+}
+
+type VaultInfo = {
+  exists: boolean;
+  path?: string;
+  notes?: number;
+  graphHtml?: string | null;
+  graphBuiltAt?: number | null;
+};
+
+/** What Michael is asked to do to (re)build the vault's knowledge graph. */
+export function graphRequest(vault: string): string {
+  return [
+    `[GRAPH REBUILD from the owner] Rebuild the knowledge graph of the office vault at ${vault}.`,
+    `Run the graphify skill on that folder (/graphify "${vault}"), so it writes graphify-out/ there (graph.html, GRAPH_REPORT.md, graph.json). If the graphify skill isn't installed, run \`graphify install --platform claude\` first.`,
+    "Then read GRAPH_REPORT.md: link notes that should be linked and merge duplicates in the vault, and tell the owner in a short message what the graph shows (the main clusters, and anything missing).",
+  ].join("\n");
+}
+
+/**
+ * The office vault: Obsidian notes the agents share (with their memory files
+ * mirrored in), and the knowledge graph graphify builds from it.
+ */
+function VaultCard() {
+  const { agents } = useOfficeAgents();
+  const michael = agents.find((agent) => agent.isGod);
+  const vault = useQuery({
+    queryKey: ["office", "vault"],
+    queryFn: () => invoke<VaultInfo>("office_vault"),
+    enabled: isTauri(),
+    refetchInterval: 30_000,
+  });
+  const open = (target: "obsidian" | "folder") =>
+    void invoke("office_vault_open", { target }).catch((error) =>
+      toast.error(String(error)),
+    );
+  const rebuild = useMutation({
+    mutationFn: (path: string) =>
+      callOffice<boolean>("agent.message", {
+        id: michael?.id ?? "god",
+        text: graphRequest(path),
+      }),
+    onSuccess: () =>
+      toast(`${michael?.name ?? "Michael"} is rebuilding the graph.`, {
+        description: "It shows here when it's done.",
+      }),
+    onError: (error) => toast.error(error.message),
+  });
+  const info = vault.data;
+
+  return (
+    <SectionCard
+      action={
+        info?.exists ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => open("obsidian")}
+              size="sm"
+              variant="outline"
+            >
+              <BookOpen />
+              Open in Obsidian
+            </Button>
+            <Button onClick={() => open("folder")} size="sm" variant="outline">
+              <FolderOpen />
+              Folder
+            </Button>
+            <Button
+              disabled={rebuild.isPending || !info.path}
+              onClick={() => info.path && rebuild.mutate(info.path)}
+              size="sm"
+            >
+              {rebuild.isPending ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Network />
+              )}
+              {info.graphHtml ? "Rebuild graph" : "Build graph"}
+            </Button>
+          </div>
+        ) : null
+      }
+      description="The office's shared Obsidian vault: linked notes the agents keep alongside their memory files (mirrored in), and the knowledge graph graphify builds from it."
+      title="Vault & knowledge graph"
+    >
+      {!info ? (
+        <Muted>
+          {vault.isLoading ? "Loading…" : "The vault needs the desktop app."}
+        </Muted>
+      ) : !info.exists ? (
+        <Muted>The vault is created when the Office starts.</Muted>
+      ) : (
+        <div className="grid gap-3">
+          <p className="break-all font-mono text-xs text-muted-foreground">
+            {info.path} · {info.notes ?? 0} notes
+            {info.graphBuiltAt
+              ? ` · graph built ${new Date(info.graphBuiltAt).toLocaleString()}`
+              : " · no graph yet"}
+          </p>
+          {info.graphHtml ? (
+            <iframe
+              className="h-[32rem] w-full rounded-xl border border-border/60 bg-white"
+              data-testid="vault-graph"
+              sandbox="allow-scripts"
+              src={convertFileSrc(info.graphHtml)}
+              title="Knowledge graph"
+            />
+          ) : null}
+        </div>
+      )}
+    </SectionCard>
   );
 }

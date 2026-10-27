@@ -14,6 +14,8 @@ export type AppView =
   | "office"
   | "research"
   | "studio"
+  | "artifacts"
+  | "browser"
   | "tasks";
 
 const WINDOW_DRAG_HANDLE_HEIGHT = 44;
@@ -291,6 +293,20 @@ export function deriveShellRoute(pathname: string): {
     return {
       selectedChannelId: null,
       selectedView: "research",
+    };
+  }
+
+  if (pathname === "/artifacts") {
+    return {
+      selectedChannelId: null,
+      selectedView: "artifacts",
+    };
+  }
+
+  if (pathname === "/browser") {
+    return {
+      selectedChannelId: null,
+      selectedView: "browser",
     };
   }
 

@@ -3,6 +3,7 @@ import { AppHuddleBar } from "@/app/AppHuddleBar";
 import * as BuzzTheme from "@/app/BuzzThemeSurfaces";
 import { HuddleProvider, useHuddle } from "@/features/huddle";
 import { useAutoUpdate } from "@/features/settings/lib/useAutoUpdate";
+import { useDeskNotices } from "@/features/office/lib/deskNotices";
 import { HUDDLE_SHORTCUT_EVENT } from "@/shared/lib/keyboard-shortcuts";
 import { RemindMeLaterProvider } from "@/features/reminders/ui/RemindMeLaterProvider";
 import { cn } from "@/shared/lib/cn";
@@ -41,6 +42,8 @@ function HuddleShortcutHandler({ children }: HuddleShortcutHandlerProps) {
   }, [activeEphemeralChannelId, leaveHuddle]);
   // Updating automatically (when turned on) waits until you're not in a call.
   useAutoUpdate(!!activeEphemeralChannelId);
+  // An agent showed you something it made, or opened a page for you.
+  useDeskNotices();
 
   return children;
 }

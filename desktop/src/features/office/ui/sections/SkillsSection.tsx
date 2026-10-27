@@ -13,7 +13,11 @@ import {
 import { toast } from "sonner";
 
 import { officeCth } from "@/features/office/lib/officeCth";
-import { useOfficeAgents } from "@/features/office/lib/officeLink";
+import {
+  githubRepoUrl,
+  installSkillRequest,
+} from "@/features/office/lib/skillInstall";
+import { callOffice, useOfficeAgents } from "@/features/office/lib/officeLink";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -122,6 +126,32 @@ export function SkillsSection() {
     onError: (error) => toast.error(error.message),
   });
 
+  // Add from GitHub: the owner gives the repo, Michael installs it.
+  const michael = agents.find((agent) => agent.isGod);
+  const [repo, setRepo] = React.useState("");
+  const repoUrl = githubRepoUrl(repo);
+  const addFromGitHub = useMutation({
+    mutationFn: (url: string) =>
+      callOffice<boolean>("agent.message", {
+        id: michael?.id ?? "god",
+        text: installSkillRequest(url),
+      }),
+    onSuccess: (_result, url) => {
+      setRepo("");
+      toast(`${michael?.name ?? "Michael"} is installing ${url}.`, {
+        description: "It shows under Installed once it's in.",
+      });
+      // Pick it up when it lands, without a manual refresh.
+      for (const ms of [60_000, 180_000, 420_000]) {
+        setTimeout(
+          () => void client.invalidateQueries({ queryKey: localKey }),
+          ms,
+        );
+      }
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const q = query.trim().toLowerCase();
   const matches = (s: { name: string; description: string }) =>
     !q ||
@@ -138,6 +168,45 @@ export function SkillsSection() {
 
   return (
     <div className="grid gap-4" data-testid="section-skills">
+      <SectionCard
+        description="Paste a GitHub repository with skills in it. Michael reads it, installs its skills for every agent, and tells you what he added."
+        title="Add from GitHub"
+      >
+        <form
+          className="flex flex-wrap items-center gap-2"
+          data-testid="skills-add-github"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (repoUrl) addFromGitHub.mutate(repoUrl);
+          }}
+        >
+          <Input
+            aria-label="GitHub repository"
+            className="min-w-64 flex-1"
+            data-testid="skills-github-repo"
+            onChange={(event) => setRepo(event.target.value)}
+            placeholder="github.com/owner/repo"
+            value={repo}
+          />
+          <Button
+            data-testid="skills-github-install"
+            disabled={!repoUrl || addFromGitHub.isPending}
+            type="submit"
+          >
+            {addFromGitHub.isPending ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <Download />
+            )}
+            Install
+          </Button>
+        </form>
+        {repo.trim() && !repoUrl ? (
+          <Muted>
+            That doesn't look like a GitHub repository (owner/repo).
+          </Muted>
+        ) : null}
+      </SectionCard>
       <div className="flex flex-wrap items-center gap-2">
         <SegmentedControl<"installed" | "browse">
           legend="Skills view"

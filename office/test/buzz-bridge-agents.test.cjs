@@ -203,6 +203,72 @@ test('files shared in a channel are downloaded into the hive for the agent', asy
   assert.equal(calls.filter((c) => c.args[0] === 'media').length, 1);
 });
 
+function withHive(b) {
+  const harness = path.join(b.userData, 'harness');
+  fs.mkdirSync(path.join(harness, 'hive'), { recursive: true });
+  fs.writeFileSync(path.join(b.userData, 'config.json'), JSON.stringify({ harnessHome: harness }));
+  return path.join(harness, 'hive');
+}
+
+function captureStdout(fn) {
+  const lines = [];
+  const write = process.stdout.write;
+  process.stdout.write = (s) => { lines.push(String(s)); return true; };
+  return Promise.resolve().then(fn).finally(() => { process.stdout.write = write; }).then((r) => [r, lines]);
+}
+
+test('buzz-show copies the file into the artifacts and tells the app', async (t) => {
+  const { b } = await withJim(t);
+  const hive = withHive(b);
+  const deck = path.join(b.userData, 'deck.pptx');
+  fs.writeFileSync(deck, 'slides');
+  const [[code, body], lines] = await captureStdout(() => b.showArtifact({ file: deck, title: 'Funnel deck', as: 'jim-1' }));
+  assert.equal(code, 200);
+  assert.equal(body.kind, 'office');
+  const index = JSON.parse(fs.readFileSync(path.join(hive, 'shared', 'artifacts', 'index.json'), 'utf8'));
+  assert.equal(index[0].agent, 'Jim');
+  assert.equal(fs.readFileSync(path.join(hive, 'shared', 'artifacts', index[0].file), 'utf8'), 'slides');
+  assert.match(lines.join(''), /^MD_OFFICE_ACTION .*"type":"artifact"/);
+  const [missing] = await b.showArtifact({ file: path.join(b.userData, 'nope.pdf'), as: 'jim-1' });
+  assert.equal(missing, 400);
+  const [notWeb] = await b.showArtifact({ url: 'file:///C:/secret', as: 'jim-1' });
+  assert.equal(notWeb, 400);
+});
+
+test('buzz-browse asks the app and returns its answer', async (t) => {
+  const { b } = await withJim(t);
+  const [pending, lines] = await captureStdout(() => {
+    const p = b.browse({ op: 'read', as: 'jim-1' });
+    return { p };
+  });
+  const asked = JSON.parse(lines.join('').replace('MD_OFFICE_ACTION ', ''));
+  assert.equal(asked.op, 'read');
+  b.browseResult({ id: asked.id, result: { url: 'https://example.test/', title: 'Example', text: 'Hello' } });
+  const [code, body] = await pending.p;
+  assert.equal(code, 200);
+  assert.equal(body.text, 'Hello');
+  const [bad] = await b.browse({ op: 'open', url: 'javascript:alert(1)' });
+  assert.equal(bad, 400);
+});
+
+test('the vault mirrors each agent\'s memory and keeps their own notes', async (t) => {
+  const { b } = await withJim(t);
+  const hive = withHive(b);
+  fs.writeFileSync(path.join(b.userData, 'harness', 'roster.json'), JSON.stringify({ agents: [{ id: 'jim-1', name: 'Jim' }] }));
+  fs.mkdirSync(path.join(hive, 'agents', 'jim-1'), { recursive: true });
+  fs.writeFileSync(path.join(hive, 'agents', 'jim-1', 'memory.md'), 'Owner prefers short decks.');
+  const vault = b.syncVaultNow();
+  assert.ok(fs.existsSync(path.join(vault, '.obsidian', 'app.json')), 'an Obsidian vault');
+  assert.match(fs.readFileSync(path.join(vault, 'Agents', 'Jim', 'Memory.md'), 'utf8'), /Owner prefers short decks/);
+  // The hub note is the agent's: a later sync leaves their edits alone.
+  fs.writeFileSync(path.join(vault, 'Agents', 'Jim.md'), '# Jim\nOwns [[Projects/Deck]].');
+  fs.writeFileSync(path.join(hive, 'agents', 'jim-1', 'memory.md'), 'Owner prefers decks of ten slides.');
+  b.syncVaultNow();
+  assert.match(fs.readFileSync(path.join(vault, 'Agents', 'Jim.md'), 'utf8'), /Owns \[\[Projects\/Deck\]\]/);
+  assert.match(fs.readFileSync(path.join(vault, 'Agents', 'Jim', 'Memory.md'), 'utf8'), /ten slides/);
+  assert.match(fs.readFileSync(path.join(vault, 'Agents.md'), 'utf8'), /\[\[Agents\/Michael\|Michael\]\]/);
+});
+
 test('the floor is reported to Buzz once per change, Michael excluded', async (t) => {
   const { b } = bridge(t);
   const harness = path.join(b.userData, 'harness');

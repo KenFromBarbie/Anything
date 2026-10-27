@@ -50,6 +50,8 @@ export type AppSidebarProps = {
     | "office"
     | "research"
     | "studio"
+    | "artifacts"
+    | "browser"
     | "tasks";
   unreadChannelCounts: ReadonlyMap<string, number>;
   unreadChannelIds: ReadonlySet<string>;

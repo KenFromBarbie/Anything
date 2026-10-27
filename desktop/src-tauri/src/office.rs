@@ -166,6 +166,13 @@ fn seed_office_settings(base: &Path, user_data: &Path) -> Result<(), String> {
     std::fs::rename(&staging, &target).map_err(|e| format!("save office settings: {e}"))
 }
 
+/// The active community's Office data folder, without recording anything.
+pub(crate) fn active_office_dir(app: &AppHandle) -> Option<PathBuf> {
+    let base = app.path().app_data_dir().ok()?;
+    let folders = office_folders(&base);
+    Some(base.join(folder_for(&folders, &current_community(app))))
+}
+
 /// The active community's scope without recording anything (for filtering
 /// which agent records show).
 pub(crate) fn active_office_scope(app: &AppHandle) -> Option<OfficeScope> {
@@ -372,6 +379,10 @@ fn spawn_sidecar(
                 }
                 continue;
             }
+            if let Some(json) = line.strip_prefix(crate::office_desk::ACTION_PREFIX) {
+                crate::office_desk::handle_action(&roster_app, &roster_scope, json);
+                continue;
+            }
             if let Some(json) = line.strip_prefix(READY_PREFIX) {
                 if let (Some(sender), Ok(ready)) =
                     (tx.take(), serde_json::from_str::<serde_json::Value>(json))
@@ -560,7 +571,7 @@ pub(crate) fn relay_event_seen() {
 
 /// Write one line to the running sidecar's stdin. False if it isn't running
 /// (or is another community's: a late report never reaches the next Office).
-fn send_to_sidecar(app: &AppHandle, scope: &OfficeScope, line: &str) -> bool {
+pub(crate) fn send_to_sidecar(app: &AppHandle, scope: &OfficeScope, line: &str) -> bool {
     use std::io::Write;
     let Some(state) = app.try_state::<OfficeState>() else {
         return false;

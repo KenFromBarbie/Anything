@@ -124,6 +124,18 @@ export function useAppNavigation() {
     [commitNavigation],
   );
 
+  const goArtifacts = React.useCallback(
+    (behavior?: NavigationBehavior) =>
+      commitNavigation({ to: "/artifacts" }, behavior),
+    [commitNavigation],
+  );
+
+  const goBrowser = React.useCallback(
+    (behavior?: NavigationBehavior) =>
+      commitNavigation({ to: "/browser" }, behavior),
+    [commitNavigation],
+  );
+
   const goResearch = React.useCallback(
     (projectId?: string, behavior?: NavigationBehavior) =>
       commitNavigation(
@@ -537,6 +549,8 @@ export function useAppNavigation() {
     goOffice,
     goTasks,
     goAutomations,
+    goArtifacts,
+    goBrowser,
     goResearch,
     goStudio,
     goFiles,

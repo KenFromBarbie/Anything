@@ -43,6 +43,7 @@ mod app_job;
 mod local_servers;
 mod updater;
 mod office;
+mod office_desk;
 mod persona_catalog;
 mod prevent_sleep;
 mod ptt_shortcut;
@@ -621,6 +622,14 @@ pub fn run() {
             research::research_pick_root,
             research::research_save_file,
             office::office_connect,
+            office_desk::browser_place,
+            office_desk::browser_navigate,
+            office_desk::browser_go,
+            office_desk::browser_state,
+            office_desk::office_artifacts,
+            office_desk::office_artifact_open,
+            office_desk::office_vault,
+            office_desk::office_vault_open,
             office::office_status,
             office::get_call_models,
             office::set_call_model,

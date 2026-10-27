@@ -32,6 +32,7 @@ const crypto = require('node:crypto');
 const { join } = require('node:path');
 const { execFile } = require('node:child_process');
 const { MeetingVoices, splitAnswer } = require('./meeting-voice.cjs');
+const { syncVault } = require('./vault.cjs');
 
 // The fallback check of each agent's feed. Messages normally arrive at once:
 // the app sees them on its live relay connection and says so (poll-now), and
@@ -66,6 +67,20 @@ const MAX_FILES_PER_DELIVERY = 10;
 /** stdout line Buzz's office.rs reads: the floor's agents, so Buzz can give
  *  each one an owner-attested identity (sent back on our stdin). */
 const ROSTER_PREFIX = 'MD_OFFICE_ROSTER ';
+/** Things for the app to do for an agent (show an artifact, drive the
+ *  Browser), one JSON line each on stdout; browser results come back on stdin. */
+const ACTION_PREFIX = 'MD_OFFICE_ACTION ';
+const BROWSE_TIMEOUT_MS = 45000;
+const ARTIFACTS_KEPT = 500;
+/** How often the vault's mirrors (agents' memory, meetings) are refreshed. */
+const VAULT_SYNC_MS = 3 * 60_000;
+/** What the app's viewer does with a file, by extension. */
+const ARTIFACT_KINDS = {
+  pdf: 'pdf', png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', svg: 'image',
+  mp4: 'video', webm: 'video', mov: 'video', m4v: 'video', mp3: 'audio', wav: 'audio', m4a: 'audio', ogg: 'audio',
+  html: 'html', htm: 'html', md: 'text', txt: 'text', csv: 'text', json: 'text',
+  pptx: 'office', ppt: 'office', docx: 'office', doc: 'office', xlsx: 'office', xls: 'office', odp: 'office', odt: 'office'
+};
 
 // ─── secp256k1 public key, in plain BigInt ───────────────────────────────────
 // Electron's Node is built on BoringSSL, which has no secp256k1 curve, so
@@ -188,7 +203,7 @@ class BuzzBridge {
     const fresh = () => ({ since: Math.floor(Date.now() / 1000), seen: [] });
     let s = {};
     try { s = JSON.parse(fs.readFileSync(this.statePath, 'utf8')); } catch { /* first run */ }
-    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [], toldHistory: s.toldHistory ?? [] };
+    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [], toldHistory: s.toldHistory ?? [], toldDesk: s.toldDesk ?? [], toldVault: s.toldVault ?? [] };
     // Older state files: one cursor (Michael's) and thread entries holding the
     // thread itself (an object, or before that just the channel id).
     if (!state.cursors[GOD]) state.cursors[GOD] = s.since !== undefined ? { since: s.since, seen: s.seen ?? [] } : fresh();
@@ -279,7 +294,22 @@ class BuzzBridge {
     this.writePostingGuide();
     this.log.log(`[buzz-bridge] Michael is ${this.pubkey.slice(0, 12)}… on ${this.relayUrl}; owner ${this.owner.slice(0, 12)}…; identity ${this.managed ? 'held by Buzz (owner-attested)' : 'local'}`);
     this.timer = setInterval(() => { void this.poll(); }, POLL_MS);
+    this.vaultTimer = setInterval(() => this.syncVaultNow(), VAULT_SYNC_MS);
+    this.vaultTimer.unref?.();
     void this.poll();
+  }
+
+  /** Keep the office's Obsidian vault (vault.cjs) and its mirrors current. */
+  syncVaultNow() {
+    const hive = this.hiveDir();
+    if (!hive) return null;
+    try {
+      const floor = [{ id: GOD, name: this.michael.name }, ...(this.readRoster() ?? [])];
+      return syncVault(hive, floor);
+    } catch (e) {
+      this.log.warn('[buzz-bridge] could not update the vault:', e.message);
+      return null;
+    }
   }
 
   stop() {
@@ -287,6 +317,8 @@ class BuzzBridge {
     if (this.contextTimer) { clearTimeout(this.contextTimer); this.contextTimer = null; this.saveContextNow(); }
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    if (this.vaultTimer) clearInterval(this.vaultTimer);
+    this.vaultTimer = null;
     if (this.server) this.server.close();
     this.server = null;
   }
@@ -363,6 +395,7 @@ class BuzzBridge {
    */
   writePostingGuide() {
     if (!this.postWrapperPath) return;
+    const vault = this.syncVaultNow();
     let root;
     try {
       const config = JSON.parse(fs.readFileSync(join(this.userData, 'config.json'), 'utf8'));
@@ -391,6 +424,27 @@ class BuzzBridge {
       `    ${this.historyCommand()} --channel <name> [--limit ${HISTORY_MAX}] [--before <older from the last call>]`,
       `    ${this.historyCommand()} --thread <event id>`,
       '',
+      '## Show the owner what you made (the app’s Artifacts page)',
+      'Decks, documents, videos, images, PDFs or a site you built: publish each finished piece (and each new version) so the owner sees it in the app. Make a PDF of any PPTX/DOCX and pass it as --preview so it can be viewed in the app.',
+      '',
+      `    ${this.showCommand()} --file "<path>" --title "<what it is>" [--preview "<pdf>"] [--note "<one line>"]`,
+      `    ${this.showCommand()} --url <http address> --title "<what it is>"`,
+      '',
+      '## The app’s Browser',
+      'Open a page in the app for the owner to look at (a site you built, a reference), and read back its text and links to check it:',
+      '',
+      `    ${this.browseCommand()} --open <url>`,
+      `    ${this.browseCommand()} --read          (what the Browser shows now: address, title, text, links)`,
+      `    ${this.browseCommand()} --back | --reload`,
+      '',
+      ...(vault
+        ? [
+          '## The office vault (shared, linked memory)',
+          `${vault} is an Obsidian vault every agent shares. Keep your own memory.md as before; also write what the office should remember (projects, people, decisions, sources) as linked notes there, with [[wikilinks]]. Read ${join(vault, 'Home.md')} first for how it is organised.`,
+          'Its knowledge graph (graphify) is in graphify-out/: read GRAPH_REPORT.md, or query it with `graphify query "<question>" --graph graphify-out/graph.json` run in the vault.',
+          ''
+        ]
+        : []),
       '## Mentions',
       'Write @Name in the text to bring an office agent in. Agents who can post:',
       ...agents,
@@ -434,6 +488,30 @@ class BuzzBridge {
         act: 'inform',
         subject: 'How to read a channel\'s history',
         body: `[OFFICE NOTE] You can read any channel's message history, including files and links shared there: ${this.historyCommand()} --channel <name> (or --thread <event id>). Channel requests now come with the recent messages before them too. The guide is ${join(root, 'BUZZ.md')}.`,
+        requires_reply: false
+      }, 'human')).catch(() => {});
+    }
+    this.state.toldVault ??= [];
+    for (const who of this.identities()) {
+      if (!vault || !who.pubkey || this.state.toldVault.includes(who.agentId)) continue;
+      this.state.toldVault.push(who.agentId);
+      void Promise.resolve(send({ sender: null, senderFrame: null }, {
+        to: who.agentId,
+        act: 'inform',
+        subject: 'The office vault',
+        body: `[OFFICE NOTE] The office now has a shared Obsidian vault: ${vault}. Keep your memory.md as before (it is mirrored into the vault); also record what the office should remember as linked notes there with [[wikilinks]]. Read ${join(vault, 'Home.md')} for how it is organised. Its knowledge graph (graphify) is in graphify-out/.`,
+        requires_reply: false
+      }, 'human')).catch(() => {});
+    }
+    this.state.toldDesk ??= [];
+    for (const who of this.identities()) {
+      if (!who.pubkey || this.state.toldDesk.includes(who.agentId)) continue;
+      this.state.toldDesk.push(who.agentId);
+      void Promise.resolve(send({ sender: null, senderFrame: null }, {
+        to: who.agentId,
+        act: 'inform',
+        subject: 'Show your work in the app',
+        body: `[OFFICE NOTE] Publish what you make for the owner (decks, documents, videos, images, sites) to the app's Artifacts page: ${this.showCommand()} --file "<path>" --title "<what it is>" (with --preview "<pdf>" for a PPTX/DOCX). Open pages in the app's Browser for the owner and read them back: ${this.browseCommand()} --open <url> / --read. Details in ${join(root, 'BUZZ.md')}.`,
         requires_reply: false
       }, 'human')).catch(() => {});
     }
@@ -1053,6 +1131,8 @@ class BuzzBridge {
     return [
       '',
       `You can post in any channel (by name or id; you join it if needed): ${this.postCommand()} --channel <name> --text-file "<file>"`,
+      `When you make something for the owner (a deck, document, video, image, a site), show it in the app's Artifacts page: ${this.showCommand()} --file "<path>" --title "<what it is>" (add --preview "<pdf>" for a PPTX/DOCX; --url <address> for a site).`,
+      `Open a web page in the app's Browser for the owner, or read back what it shows: ${this.browseCommand()} --open <url> | --read | --back | --reload`,
       `You can read any channel's history (newest 50; --limit up to ${HISTORY_MAX}, --before <older> pages back, --thread <event id> reads a thread): ${this.historyCommand()} --channel <name>`,
       ...(others.length > 0
         ? [`Other office agents: ${others.join(', ')}. Mention one with @Name in a message to bring them in.`]
@@ -1069,6 +1149,12 @@ class BuzzBridge {
   }
   historyCommand() {
     return `"${String(this.historyWrapperPath ?? 'buzz-history').replace(/\\/g, '/')}"`;
+  }
+  showCommand() {
+    return `"${String(this.showWrapperPath ?? 'buzz-show').replace(/\\/g, '/')}"`;
+  }
+  browseCommand() {
+    return `"${String(this.browseWrapperPath ?? 'buzz-browse').replace(/\\/g, '/')}"`;
   }
 
   /** --mention flags for office agents named as @Name in the text, so they are
@@ -1150,11 +1236,110 @@ class BuzzBridge {
     return [200, { ok: true, eventId: r?.event_id, channel: c.name, as: who.name }];
   }
 
+  /** The hive folder (`<harnessHome>/hive`), or null before setup. */
+  hiveDir() {
+    try {
+      const config = JSON.parse(fs.readFileSync(join(this.userData, 'config.json'), 'utf8'));
+      return config.harnessHome ? join(config.harnessHome, 'hive') : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Who an agent is, for the owner: its channel name, else its hive id. */
+  agentName(agentId) {
+    return this.byAgent(agentId)?.name ?? this.readRoster()?.find((a) => a.id === agentId)?.name ?? (agentId || 'An agent');
+  }
+
+  /** `buzz-show`: publish something an agent made to the app's Artifacts page.
+   *  A file is copied into `shared/artifacts/<id>/` (so later edits to the
+   *  working copy don't change what was shown); a URL is listed as a site. */
+  async showArtifact(msg) {
+    const hive = this.hiveDir();
+    if (!hive) return [503, { ok: false, error: 'the Office is not set up yet' }];
+    const file = String(msg.file ?? '').trim();
+    const url = String(msg.url ?? '').trim();
+    if (!file && !url) return [400, { ok: false, error: '--file <path> or --url <address> is required' }];
+    if (url && !/^https?:\/\//i.test(url)) return [400, { ok: false, error: 'only http(s) addresses can be shown' }];
+    const id = `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+    const root = join(hive, 'shared', 'artifacts');
+    const entry = {
+      id,
+      title: String(msg.title ?? '').trim().slice(0, 140),
+      note: String(msg.note ?? '').trim().slice(0, 1000),
+      agentId: String(msg.as ?? ''),
+      agent: this.agentName(String(msg.as ?? '')),
+      createdAt: Date.now()
+    };
+    const copy = (from, label) => {
+      const src = require('node:path').resolve(from);
+      if (!fs.existsSync(src) || !fs.statSync(src).isFile()) throw new Error(`no file at ${src} (${label})`);
+      const name = require('node:path').basename(src);
+      fs.mkdirSync(join(root, id), { recursive: true });
+      fs.copyFileSync(src, join(root, id, name));
+      return `${id}/${name}`;
+    };
+    try {
+      if (file) {
+        entry.file = copy(file, '--file');
+        const ext = entry.file.split('.').pop().toLowerCase();
+        entry.kind = ARTIFACT_KINDS[ext] ?? 'file';
+        if (msg.preview) entry.preview = copy(String(msg.preview), '--preview');
+      } else {
+        entry.url = url;
+        entry.kind = 'site';
+      }
+    } catch (e) {
+      return [400, { ok: false, error: e.message }];
+    }
+    entry.title ||= (entry.file ? entry.file.split('/').pop() : url);
+    const indexPath = join(root, 'index.json');
+    let list = [];
+    try { list = JSON.parse(fs.readFileSync(indexPath, 'utf8')); } catch { /* first one */ }
+    if (!Array.isArray(list)) list = [];
+    list.push(entry);
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(indexPath + '.tmp', JSON.stringify(list.slice(-ARTIFACTS_KEPT), null, 2));
+    fs.renameSync(indexPath + '.tmp', indexPath);
+    process.stdout.write(`${ACTION_PREFIX}${JSON.stringify({ type: 'artifact', artifact: entry })}\n`);
+    return [200, { ok: true, id, title: entry.title, kind: entry.kind }];
+  }
+
+  /** `buzz-browse`: open a page in the app's Browser for the owner, or read
+   *  back what it shows. The app does it and answers on our stdin. */
+  async browse(msg) {
+    const op = String(msg.op ?? 'open');
+    if (!['open', 'read', 'back', 'reload'].includes(op)) return [400, { ok: false, error: `unknown action "${op}"` }];
+    const url = String(msg.url ?? '').trim();
+    if (op === 'open' && !/^https?:\/\//i.test(url)) return [400, { ok: false, error: '--open needs an http(s) address' }];
+    const id = crypto.randomBytes(8).toString('hex');
+    this.browsing ??= new Map();
+    const result = new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.browsing.delete(id);
+        resolve({ ok: false, error: 'the app did not answer (is Anything open?)' });
+      }, BROWSE_TIMEOUT_MS);
+      timer.unref?.();
+      this.browsing.set(id, (r) => { clearTimeout(timer); resolve(r); });
+    });
+    process.stdout.write(`${ACTION_PREFIX}${JSON.stringify({ type: 'browse', id, op, url, agent: this.agentName(String(msg.as ?? '')) })}\n`);
+    const r = await result;
+    return [r.ok === false ? 502 : 200, r];
+  }
+
+  /** The app's answer to a browse request (from the launcher's stdin). */
+  browseResult(msg) {
+    const done = this.browsing?.get(String(msg.id ?? ''));
+    if (!done) return;
+    this.browsing.delete(String(msg.id));
+    done(msg.error ? { ok: false, error: String(msg.error) } : { ok: true, ...(msg.result ?? {}) });
+  }
+
   async startReplyServer() {
     const token = crypto.randomBytes(24).toString('base64url');
     this.server = http.createServer((req, res) => {
       const done = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
-      const route = req.method === 'POST' ? { '/reply': 'reply', '/post': 'post', '/history': 'history' }[req.url] : undefined;
+      const route = req.method === 'POST' ? { '/reply': 'reply', '/post': 'post', '/history': 'history', '/show': 'show', '/browse': 'browse' }[req.url] : undefined;
       if (!route) return done(404, { ok: false, error: 'not found' });
       const given = Buffer.from(String(req.headers['x-md-buzz-token'] ?? ''));
       const want = Buffer.from(token);
@@ -1166,7 +1351,8 @@ class BuzzBridge {
         let msg;
         try { msg = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return done(400, { ok: false, error: 'invalid JSON' }); }
         try {
-          const [code, body] = await (route === 'reply' ? this.replyAs(msg) : route === 'history' ? this.historyAs(msg) : this.postAs(msg));
+          const handler = { reply: this.replyAs, post: this.postAs, history: this.historyAs, show: this.showArtifact, browse: this.browse }[route];
+          const [code, body] = await handler.call(this, msg);
           done(code, body);
         } catch (e) {
           done(502, { ok: false, error: e.message });
@@ -1182,6 +1368,8 @@ class BuzzBridge {
     this.wrapperPath = this.writeWrapper(config, 'buzz-reply');
     this.postWrapperPath = this.writeWrapper(config, 'buzz-post');
     this.historyWrapperPath = this.writeWrapper(config, 'buzz-history', '--history');
+    this.showWrapperPath = this.writeWrapper(config, 'buzz-show', '--show');
+    this.browseWrapperPath = this.writeWrapper(config, 'buzz-browse', '--browse');
   }
 
   /** Launcher agents call (`buzz-reply`, `buzz-post`, `buzz-history`); runs the

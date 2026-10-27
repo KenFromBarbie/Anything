@@ -105,6 +105,8 @@ function onShellMessage(line) {
   // The app saw a message go out (typed, or a call transcript): look now
   // rather than at the next poll.
   if (msg?.type === 'poll-now') { buzzBridge?.pollNow(); return; }
+  // The app's answer to an agent's Browser request (buzz-browse).
+  if (msg?.type === 'browse-result') { buzzBridge?.browseResult(msg); return; }
   // AI-account usage guard (the app's Settings → AI accounts).
   if (msg?.type === 'freeze') { void freezeAgents(String(msg.provider ?? ''), msg.on === true); return; }
   if (msg?.type !== 'office-agents' || !Array.isArray(msg.agents)) return;
