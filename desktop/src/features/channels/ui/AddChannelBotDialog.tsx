@@ -3,11 +3,17 @@ import * as React from "react";
 
 import {
   useCreateChannelManagedAgentsMutation,
+  useManagedAgentsQuery,
   usePersonasQuery,
   useTeamsQuery,
   type CreateChannelManagedAgentResult,
 } from "@/features/agents/hooks";
 import { getActivePersonas } from "@/features/agents/lib/catalog";
+import {
+  officeAgentPubkeys,
+  withoutStaleOfficePersonas,
+} from "@/features/agents/lib/officePersonas";
+import { useAddChannelMembersMutation } from "@/features/channels/hooks";
 import { resolvePersonaRuntime } from "@/features/agents/lib/resolvePersonaRuntime";
 import { getUsableTeams } from "@/features/agents/lib/teamPersonas";
 import { AddChannelBotPersonasSection } from "@/features/channels/ui/AddChannelBotPersonasSection";
@@ -69,9 +75,20 @@ export function AddChannelBotDialog({
     open && channelId !== null,
   );
   const createBotsMutation = useCreateChannelManagedAgentsMutation(channelId);
+  const addMembersMutation = useAddChannelMembersMutation(channelId);
+  const managedAgentsQuery = useManagedAgentsQuery({ enabled: open });
+  // The Office's running agents are added as themselves, not re-created.
+  const officePubkeys = React.useMemo(
+    () => officeAgentPubkeys(managedAgentsQuery.data ?? []),
+    [managedAgentsQuery.data],
+  );
   const personas = React.useMemo(
-    () => getActivePersonas(personasQuery.data ?? []),
-    [personasQuery.data],
+    () =>
+      withoutStaleOfficePersonas(
+        getActivePersonas(personasQuery.data ?? []),
+        managedAgentsQuery.data ?? [],
+      ),
+    [personasQuery.data, managedAgentsQuery.data],
   );
   const teams = React.useMemo(
     () => getUsableTeams(teamsQuery.data ?? [], personas),
@@ -135,9 +152,38 @@ export function AddChannelBotDialog({
   }
 
   async function handleSubmit() {
-    if (providers.length === 0 || selectedPersonas.length === 0) return;
+    if (selectedPersonas.length === 0) return;
+    const existing = selectedPersonas.filter((persona) =>
+      officePubkeys.has(persona.id.toLowerCase()),
+    );
+    const toCreate = selectedPersonas.filter(
+      (persona) => !officePubkeys.has(persona.id.toLowerCase()),
+    );
+    if (toCreate.length > 0 && providers.length === 0) return;
 
-    const inputs = selectedPersonas.map((persona) => {
+    setSubmissionNotice(null);
+    setSubmissionError(null);
+    if (existing.length > 0) {
+      try {
+        await addMembersMutation.mutateAsync({
+          pubkeys: existing.map((persona) => persona.id),
+          role: "bot",
+        });
+      } catch (error) {
+        setSubmissionError(
+          `Couldn't add ${existing.map((p) => p.displayName).join(", ")}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return;
+      }
+      if (toCreate.length === 0) {
+        handleOpenChange(false);
+        return;
+      }
+    }
+
+    const inputs = toCreate.map((persona) => {
       const resolved = resolvePersonaRuntime(
         persona.runtime,
         providers,
@@ -189,11 +235,17 @@ export function AddChannelBotDialog({
     }
   }
 
-  const canSubmit =
-    providers.length > 0 &&
+  const onlyOfficeAgents =
     selectedPersonas.length > 0 &&
-    !providersLoading &&
-    !createBotsMutation.isPending;
+    selectedPersonas.every((persona) =>
+      officePubkeys.has(persona.id.toLowerCase()),
+    );
+  const canSubmit =
+    (providers.length > 0 || onlyOfficeAgents) &&
+    selectedPersonas.length > 0 &&
+    (!providersLoading || onlyOfficeAgents) &&
+    !createBotsMutation.isPending &&
+    !addMembersMutation.isPending;
   const addButtonLabel = createBotsMutation.isPending
     ? selectedPersonas.length > 1
       ? `Adding ${selectedPersonas.length}…`

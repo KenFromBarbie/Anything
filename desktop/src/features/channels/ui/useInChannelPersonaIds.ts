@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { useManagedAgentsQuery } from "@/features/agents/hooks";
+import { isOfficeAgent } from "@/features/agents/lib/officePersonas";
 import { useChannelMembersQuery } from "@/features/channels/hooks";
 import { normalizePubkey } from "@/shared/lib/pubkey";
 
@@ -31,6 +32,13 @@ export function useInChannelPersonaIds(
     for (const agent of managedAgents) {
       if (agent.personaId && memberPubkeys.has(normalizePubkey(agent.pubkey))) {
         ids.add(agent.personaId);
+      }
+      // An Office agent's persona id is its own pubkey.
+      if (
+        isOfficeAgent(agent) &&
+        memberPubkeys.has(normalizePubkey(agent.pubkey))
+      ) {
+        ids.add(normalizePubkey(agent.pubkey));
       }
     }
     return ids;
