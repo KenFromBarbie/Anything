@@ -118,6 +118,9 @@ const HOSTED_CSS = `
 :root[data-cth-host='buzz'], :root[data-cth-host='buzz'] body, :root[data-cth-host='buzz'] #root {
   background: transparent !important;
 }
+/* …including the panel a terminal sits in (it paints its own translucent
+   layer; a filled panel under it made it read as solid). */
+:root[data-cth-host='buzz'] [data-cth-panel]:has(.xterm) { background: transparent !important; }
 `;
 
 function applyTheme(theme: HostTheme): void {

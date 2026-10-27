@@ -61,6 +61,8 @@ const HISTORY_MAX = 100;
 /** Characters of history text per delivery / per message. */
 const HISTORY_CHARS = 12000;
 const HISTORY_MESSAGE_CHARS = 1200;
+/** Shared files downloaded for an agent per delivery / history read. */
+const MAX_FILES_PER_DELIVERY = 10;
 /** stdout line Buzz's office.rs reads: the floor's agents, so Buzz can give
  *  each one an owner-attested identity (sent back on our stdin). */
 const ROSTER_PREFIX = 'MD_OFFICE_ROSTER ';
@@ -715,8 +717,8 @@ class BuzzBridge {
       : await this.run(['messages', 'get', '--channel', channel, '--limit', String(HISTORY_ON_DELIVERY + 1),
         '--before', String(ev.created_at ?? Math.floor(Date.now() / 1000))], undefined, who);
     if (!Array.isArray(events)) return null;
-    const before = events.filter((e) => e.id !== ev.id && (e.created_at ?? 0) <= (ev.created_at ?? Infinity));
-    return this.historyLines(before.slice(-HISTORY_ON_DELIVERY));
+    const before = events.filter((e) => e.id !== ev.id && (e.created_at ?? 0) <= (ev.created_at ?? Infinity)).slice(-HISTORY_ON_DELIVERY);
+    return [...this.historyLines(before), ...await this.fileLines([...before, ev], who)];
   }
 
   /** Channel events as readable lines, oldest first: when, who, what (and any
@@ -746,6 +748,70 @@ class BuzzBridge {
       kept.unshift(lines[i]);
     }
     return kept;
+  }
+
+  /** Files shared in these events, as { name, url }: attachments (imeta tags)
+   *  and links to the relay's own media in the text. */
+  sharedFiles(events) {
+    const files = new Map();
+    for (const e of events) {
+      for (const t of e.tags ?? []) {
+        if (t[0] !== 'imeta') continue;
+        const part = (key) => t.find((p) => typeof p === 'string' && p.startsWith(key + ' '))?.slice(key.length + 1);
+        const url = part('url');
+        if (url && !files.has(url)) files.set(url, { url, name: part('name') ?? part('alt') ?? url.split('/').pop() });
+      }
+      const link = /\[([^\]]*)\]\((https?:\/\/[^)\s]+\/media\/[0-9a-f]{64}(?:\.[a-z0-9]+)?)\)|(https?:\/\/[^\s)<>]+\/media\/[0-9a-f]{64}(?:\.[a-z0-9]+)?)/gi;
+      for (const m of String(e.content ?? '').matchAll(link)) {
+        const url = m[2] ?? m[3];
+        if (!files.has(url)) files.set(url, { url, name: m[1] || url.split('/').pop() });
+      }
+    }
+    return [...files.values()];
+  }
+
+  /** Download shared files into the hive (`shared/buzz-files`), where every
+   *  agent can open them: the media store needs a signed request agents can't
+   *  make. Cached by content hash. Returns [{ name, path }] for those fetched. */
+  async downloadFiles(files, who) {
+    let dir;
+    try {
+      const config = JSON.parse(fs.readFileSync(join(this.userData, 'config.json'), 'utf8'));
+      if (!config.harnessHome) return [];
+      dir = join(config.harnessHome, 'hive', 'shared', 'buzz-files');
+      fs.mkdirSync(dir, { recursive: true });
+    } catch {
+      return [];
+    }
+    const out = [];
+    for (const f of files.slice(-MAX_FILES_PER_DELIVERY)) {
+      const hash = /\/media\/([0-9a-f]{64})/i.exec(f.url)?.[1];
+      if (!hash) continue;
+      const ext = /\.[a-z0-9]+$/i.exec(f.url)?.[0] ?? '';
+      let safe = String(f.name).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim().slice(0, 80) || hash.slice(0, 12);
+      if (ext && !safe.toLowerCase().endsWith(ext.toLowerCase())) safe += ext;
+      const path = join(dir, `${hash.slice(0, 8)}-${safe}`);
+      try {
+        if (!fs.existsSync(path)) {
+          await this.run(['media', 'get', f.url, '--output', path + '.part'], undefined, who);
+          fs.renameSync(path + '.part', path);
+        }
+        out.push({ name: f.name, path });
+      } catch (e) {
+        try { fs.rmSync(path + '.part', { force: true }); } catch { /* nothing to clean */ }
+        this.log.warn(`[buzz-bridge] could not download ${f.name}: ${e.message}`);
+      }
+    }
+    return out;
+  }
+
+  /** Lines listing the files shared in `events`, downloaded for the agent. */
+  async fileLines(events, who) {
+    const files = await this.downloadFiles(this.sharedFiles(events), who);
+    return files.length
+      ? ['', 'Files shared here, downloaded for you (open them from these paths; the links above need a key you don\'t have):',
+        ...files.map((f) => `- ${f.name}: ${f.path}`)]
+      : [];
   }
 
   /** A channel's (or a thread's) message history, for `buzz-history`, read as
@@ -778,7 +844,7 @@ class BuzzBridge {
       channel: name,
       // Pass as --before to page further back.
       ...(Number.isFinite(oldest) && !threadOf ? { older: oldest } : {}),
-      messages: this.historyLines(list)
+      messages: [...this.historyLines(list), ...await this.fileLines(list, who)]
     }];
   }
 

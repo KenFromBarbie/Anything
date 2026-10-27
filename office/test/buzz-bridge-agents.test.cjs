@@ -175,6 +175,34 @@ test("a channel request carries the channel's history, files included, read from
   assert.equal(missing, 404);
 });
 
+test('files shared in a channel are downloaded into the hive for the agent', async (t) => {
+  const { b, jim, sent, calls } = await withJim(t);
+  const harness = path.join(b.userData, 'harness');
+  fs.writeFileSync(path.join(b.userData, 'config.json'), JSON.stringify({ harnessHome: harness }));
+  const hash = 'c'.repeat(64);
+  const earlier = {
+    id: 'old-2', kind: 9, pubkey: OWNER, created_at: 600, tags: [['h', CHANNEL]],
+    content: `the brief: [ch 02.pdf](http://localhost:3002/media/${hash}.pdf)`
+  };
+  const run = b.run;
+  b.run = async (args, input, who) => {
+    if (args[0] === 'messages' && args[1] === 'get') return [earlier];
+    if (args[0] === 'media' && args[1] === 'get') {
+      calls.push({ args, as: who.name });
+      fs.writeFileSync(args[args.indexOf('--output') + 1], 'pdf bytes');
+      return null;
+    }
+    return run(args, input, who);
+  };
+  await b.handleEvent(message(OWNER, { mention: jim.pubkey, content: 'read the brief' }), jim);
+  const file = path.join(harness, 'hive', 'shared', 'buzz-files', `cccccccc-ch 02.pdf`);
+  assert.equal(fs.readFileSync(file, 'utf8'), 'pdf bytes');
+  assert.ok(sent[0].body.includes(`- ch 02.pdf: ${file}`));
+  // Cached: a second request doesn't download it again.
+  await b.handleEvent(message(OWNER, { mention: jim.pubkey, content: 'again' }), jim);
+  assert.equal(calls.filter((c) => c.args[0] === 'media').length, 1);
+});
+
 test('the floor is reported to Buzz once per change, Michael excluded', async (t) => {
   const { b } = bridge(t);
   const harness = path.join(b.userData, 'harness');
