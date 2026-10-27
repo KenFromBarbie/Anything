@@ -180,7 +180,7 @@ function applyTheme(theme: HostTheme): void {
 }
 
 /** How much of a terminal's background is painted (the rest shows through). */
-const TERMINAL_OPACITY = 0.7;
+const TERMINAL_OPACITY = 0.35;
 
 /** `color` at `opacity`, as #rrggbbaa (xterm's theme takes no CSS functions);
  *  a colour it can't read is returned solid. */

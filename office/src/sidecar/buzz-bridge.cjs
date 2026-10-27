@@ -54,6 +54,13 @@ const LONG_DM_REPLY = 1200;
  *  them on (until the owner speaks in that thread again): two agents that keep
  *  @mentioning each other would otherwise loop forever. */
 const AGENT_HOP_CAP = 8;
+/** Channel history handed to an agent with each delivery (messages), and the
+ *  most `buzz-history` returns in one call. */
+const HISTORY_ON_DELIVERY = 25;
+const HISTORY_MAX = 100;
+/** Characters of history text per delivery / per message. */
+const HISTORY_CHARS = 12000;
+const HISTORY_MESSAGE_CHARS = 1200;
 /** stdout line Buzz's office.rs reads: the floor's agents, so Buzz can give
  *  each one an owner-attested identity (sent back on our stdin). */
 const ROSTER_PREFIX = 'MD_OFFICE_ROSTER ';
@@ -179,7 +186,7 @@ class BuzzBridge {
     const fresh = () => ({ since: Math.floor(Date.now() / 1000), seen: [] });
     let s = {};
     try { s = JSON.parse(fs.readFileSync(this.statePath, 'utf8')); } catch { /* first run */ }
-    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [] };
+    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [], toldHistory: s.toldHistory ?? [] };
     // Older state files: one cursor (Michael's) and thread entries holding the
     // thread itself (an object, or before that just the channel id).
     if (!state.cursors[GOD]) state.cursors[GOD] = s.since !== undefined ? { since: s.since, seen: s.seen ?? [] } : fresh();
@@ -376,6 +383,12 @@ class BuzzBridge {
       '## Answer a message that was delivered to you from a channel',
       'Use the reply command given in that delivery (it carries --reply-to).',
       '',
+      '## Read a channel\'s message history',
+      'Before acting on a channel request, read what was said there (files and links the owner shared earlier are listed too):',
+      '',
+      `    ${this.historyCommand()} --channel <name> [--limit ${HISTORY_MAX}] [--before <older from the last call>]`,
+      `    ${this.historyCommand()} --thread <event id>`,
+      '',
       '## Mentions',
       'Write @Name in the text to bring an office agent in. Agents who can post:',
       ...agents,
@@ -407,6 +420,18 @@ class BuzzBridge {
         act: 'inform',
         subject: 'How to post in the server\'s channels',
         body: `[OFFICE NOTE] You can post in the server's channels yourself, no key needed: ${this.postCommand()} --channel <name> --text-file "<file>". The full guide is ${join(root, 'BUZZ.md')}. Never run the buzz CLI directly or ask the owner for BUZZ_PRIVATE_KEY. If you were waiting on channel access, carry on now.`,
+        requires_reply: false
+      }, 'human')).catch(() => {});
+    }
+    this.state.toldHistory ??= [];
+    for (const who of this.identities()) {
+      if (!who.pubkey || this.state.toldHistory.includes(who.agentId)) continue;
+      this.state.toldHistory.push(who.agentId);
+      void Promise.resolve(send({ sender: null, senderFrame: null }, {
+        to: who.agentId,
+        act: 'inform',
+        subject: 'How to read a channel\'s history',
+        body: `[OFFICE NOTE] You can read any channel's message history, including files and links shared there: ${this.historyCommand()} --channel <name> (or --thread <event id>). Channel requests now come with the recent messages before them too. The guide is ${join(root, 'BUZZ.md')}.`,
         requires_reply: false
       }, 'human')).catch(() => {});
     }
@@ -620,10 +645,14 @@ class BuzzBridge {
       `If this becomes board work, record where it came from on every card you make for it: "buzz": {"replyTo": "${ev.id}"}. Questions for the owner about that work are asked in this thread (the command above), not on the card.`,
       ...this.buzzToolsNote(who),
       '',
-      ...((() => {
-        const before = channel ? this.conversationBefore(ev, channel) : [];
+      ...(await (async () => {
+        // The channel's (or thread's) own history, read from the relay; what
+        // the bridge saw itself if that fails.
+        const before = channel
+          ? (await this.historyBefore(ev, channel, who).catch(() => null)) ?? this.conversationBefore(ev, channel)
+          : [];
         return before.length
-          ? ['', 'The conversation so far (check whether a colleague already answered or finished it before you act):', ...before]
+          ? ['', `Earlier in this ${this.threadRootOf(ev) ? 'thread' : 'channel'} (oldest first; check whether a colleague already answered or finished it before you act). For more: ${this.historyCommand()} --channel ${channel}`, ...before]
           : [];
       })()),
       '',
@@ -675,6 +704,82 @@ class BuzzBridge {
     const log = this.conversations?.get(this.conversationKey(ev, channel)) ?? [];
     return log.filter((l) => l.id !== ev.id && l.at <= (ev.created_at ?? Infinity)).slice(-10)
       .map((l) => `${l.name}: ${l.text.replace(/\s+/g, ' ')}`);
+  }
+
+  /** The messages before `ev` in its thread (when it's in one), else in its
+   *  channel, read from the relay as `who`: lines for the delivery. */
+  async historyBefore(ev, channel, who) {
+    const root = this.threadRootOf(ev);
+    const events = root
+      ? await this.run(['messages', 'thread', '--channel', channel, '--event', ev.id, '--limit', String(HISTORY_MAX)], undefined, who)
+      : await this.run(['messages', 'get', '--channel', channel, '--limit', String(HISTORY_ON_DELIVERY + 1),
+        '--before', String(ev.created_at ?? Math.floor(Date.now() / 1000))], undefined, who);
+    if (!Array.isArray(events)) return null;
+    const before = events.filter((e) => e.id !== ev.id && (e.created_at ?? 0) <= (ev.created_at ?? Infinity));
+    return this.historyLines(before.slice(-HISTORY_ON_DELIVERY));
+  }
+
+  /** Channel events as readable lines, oldest first: when, who, what (and any
+   *  files), cut to HISTORY_CHARS from the newest end. */
+  historyLines(events) {
+    const lines = [...events]
+      .filter((e) => String(e.content ?? '').trim() || e.tags?.some((t) => t[0] === 'imeta'))
+      .sort((a, b) => (a.created_at ?? 0) - (b.created_at ?? 0))
+      .map((e) => {
+        const pk = String(e.pubkey ?? '').toLowerCase();
+        const name = pk === this.owner ? 'Owner' : (this.byPubkey(pk)?.name ?? `Member ${pk.slice(0, 8)}`);
+        const when = new Date((e.created_at ?? 0) * 1000).toISOString().slice(0, 16).replace('T', ' ');
+        const reply = e.tags?.some((t) => t[0] === 'e') ? ' (in a thread)' : '';
+        const files = (e.tags ?? []).filter((t) => t[0] === 'imeta').map((t) => {
+          const part = (key) => t.find((p) => typeof p === 'string' && p.startsWith(key + ' '))?.slice(key.length + 1);
+          return `[file: ${part('name') ?? part('alt') ?? 'attachment'} ${part('url') ?? ''}]`.replace(' ]', ']');
+        });
+        let text = String(e.content ?? '').replace(/\s+/g, ' ').trim();
+        if (text.length > HISTORY_MESSAGE_CHARS) text = text.slice(0, HISTORY_MESSAGE_CHARS) + '…';
+        return `[${when} UTC] ${name}${reply}: ${[text, ...files].filter(Boolean).join(' ')}`;
+      });
+    let total = 0;
+    const kept = [];
+    for (let i = lines.length - 1; i >= 0; i--) {
+      total += lines[i].length + 1;
+      if (total > HISTORY_CHARS) break;
+      kept.unshift(lines[i]);
+    }
+    return kept;
+  }
+
+  /** A channel's (or a thread's) message history, for `buzz-history`, read as
+   *  the calling agent (Michael for floor workers without an identity). */
+  async historyAs(msg) {
+    const who = this.byAgent(String(msg.as ?? '')) ?? this.michael;
+    const wanted = String(msg.channel ?? '').trim().replace(/^#/, '');
+    const threadOf = String(msg.thread ?? '').trim();
+    const limit = Math.min(HISTORY_MAX, Math.max(1, Number(msg.limit) || 50));
+    let channelId = threadOf ? this.thread(threadOf)?.channel : undefined;
+    let name = channelId;
+    if (!channelId) {
+      if (!wanted) return [400, { ok: false, error: '--channel <name or id> (or --thread <event id>) is required' }];
+      const channels = await this.run(['channels', 'list'], undefined, who);
+      const list = Array.isArray(channels) ? channels : [];
+      const c = list.find((x) => x.channel_id === wanted) ?? list.find((x) => x.name === wanted && x.name !== 'DM');
+      if (!c) return [404, { ok: false, error: `no channel "${wanted}"` }];
+      channelId = c.channel_id;
+      name = c.name;
+    }
+    const before = Number(msg.before) || undefined;
+    const events = threadOf
+      ? await this.run(['messages', 'thread', '--channel', channelId, '--event', threadOf, '--limit', String(limit)], undefined, who)
+      : await this.run(['messages', 'get', '--channel', channelId, '--limit', String(limit),
+        ...(before ? ['--before', String(before)] : [])], undefined, who);
+    const list = Array.isArray(events) ? events : [];
+    const oldest = Math.min(...list.map((e) => e.created_at ?? Infinity));
+    return [200, {
+      ok: true,
+      channel: name,
+      // Pass as --before to page further back.
+      ...(Number.isFinite(oldest) && !threadOf ? { older: oldest } : {}),
+      messages: this.historyLines(list)
+    }];
   }
 
   /** What was said in a meeting (owner and agents), for the quick answers. */
@@ -882,6 +987,7 @@ class BuzzBridge {
     return [
       '',
       `You can post in any channel (by name or id; you join it if needed): ${this.postCommand()} --channel <name> --text-file "<file>"`,
+      `You can read any channel's history (newest 50; --limit up to ${HISTORY_MAX}, --before <older> pages back, --thread <event id> reads a thread): ${this.historyCommand()} --channel <name>`,
       ...(others.length > 0
         ? [`Other office agents: ${others.join(', ')}. Mention one with @Name in a message to bring them in.`]
         : [])
@@ -894,6 +1000,9 @@ class BuzzBridge {
   }
   postCommand() {
     return `"${this.postWrapperPath.replace(/\\/g, '/')}"`;
+  }
+  historyCommand() {
+    return `"${String(this.historyWrapperPath ?? 'buzz-history').replace(/\\/g, '/')}"`;
   }
 
   /** --mention flags for office agents named as @Name in the text, so they are
@@ -979,7 +1088,7 @@ class BuzzBridge {
     const token = crypto.randomBytes(24).toString('base64url');
     this.server = http.createServer((req, res) => {
       const done = (code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
-      const route = req.method === 'POST' ? { '/reply': 'reply', '/post': 'post' }[req.url] : undefined;
+      const route = req.method === 'POST' ? { '/reply': 'reply', '/post': 'post', '/history': 'history' }[req.url] : undefined;
       if (!route) return done(404, { ok: false, error: 'not found' });
       const given = Buffer.from(String(req.headers['x-md-buzz-token'] ?? ''));
       const want = Buffer.from(token);
@@ -991,7 +1100,7 @@ class BuzzBridge {
         let msg;
         try { msg = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return done(400, { ok: false, error: 'invalid JSON' }); }
         try {
-          const [code, body] = await (route === 'reply' ? this.replyAs(msg) : this.postAs(msg));
+          const [code, body] = await (route === 'reply' ? this.replyAs(msg) : route === 'history' ? this.historyAs(msg) : this.postAs(msg));
           done(code, body);
         } catch (e) {
           done(502, { ok: false, error: e.message });
@@ -1006,20 +1115,23 @@ class BuzzBridge {
     fs.writeFileSync(config, JSON.stringify({ port: this.server.address().port, token }), { mode: 0o600 });
     this.wrapperPath = this.writeWrapper(config, 'buzz-reply');
     this.postWrapperPath = this.writeWrapper(config, 'buzz-post');
+    this.historyWrapperPath = this.writeWrapper(config, 'buzz-history', '--history');
   }
 
-  /** Launcher agents call (`buzz-reply`, `buzz-post`); runs the helper on our runtime. */
-  writeWrapper(config, name) {
+  /** Launcher agents call (`buzz-reply`, `buzz-post`, `buzz-history`); runs the
+   *  helper on our runtime. */
+  writeWrapper(config, name, mode = '') {
     const bin = join(this.userData, 'bin');
     fs.mkdirSync(bin, { recursive: true });
     const helper = join(__dirname, 'md-buzz-reply.cjs');
+    const flag = mode ? ` ${mode}` : '';
     if (process.platform === 'win32') {
       const p = join(bin, `${name}.cmd`);
-      fs.writeFileSync(p, `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${process.execPath}" "${helper}" --config "${config}" %*\r\n`);
+      fs.writeFileSync(p, `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${process.execPath}" "${helper}" --config "${config}"${flag} %*\r\n`);
       return p;
     }
     const p = join(bin, name);
-    fs.writeFileSync(p, `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec "${process.execPath}" "${helper}" --config "${config}" "$@"\n`, { mode: 0o755 });
+    fs.writeFileSync(p, `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec "${process.execPath}" "${helper}" --config "${config}"${flag} "$@"\n`, { mode: 0o755 });
     return p;
   }
 }

@@ -149,6 +149,32 @@ test('buzz-post starts a channel conversation as the calling agent, and only for
   assert.ok(b.thread(body.eventId).agents.includes('jim-1'));
 });
 
+test("a channel request carries the channel's history, files included, read from the relay", async (t) => {
+  const { b, jim, sent, calls } = await withJim(t);
+  const earlier = {
+    id: 'old-1', kind: 9, pubkey: OWNER, created_at: 500, content: 'The topic is digital funnels',
+    tags: [['h', CHANNEL], ['imeta', 'url https://media.test/ch02.pdf', 'name ch 02.pdf']]
+  };
+  const run = b.run;
+  b.run = async (args, input, who) => {
+    if (args[0] === 'messages' && args[1] === 'get') { calls.push({ args, as: who.name }); return [earlier]; }
+    return run(args, input, who);
+  };
+  await b.handleEvent(message(OWNER, { mention: jim.pubkey, content: 'make the slides' }), jim);
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].body, /Owner: The topic is digital funnels \[file: ch 02\.pdf https:\/\/media\.test\/ch02\.pdf\]/);
+  assert.ok(calls.some((c) => c.args[1] === 'get' && c.as === 'Jim'), 'read as the agent itself');
+
+  // And on demand: buzz-history reads any channel by name.
+  const [code, body] = await b.historyAs({ channel: '#general', as: 'jim-1' });
+  assert.equal(code, 200);
+  assert.equal(body.channel, 'general');
+  assert.equal(body.older, 500);
+  assert.equal(body.messages.length, 1);
+  const [missing] = await b.historyAs({ channel: 'nope', as: 'jim-1' });
+  assert.equal(missing, 404);
+});
+
 test('the floor is reported to Buzz once per change, Michael excluded', async (t) => {
   const { b } = bridge(t);
   const harness = path.join(b.userData, 'harness');

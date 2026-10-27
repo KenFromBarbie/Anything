@@ -8,6 +8,8 @@
  *   buzz-reply --reply-to <event id> --in-channel --text-file reply.md  (answer in the channel itself, not the thread)
  *   echo "reply" | buzz-reply --reply-to <event id>
  *   buzz-post --channel general --text-file message.md     (new conversation)
+ *   buzz-history --channel general [--limit 100] [--before <unix time>]  (read a channel)
+ *   buzz-history --thread <event id>                        (read a thread)
  *
  * The agent is identified by the AGENT_ID the hive gives every agent terminal;
  * agents without a Buzz identity of their own reply as the agent the thread was
@@ -41,17 +43,25 @@ async function readText() {
   const replyTo = arg('--reply-to');
   const channel = arg('--channel');
   const configPath = arg('--config');
-  if (!replyTo && !channel) fail('--reply-to <event id> (reply in a thread) or --channel <name> (new message) is required');
-  if (!configPath) fail('--config is required (use the buzz-reply / buzz-post wrapper)');
+  const history = process.argv.includes('--history');
+  const thread = arg('--thread');
+  if (history ? !channel && !thread : !replyTo && !channel) {
+    fail(history
+      ? '--channel <name> (channel history) or --thread <event id> (a thread) is required'
+      : '--reply-to <event id> (reply in a thread) or --channel <name> (new message) is required');
+  }
+  if (!configPath) fail('--config is required (use the buzz-reply / buzz-post / buzz-history wrapper)');
   let config;
   try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch { fail('buzz bridge is not running'); }
-  const text = (await readText()).trim();
-  if (!text) fail('message text is empty');
+  const text = history ? '' : (await readText()).trim();
+  if (!history && !text) fail('message text is empty');
 
   const as = process.env.AGENT_ID || undefined;
-  const path = replyTo ? '/reply' : '/post';
+  const path = history ? '/history' : replyTo ? '/reply' : '/post';
   const inChannel = process.argv.includes('--in-channel');
-  const body = JSON.stringify(replyTo ? { replyTo, text, as, inChannel } : { channel, text, as });
+  const body = JSON.stringify(history
+    ? { channel, thread, limit: arg('--limit'), before: arg('--before'), as }
+    : replyTo ? { replyTo, text, as, inChannel } : { channel, text, as });
   const req = http.request({
     host: '127.0.0.1',
     port: config.port,
@@ -63,6 +73,15 @@ async function readText() {
     res.on('data', (c) => chunks.push(c));
     res.on('end', () => {
       const out = Buffer.concat(chunks).toString('utf8');
+      // History reads as plain lines (one message each), not JSON.
+      if (history && res.statusCode === 200) {
+        try {
+          const r = JSON.parse(out);
+          const more = r.older ? `\n(older messages: add --before ${r.older})` : '';
+          process.stdout.write(`#${r.channel}\n${r.messages.join('\n') || '(no messages)'}${more}\n`);
+          process.exit(0);
+        } catch { /* print it as it came */ }
+      }
       process.stdout.write(out + '\n');
       process.exit(res.statusCode === 200 ? 0 : 1);
     });

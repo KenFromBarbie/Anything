@@ -187,7 +187,7 @@ export function OfficeAgentsPage() {
 
         {selected ? (
           <section
-            className="grid gap-4 rounded-2xl border border-border/70 bg-background p-4"
+            className="grid gap-4 rounded-2xl border border-border/70 bg-background/40 p-4"
             data-testid="agents-selected"
           >
             <AgentHeader agent={selected} michaelName={michaelName} />
