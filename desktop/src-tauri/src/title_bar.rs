@@ -16,7 +16,7 @@ fn colorref(hex: &str) -> Option<u32> {
 /// Colour the window's title bar: `caption` behind, `text` on it.
 #[tauri::command]
 pub fn set_title_bar_colors(
-    window: tauri::WebviewWindow,
+    window: tauri::Window,
     caption: String,
     text: String,
 ) -> Result<(), String> {
@@ -56,7 +56,7 @@ pub fn set_title_bar_colors(
 #[cfg(target_os = "windows")]
 pub fn use_app_title_bar(app: &tauri::AppHandle) {
     use tauri::Manager;
-    if let Some(window) = app.get_webview_window("main") {
+    if let Some(window) = app.get_window("main") {
         // Dropping the frame un-maximizes the window; it opens maximized.
         let maximized = window.is_maximized().unwrap_or(true);
         let _ = window.set_decorations(false);
@@ -70,7 +70,7 @@ pub fn use_app_title_bar(app: &tauri::AppHandle) {
 /// The app's window buttons: `minimize`, `maximize` (toggles), `close`, or
 /// `state`. Returns whether the window is maximized afterwards.
 #[tauri::command]
-pub fn window_control(window: tauri::WebviewWindow, action: String) -> Result<bool, String> {
+pub fn window_control(window: tauri::Window, action: String) -> Result<bool, String> {
     match action.as_str() {
         "minimize" => window.minimize().map_err(|e| e.to_string())?,
         "maximize" => {

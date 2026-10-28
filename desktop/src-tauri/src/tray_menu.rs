@@ -221,7 +221,7 @@ pub enum TrayAction {
 }
 
 pub(crate) fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
-    let Some(window) = app.get_webview_window("main") else {
+    let Some(window) = app.get_window("main") else {
         return;
     };
     if let Err(error) = window.unminimize() {

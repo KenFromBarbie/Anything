@@ -140,7 +140,7 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             // Focus the existing window when a duplicate instance launches.
-            if let Some(w) = app.get_webview_window("main") {
+            if let Some(w) = app.get_window("main") {
                 let _ = w.set_focus();
             }
             // Forward any deep link URLs from the duplicate launch.
@@ -1013,7 +1013,7 @@ pub fn run() {
         } if label == "main" => {
             // Keep the webview alive so Buzz can be reopened from its tray menu.
             api.prevent_close();
-            if let Some(window) = app_handle.get_webview_window("main") {
+            if let Some(window) = app_handle.get_window("main") {
                 if let Err(error) = window.hide() {
                     eprintln!("buzz-desktop: failed to hide main window: {error}");
                 }

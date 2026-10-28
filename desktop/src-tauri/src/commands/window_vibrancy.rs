@@ -44,8 +44,10 @@ pub fn set_window_vibrancy(
     {
         use window_vibrancy::{apply_vibrancy, clear_vibrancy, NSVisualEffectMaterial};
 
+        // The window itself: with Studio or the Browser open it also holds
+        // child webviews, and is no longer a `WebviewWindow`.
         let window = app_handle
-            .get_webview_window("main")
+            .get_window("main")
             .ok_or_else(|| "main window not found".to_string())?;
 
         if !enabled {
@@ -93,7 +95,9 @@ pub fn set_window_vibrancy(
         // `WebviewWindow::set_background_color` path, which also writes the
         // NSWindow layer. Must follow `apply_vibrancy` so the blur layer is
         // present before the canvas becomes see-through.
-        let webview: &tauri::Webview<_> = window.as_ref();
+        let webview = app_handle
+            .get_webview("main")
+            .ok_or_else(|| "main webview not found".to_string())?;
         webview
             .set_background_color(Some(tauri::window::Color(0, 0, 0, 0)))
             .map_err(|e| e.to_string())?;
