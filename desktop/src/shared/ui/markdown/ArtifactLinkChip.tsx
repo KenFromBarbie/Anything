@@ -1,27 +1,30 @@
-import { Package } from "lucide-react";
+import * as React from "react";
 
-import { artifactLink, openDeskPanel } from "@/shared/lib/deskPanel";
+import { openDeskPanel } from "@/shared/lib/deskPanel";
+
+const ArtifactPanel = React.lazy(async () => ({
+  default: (await import("@/features/office/ui/ArtifactsPage")).ArtifactPanel,
+}));
 
 /**
- * A `buzz://artifact/<id>` link in chat: something an Office agent made.
- * Opens it in the channel's side panel (or the Research → Artifacts tab).
+ * A `buzz://artifact/<id>` link in chat (something an Office agent made):
+ * the artifact itself, shown right in the message. Its expand button opens it
+ * larger in the channel's side pane. A span: the link sits inside a
+ * paragraph or list item.
  */
-export function ArtifactLinkChip({ id, label }: { id: string; label: string }) {
-  const text = label && label !== artifactLink(id) ? label : "Open artifact";
+export function ArtifactLinkChip({ id }: { id: string; label: string }) {
   return (
-    <button
-      className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/70 bg-muted/50 px-2 py-0.5 align-baseline text-sm font-medium text-foreground transition-colors hover:bg-muted"
+    <span
+      className="my-2 block h-[26rem] w-full max-w-2xl overflow-hidden rounded-xl border border-border/70 bg-background/60 align-top"
       data-artifact-id={id}
-      data-testid="artifact-link"
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        openDeskPanel({ kind: "artifact", id });
-      }}
-      type="button"
+      data-testid="artifact-embed"
     >
-      <Package className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">{text}</span>
-    </button>
+      <React.Suspense fallback={null}>
+        <ArtifactPanel
+          id={id}
+          onExpand={() => openDeskPanel({ kind: "artifact", id })}
+        />
+      </React.Suspense>
+    </span>
   );
 }

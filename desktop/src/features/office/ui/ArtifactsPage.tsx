@@ -8,6 +8,7 @@ import {
   Film,
   Globe,
   Image as ImageIcon,
+  Maximize2,
   type LucideIcon,
   Music,
   Package,
@@ -195,7 +196,14 @@ function TextArtifact({ src, markdown }: { src: string; markdown: boolean }) {
 }
 
 /** One artifact by id, for a channel's side panel. */
-export function ArtifactPanel({ id }: { id: string }) {
+export function ArtifactPanel({
+  id,
+  onExpand,
+}: {
+  id: string;
+  /** Shown in a chat message: a button that opens it larger. */
+  onExpand?: () => void;
+}) {
   const { data: items, isLoading } = useArtifacts();
   const item = items?.find((candidate) => candidate.id === id);
   if (isLoading) return null;
@@ -206,16 +214,18 @@ export function ArtifactPanel({ id }: { id: string }) {
       </p>
     );
   }
-  return <ArtifactViewer compact item={item} />;
+  return <ArtifactViewer compact item={item} onExpand={onExpand} />;
 }
 
 export function ArtifactViewer({
   item,
   compact = false,
+  onExpand,
 }: {
   item: Artifact;
   /** In a side panel: no border or header of its own beyond the title row. */
   compact?: boolean;
+  onExpand?: () => void;
 }) {
   const open = () =>
     void invoke("office_artifact_open", { id: item.id }).catch(() => {});
@@ -303,8 +313,26 @@ export function ArtifactViewer({
             Open
           </Button>
         ) : null}
+        {onExpand ? (
+          <Button
+            aria-label="Open larger beside the chat"
+            data-testid="artifact-expand"
+            onClick={onExpand}
+            size="icon"
+            variant="ghost"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+        ) : null}
       </header>
-      <div className="min-h-[24rem] flex-1 overflow-auto">{body}</div>
+      <div
+        className={cn(
+          "flex-1 overflow-auto",
+          compact ? "min-h-0" : "min-h-[24rem]",
+        )}
+      >
+        {body}
+      </div>
     </section>
   );
 }
