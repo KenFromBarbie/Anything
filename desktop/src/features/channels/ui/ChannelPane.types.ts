@@ -49,6 +49,8 @@ export type ChannelPaneProps = {
   idleAuxiliaryHeaderActions?: IdleAuxiliaryHeaderControls;
   /** Show the idle auxiliary surface ahead of an already-open thread. */
   idleAuxiliaryOverridesThread?: boolean;
+  /** Show the idle panel as the resizable side pane, never a focus drawer. */
+  idleAuxiliaryAsSidePane?: boolean;
   idleAuxiliaryTitle?: string;
   hasOlderMessages?: boolean;
   /** True when the loaded window provably starts at the channel's beginning. */

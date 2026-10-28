@@ -4,10 +4,8 @@ import {
   Bot,
   Building2,
   Folders,
-  Globe,
   Inbox,
   ListChecks,
-  Package,
   Palette,
   Workflow,
   Zap,
@@ -122,15 +120,8 @@ export function AppSidebarPrimaryMenu({
   projectsOverviewActive,
   selectedView,
 }: AppSidebarPrimaryMenuProps) {
-  const {
-    goArtifacts,
-    goAutomations,
-    goBrowser,
-    goOffice,
-    goResearch,
-    goStudio,
-    goTasks,
-  } = useAppNavigation();
+  const { goAutomations, goOffice, goResearch, goStudio, goTasks } =
+    useAppNavigation();
   return (
     <>
       <SidebarHeader
@@ -264,32 +255,6 @@ export function AppSidebarPrimaryMenu({
             >
               <Palette className="h-4 w-4" />
               <SidebarMenuLabel>Studio</SidebarMenuLabel>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="data-[active=true]:font-normal"
-              data-testid="open-artifacts-view"
-              isActive={selectedView === "artifacts"}
-              onClick={() => void goArtifacts()}
-              tooltip="Artifacts"
-              type="button"
-            >
-              <Package className="h-4 w-4" />
-              <SidebarMenuLabel>Artifacts</SidebarMenuLabel>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="data-[active=true]:font-normal"
-              data-testid="open-browser-view"
-              isActive={selectedView === "browser"}
-              onClick={() => void goBrowser()}
-              tooltip="Browser"
-              type="button"
-            >
-              <Globe className="h-4 w-4" />
-              <SidebarMenuLabel>Browser</SidebarMenuLabel>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <ProtectedBestieSidebarEntry />

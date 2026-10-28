@@ -121,6 +121,8 @@ import { AgentSnapshotCard } from "./markdown/AgentSnapshotCard";
 import { resolveFileCard, resolveSnapshotCard } from "./markdownFileCard";
 import type { MarkdownProps, MarkdownRuntime } from "./markdown/types";
 import { SpoilerInline } from "./markdown/SpoilerInline";
+import { ArtifactLinkChip } from "./markdown/ArtifactLinkChip";
+import { parseArtifactLink } from "@/shared/lib/deskPanel";
 import {
   imageReserveStyle,
   isInsideHiddenSpoiler,
@@ -1242,6 +1244,11 @@ export function createMarkdownComponents(
 
     const label = getReactNodeText(children);
 
+    const artifactId = parseArtifactLink(href);
+    if (artifactId) {
+      return <ArtifactLinkChip id={artifactId} label={label} />;
+    }
+
     const audioAttachment = renderAudioMessageAttachment(
       href ? imetaByUrl?.get(href) : undefined,
       href,
@@ -1643,7 +1650,7 @@ export function createMarkdownComponents(
  * sixteen instances ever exist. Module-stable maps mean cached markdown
  * element trees (see ./markdown/nodeCache.ts) never embed per-mount closures.
  */
-const MARKDOWN_COMPONENT_SCHEMA_VERSION = "8";
+const MARKDOWN_COMPONENT_SCHEMA_VERSION = "9";
 const markdownComponentsByVariant = new Map<string, MarkdownComponentSet>();
 
 type MarkdownComponentSet = { components: Components; variant: string };

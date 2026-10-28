@@ -92,6 +92,7 @@ export const ChannelPane = React.memo(function ChannelPane({
   idleAuxiliaryPanel = null,
   idleAuxiliaryHeaderActions,
   idleAuxiliaryOverridesThread = false,
+  idleAuxiliaryAsSidePane = false,
   idleAuxiliaryTitle = "",
   hasOlderMessages,
   historyExhausted,
@@ -445,17 +446,21 @@ export const ChannelPane = React.memo(function ChannelPane({
   const overlayIdleAuxiliaryOverThread =
     priorityIdleAuxiliary && hasThreadSurface && !isOverlay;
   const replaceThreadWithIdleAuxiliary =
-    priorityIdleAuxiliary && hasThreadSurface && isOverlay;
-  const useFocusIdleDrawer = shouldUseFocusIdleDrawer({
-    channelManagementOpen,
-    hasAgentSession: Boolean(activeChannel && selectedAgent),
-    hasIdleAuxiliaryPanel: Boolean(idleAuxiliaryPanel),
-    hasIdlePanelCloseHandler: Boolean(onCloseIdleAuxiliaryPanel),
-    hasProfilePanel: Boolean(profilePanelPubkey),
-    hasThreadSurface,
-    overrideThread: overlayIdleAuxiliaryOverThread,
-    useSplitAuxiliaryPane,
-  });
+    priorityIdleAuxiliary &&
+    hasThreadSurface &&
+    (isOverlay || idleAuxiliaryAsSidePane);
+  const useFocusIdleDrawer =
+    !idleAuxiliaryAsSidePane &&
+    shouldUseFocusIdleDrawer({
+      channelManagementOpen,
+      hasAgentSession: Boolean(activeChannel && selectedAgent),
+      hasIdleAuxiliaryPanel: Boolean(idleAuxiliaryPanel),
+      hasIdlePanelCloseHandler: Boolean(onCloseIdleAuxiliaryPanel),
+      hasProfilePanel: Boolean(profilePanelPubkey),
+      hasThreadSurface,
+      overrideThread: overlayIdleAuxiliaryOverThread,
+      useSplitAuxiliaryPane,
+    });
   const showIdleAuxiliaryOverThread =
     overlayIdleAuxiliaryOverThread && useFocusIdleDrawer;
   const { channelIsCovered, markExitComplete } = useFocusDrawerPresence(

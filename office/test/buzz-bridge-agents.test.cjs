@@ -225,6 +225,7 @@ test('buzz-show copies the file into the artifacts and tells the app', async (t)
   const [[code, body], lines] = await captureStdout(() => b.showArtifact({ file: deck, title: 'Funnel deck', as: 'jim-1' }));
   assert.equal(code, 200);
   assert.equal(body.kind, 'office');
+  assert.equal(body.markdown, `[Funnel deck](buzz://artifact/${body.id})`, 'a link to put in the reply');
   const index = JSON.parse(fs.readFileSync(path.join(hive, 'shared', 'artifacts', 'index.json'), 'utf8'));
   assert.equal(index[0].agent, 'Jim');
   assert.equal(fs.readFileSync(path.join(hive, 'shared', 'artifacts', index[0].file), 'utf8'), 'slides');

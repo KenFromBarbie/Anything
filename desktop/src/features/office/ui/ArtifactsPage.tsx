@@ -14,8 +14,8 @@ import {
   Presentation,
 } from "lucide-react";
 
-import { useAppNavigation } from "@/app/navigation/useAppNavigation";
 import { cn } from "@/shared/lib/cn";
+import { openDeskPanel } from "@/shared/lib/deskPanel";
 import { Button } from "@/shared/ui/button";
 import { Markdown } from "@/shared/ui/markdown";
 import { PageHeader } from "@/shared/ui/PageHeader";
@@ -88,21 +88,37 @@ function when(ms: number) {
  * (PowerPoint, Word) show their PDF preview when the agent made one, and
  * open in their own app.
  */
-export function ArtifactsPage() {
+export function ArtifactsPage({
+  embedded = false,
+  initialId = null,
+}: {
+  /** Inside another page (Research): no header of its own. */
+  embedded?: boolean;
+  /** Open on this artifact (a chat link). */
+  initialId?: string | null;
+}) {
   const { data: items = [], isLoading } = useArtifacts();
-  const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [selectedId, setSelectedId] = React.useState<string | null>(initialId);
+  React.useEffect(() => {
+    if (initialId) setSelectedId(initialId);
+  }, [initialId]);
   const selected =
     items.find((item) => item.id === selectedId) ?? items[0] ?? null;
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-6 sm:px-6"
+      className={cn(
+        "flex min-h-0 flex-1 flex-col gap-4",
+        !embedded && "px-4 py-6 sm:px-6",
+      )}
       data-testid="artifacts-page"
     >
-      <PageHeader
-        description="What the Office's agents made for you: decks, documents, videos, images and sites."
-        title="Artifacts"
-      />
+      {embedded ? null : (
+        <PageHeader
+          description="What the Office's agents made for you: decks, documents, videos, images and sites."
+          title="Artifacts"
+        />
+      )}
       {isLoading ? null : items.length === 0 ? (
         <p className="rounded-2xl border border-border/70 bg-background/40 px-4 py-6 text-sm text-muted-foreground">
           Nothing yet. When an agent finishes a deck, document, video or site,
@@ -178,12 +194,36 @@ function TextArtifact({ src, markdown }: { src: string; markdown: boolean }) {
   );
 }
 
-function ArtifactViewer({ item }: { item: Artifact }) {
-  const { goBrowser } = useAppNavigation();
+/** One artifact by id, for a channel's side panel. */
+export function ArtifactPanel({ id }: { id: string }) {
+  const { data: items, isLoading } = useArtifacts();
+  const item = items?.find((candidate) => candidate.id === id);
+  if (isLoading) return null;
+  if (!item) {
+    return (
+      <p className="p-4 text-sm text-muted-foreground">
+        That artifact isn't in this server's Office.
+      </p>
+    );
+  }
+  return <ArtifactViewer compact item={item} />;
+}
+
+export function ArtifactViewer({
+  item,
+  compact = false,
+}: {
+  item: Artifact;
+  /** In a side panel: no border or header of its own beyond the title row. */
+  compact?: boolean;
+}) {
   const open = () =>
     void invoke("office_artifact_open", { id: item.id }).catch(() => {});
+  // In a channel the Browser opens beside the chat; elsewhere, its tab.
   const showSite = (url: string) =>
-    void invoke("browser_navigate", { url }).then(() => goBrowser());
+    void invoke("browser_navigate", { url }).then(() =>
+      openDeskPanel({ kind: "browser" }),
+    );
   const src = item.path ? convertFileSrc(item.path) : null;
   const preview = item.previewPath ? convertFileSrc(item.previewPath) : null;
 
@@ -241,7 +281,12 @@ function ArtifactViewer({ item }: { item: Artifact }) {
 
   return (
     <section
-      className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border/70 bg-background/40"
+      className={cn(
+        "flex min-h-0 flex-col overflow-hidden",
+        compact
+          ? "h-full"
+          : "rounded-2xl border border-border/70 bg-background/40",
+      )}
       data-testid="artifact-viewer"
     >
       <header className="flex items-center gap-3 border-b border-border/60 px-4 py-3">

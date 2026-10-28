@@ -203,7 +203,7 @@ class BuzzBridge {
     const fresh = () => ({ since: Math.floor(Date.now() / 1000), seen: [] });
     let s = {};
     try { s = JSON.parse(fs.readFileSync(this.statePath, 'utf8')); } catch { /* first run */ }
-    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [], toldHistory: s.toldHistory ?? [], toldDesk: s.toldDesk ?? [], toldVault: s.toldVault ?? [] };
+    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [], toldHistory: s.toldHistory ?? [], toldDesk: s.toldDesk ?? [], toldDesk2: s.toldDesk2 ?? [], toldVault: s.toldVault ?? [] };
     // Older state files: one cursor (Michael's) and thread entries holding the
     // thread itself (an object, or before that just the channel id).
     if (!state.cursors[GOD]) state.cursors[GOD] = s.since !== undefined ? { since: s.since, seen: s.seen ?? [] } : fresh();
@@ -426,6 +426,7 @@ class BuzzBridge {
       '',
       '## Show the owner what you made (the app’s Artifacts page)',
       'Decks, documents, videos, images, PDFs or a site you built: publish each finished piece (and each new version) so the owner sees it in the app. Make a PDF of any PPTX/DOCX and pass it as --preview so it can be viewed in the app.',
+      'It prints a markdown link (`[Title](buzz://artifact/<id>)`): always put that link in your reply or post about the work, so the owner opens it straight from the chat.',
       '',
       `    ${this.showCommand()} --file "<path>" --title "<what it is>" [--preview "<pdf>"] [--note "<one line>"]`,
       `    ${this.showCommand()} --url <http address> --title "<what it is>"`,
@@ -503,15 +504,16 @@ class BuzzBridge {
         requires_reply: false
       }, 'human')).catch(() => {});
     }
-    this.state.toldDesk ??= [];
+    // (toldDesk2: the note now asks for the artifact's link in replies.)
+    this.state.toldDesk2 ??= [];
     for (const who of this.identities()) {
-      if (!who.pubkey || this.state.toldDesk.includes(who.agentId)) continue;
-      this.state.toldDesk.push(who.agentId);
+      if (!who.pubkey || this.state.toldDesk2.includes(who.agentId)) continue;
+      this.state.toldDesk2.push(who.agentId);
       void Promise.resolve(send({ sender: null, senderFrame: null }, {
         to: who.agentId,
         act: 'inform',
         subject: 'Show your work in the app',
-        body: `[OFFICE NOTE] Publish what you make for the owner (decks, documents, videos, images, sites) to the app's Artifacts page: ${this.showCommand()} --file "<path>" --title "<what it is>" (with --preview "<pdf>" for a PPTX/DOCX). Open pages in the app's Browser for the owner and read them back: ${this.browseCommand()} --open <url> / --read. Details in ${join(root, 'BUZZ.md')}.`,
+        body: `[OFFICE NOTE] Publish what you make for the owner (decks, documents, videos, images, sites) to the app's Artifacts page: ${this.showCommand()} --file "<path>" --title "<what it is>" (with --preview "<pdf>" for a PPTX/DOCX). It prints a markdown link: put it in your reply when you finish, so the owner can open the artifact from the chat. Open pages in the app's Browser for the owner and read them back: ${this.browseCommand()} --open <url> / --read. Details in ${join(root, 'BUZZ.md')}.`,
         requires_reply: false
       }, 'human')).catch(() => {});
     }
@@ -722,6 +724,7 @@ class BuzzBridge {
         ]
         : []),
       'If you delegate, pass that exact command on so the agent can reply itself. Never post a bare "done".',
+      `When you made something for this (a deck, document, video, image, site), publish each piece with ${this.showCommand()} --file "<path>" --title "<what it is>" and put the markdown link it prints in your reply, so the owner can open it from the chat.`,
       `If this becomes board work, record where it came from on every card you make for it: "buzz": {"replyTo": "${ev.id}"}. Questions for the owner about that work are asked in this thread (the command above), not on the card.`,
       ...this.buzzToolsNote(who),
       '',
@@ -1302,7 +1305,12 @@ class BuzzBridge {
     fs.writeFileSync(indexPath + '.tmp', JSON.stringify(list.slice(-ARTIFACTS_KEPT), null, 2));
     fs.renameSync(indexPath + '.tmp', indexPath);
     process.stdout.write(`${ACTION_PREFIX}${JSON.stringify({ type: 'artifact', artifact: entry })}\n`);
-    return [200, { ok: true, id, title: entry.title, kind: entry.kind }];
+    const link = `buzz://artifact/${id}`;
+    return [200, {
+      ok: true, id, title: entry.title, kind: entry.kind, link,
+      // What the agent should put in its reply: the owner clicks it in chat.
+      markdown: `[${entry.title.replace(/[[\]]/g, '')}](${link})`
+    }];
   }
 
   /** `buzz-browse`: open a page in the app's Browser for the owner, or read

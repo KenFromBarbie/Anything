@@ -93,7 +93,7 @@ export function ChannelScreen({
   currentIdentity,
   currentProfile,
   headerEndActions, idleAuxiliaryPanel,
-  idleAuxiliaryHeaderActions, idleAuxiliaryOverridesThread,
+  idleAuxiliaryHeaderActions, idleAuxiliaryOverridesThread, idleAuxiliaryAsSidePane,
   idleAuxiliaryTitle,
   onAddFiles, onCloseIdleAuxiliaryPanel,
   onCloseForumPost, onSelectForumPost,
@@ -852,7 +852,7 @@ export function ChannelScreen({
                   canResetThreadPanelWidth={canResetThreadPanelWidth}
                   fetchOlder={fetchOlder}
                   header={channelHeader}
-                  {...{ idleAuxiliaryHeaderActions, idleAuxiliaryOverridesThread, idleAuxiliaryPanel, idleAuxiliaryTitle, hasOlderMessages, historyExhausted }}
+                  {...{ idleAuxiliaryHeaderActions, idleAuxiliaryOverridesThread, idleAuxiliaryAsSidePane, idleAuxiliaryPanel, idleAuxiliaryTitle, hasOlderMessages, historyExhausted }}
                   {...{ onAddFiles }}
                   onAddAgent={handleOpenAddBot}
                   onBrowseChannels={openBrowseChannels}

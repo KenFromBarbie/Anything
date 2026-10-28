@@ -22,6 +22,7 @@ export type ChannelScreenProps = {
   idleAuxiliaryPanel?: ReactNode;
   idleAuxiliaryHeaderActions?: IdleAuxiliaryHeaderControls;
   idleAuxiliaryOverridesThread?: boolean;
+  idleAuxiliaryAsSidePane?: boolean;
   idleAuxiliaryTitle?: string;
   headerEndActions?: ReactNode;
   onAddFiles?: () => void;

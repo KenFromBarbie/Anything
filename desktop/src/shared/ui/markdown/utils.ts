@@ -3,6 +3,7 @@ import { defaultUrlTransform } from "react-markdown";
 
 import { isChannelLink } from "@/features/messages/lib/channelLink";
 import { isMessageLink } from "@/features/messages/lib/messageLink";
+import { parseArtifactLink } from "@/shared/lib/deskPanel";
 import { parseEntityLink } from "@/shared/lib/entityLink";
 
 export function useStableArray<T>(arr: T[]): T[] {
@@ -185,6 +186,8 @@ export function buzzDeepLinkUrlTransform(value: string, key: string): string {
   if (key !== "href") return defaultUrlTransform(value);
   if (isMessageLink(value) || isChannelLink(value)) return value;
   if (parseEntityLink(value).ok) return value;
+  // An Office agent's artifact (opens beside the chat).
+  if (parseArtifactLink(value)) return value;
   return defaultUrlTransform(value);
 }
 

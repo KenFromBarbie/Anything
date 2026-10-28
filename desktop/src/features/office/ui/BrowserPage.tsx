@@ -3,6 +3,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ArrowLeft, ArrowRight, Globe, RotateCw } from "lucide-react";
 
+import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { PageHeader } from "@/shared/ui/PageHeader";
@@ -30,7 +31,12 @@ export const BROWSER_EVENT = "agent-browser";
  * native view laid over this page's area (see `office_desk.rs`); it's hidden,
  * not closed, when you leave, so the page stays where it was.
  */
-export function BrowserPage() {
+export function BrowserPage({
+  embedded = false,
+}: {
+  /** Inside another page or a channel's side panel: no header of its own. */
+  embedded?: boolean;
+}) {
   const areaRef = React.useRef<HTMLDivElement>(null);
   const [address, setAddress] = React.useState("");
   const [title, setTitle] = React.useState("");
@@ -118,13 +124,18 @@ export function BrowserPage() {
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-6 sm:px-6"
+      className={cn(
+        "flex min-h-0 flex-1 flex-col",
+        embedded ? "gap-2" : "gap-4 px-4 py-6 sm:px-6",
+      )}
       data-testid="browser-page"
     >
-      <PageHeader
-        description="Web pages inside the app. Agents open sites here for you to see, and read them back to check their work."
-        title="Browser"
-      />
+      {embedded ? null : (
+        <PageHeader
+          description="Web pages inside the app. Agents open sites here for you to see, and read them back to check their work."
+          title="Browser"
+        />
+      )}
       <form
         className="flex items-center gap-1.5"
         data-testid="browser-toolbar"

@@ -5,11 +5,14 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  Globe,
   ImageIcon,
   ImageOff,
   Loader2,
+  type LucideIcon,
   MessageSquare,
   MoreHorizontal,
+  Package,
   Paperclip,
   Pin,
   PinOff,
@@ -92,7 +95,129 @@ let draftBrief = "";
  * it, and Buzz makes its folder, opens a channel for it and hands the brief to
  * Michael, who researches and saves what he finds into the folder.
  */
-export function ResearchPage({ projectId }: { projectId: string | null }) {
+const RESEARCH_TABS: {
+  key: "projects" | "artifacts" | "browser";
+  label: string;
+  icon: LucideIcon;
+}[] = [
+  { key: "projects", label: "Projects", icon: FolderOpen },
+  { key: "artifacts", label: "Artifacts", icon: Package },
+  { key: "browser", label: "Browser", icon: Globe },
+];
+
+const ArtifactsPage = React.lazy(async () => ({
+  default: (await import("@/features/office/ui/ArtifactsPage")).ArtifactsPage,
+}));
+const BrowserPage = React.lazy(async () => ({
+  default: (await import("@/features/office/ui/BrowserPage")).BrowserPage,
+}));
+
+/**
+ * Research: projects, plus what the Office's agents made (Artifacts) and
+ * the app's Browser, as tabs.
+ */
+export function ResearchPage({
+  projectId,
+  tab = "projects",
+  artifactId = null,
+}: {
+  projectId: string | null;
+  tab?: "projects" | "artifacts" | "browser";
+  artifactId?: string | null;
+}) {
+  const { goArtifacts, goBrowser, goResearch } = useAppNavigation();
+  if (projectId || tab === "projects") {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {projectId ? null : (
+          <ResearchTabs
+            active="projects"
+            onSelect={(key) =>
+              key === "artifacts"
+                ? void goArtifacts()
+                : key === "browser"
+                  ? void goBrowser()
+                  : undefined
+            }
+          />
+        )}
+        <ResearchProjects projectId={projectId} />
+      </div>
+    );
+  }
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-6 sm:px-6"
+      data-testid={`research-tab-${tab}`}
+    >
+      <ResearchTabs
+        active={tab}
+        className="-mx-4 sm:-mx-6"
+        onSelect={(key) =>
+          key === "projects"
+            ? void goResearch()
+            : key === "artifacts"
+              ? void goArtifacts()
+              : void goBrowser()
+        }
+      />
+      <PageHeader
+        description={
+          tab === "artifacts"
+            ? "What the Office's agents made for you: decks, documents, videos, images and sites."
+            : "Web pages inside the app. Agents open sites here for you to see, and read them back to check their work."
+        }
+        title={tab === "artifacts" ? "Artifacts" : "Browser"}
+      />
+      <React.Suspense fallback={null}>
+        {tab === "artifacts" ? (
+          <ArtifactsPage embedded initialId={artifactId} />
+        ) : (
+          <BrowserPage embedded />
+        )}
+      </React.Suspense>
+    </div>
+  );
+}
+
+function ResearchTabs({
+  active,
+  className,
+  onSelect,
+}: {
+  active: "projects" | "artifacts" | "browser";
+  className?: string;
+  onSelect: (key: "projects" | "artifacts" | "browser") => void;
+}) {
+  return (
+    <nav
+      aria-label="Research"
+      className={cn("flex items-center gap-1 px-4 pt-4 sm:px-6", className)}
+      data-testid="research-tabs"
+    >
+      {RESEARCH_TABS.map(({ key, label, icon: Icon }) => (
+        <button
+          aria-current={active === key ? "page" : undefined}
+          className={cn(
+            "inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm transition-colors",
+            active === key
+              ? "bg-muted font-medium text-foreground"
+              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          )}
+          data-testid={`research-tab-button-${key}`}
+          key={key}
+          onClick={() => onSelect(key)}
+          type="button"
+        >
+          <Icon className="h-4 w-4" />
+          {label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function ResearchProjects({ projectId }: { projectId: string | null }) {
   const { data, isLoading } = useResearch();
   const actions = useResearchActions();
   const { goResearch } = useAppNavigation();

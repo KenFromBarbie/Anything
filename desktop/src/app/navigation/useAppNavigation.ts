@@ -124,15 +124,27 @@ export function useAppNavigation() {
     [commitNavigation],
   );
 
+  // Artifacts and the Browser are tabs of Research.
   const goArtifacts = React.useCallback(
-    (behavior?: NavigationBehavior) =>
-      commitNavigation({ to: "/artifacts" }, behavior),
+    (artifactId?: string, behavior?: NavigationBehavior) =>
+      commitNavigation(
+        {
+          to: "/research",
+          search: artifactId
+            ? { tab: "artifacts", artifact: artifactId }
+            : { tab: "artifacts" },
+        },
+        behavior,
+      ),
     [commitNavigation],
   );
 
   const goBrowser = React.useCallback(
     (behavior?: NavigationBehavior) =>
-      commitNavigation({ to: "/browser" }, behavior),
+      commitNavigation(
+        { to: "/research", search: { tab: "browser" } },
+        behavior,
+      ),
     [commitNavigation],
   );
 

@@ -24,10 +24,16 @@ import {
   isProjectRelayValidated,
   shouldUseScopedProjectHomeLookup,
 } from "@/features/projects/projectSnapshot";
+import {
+  BrowserPanelButton,
+  DeskSidePanel,
+  deskPanelTitle,
+} from "@/features/office/ui/DeskSidePanel";
 import { ProjectChannelHome } from "@/features/projects/ui/ProjectChannelHome";
 import { useIdentityQuery } from "@/shared/api/hooks";
 import { getEventById } from "@/shared/api/tauri";
 import type { RelayEvent } from "@/shared/api/types";
+import { closeDeskPanel, useDeskPanelHost } from "@/shared/lib/deskPanel";
 import { ViewLoadingFallback } from "@/shared/ui/ViewLoadingFallback";
 
 type ChannelRouteScreenProps = {
@@ -127,6 +133,8 @@ export function ChannelRouteScreen({
   const projectsQuery = useProjectsQuery();
   const identityQuery = useIdentityQuery();
   const profileQuery = useProfileQuery();
+  // The Browser or an agent's artifact, beside the chat.
+  const deskPanel = useDeskPanelHost();
   const channels = channelsQuery.data ?? [];
   const memberChannel =
     channels.find((channel) => channel.id === channelId) ?? null;
@@ -314,6 +322,14 @@ export function ChannelRouteScreen({
       autoSendDraftKey={autoSendDraftKey}
       currentIdentity={identityQuery.data}
       currentProfile={profileQuery.data}
+      headerEndActions={<BrowserPanelButton />}
+      idleAuxiliaryAsSidePane
+      idleAuxiliaryOverridesThread={deskPanel !== null}
+      idleAuxiliaryPanel={
+        deskPanel ? <DeskSidePanel panel={deskPanel} /> : null
+      }
+      idleAuxiliaryTitle={deskPanel ? deskPanelTitle(deskPanel) : undefined}
+      onCloseIdleAuxiliaryPanel={closeDeskPanel}
       onCloseForumPost={() => {
         void closeForumPost(channelId);
       }}
