@@ -1,4 +1,4 @@
-# Buzz Docker Compose deployment
+# Anything server: Docker Compose deployment
 
 This is the single-node/VPS deployment bundle. It is intentionally separate from
 the root `docker-compose.yml`, which remains local development infrastructure.
@@ -27,7 +27,7 @@ keypair.
 
 - Requires Docker Compose v2.24.4 or newer; the TLS override uses Compose's
   `!reset` tag to remove the direct relay port when Caddy terminates HTTPS.
-- Default `BUZZ_IMAGE` tracks `ghcr.io/block/buzz:main` for early testing. Pin it to `ghcr.io/block/buzz:sha-<7>` or a semver release tag for production once available.
+- Default `BUZZ_IMAGE` is Anything's server image, `ghcr.io/kenfrombarbie/anything:latest` (published for every release by `.github/workflows/docker.yml`, for amd64 and arm64). For production, pin a release: `ghcr.io/kenfrombarbie/anything:<version>`.
 - Keep `BUZZ_RELAY_PRIVATE_KEY`, `BUZZ_GIT_HOOK_HMAC_SECRET`, database/Redis,
   and S3 secrets stable across restarts.
 - `RELAY_OWNER_PUBKEY` is intentionally not prefixed with `BUZZ_`; it must be a
