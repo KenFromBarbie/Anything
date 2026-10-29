@@ -137,13 +137,13 @@ success "Database migrations complete"
 DESKTOP_DIR="${REPO_ROOT}/desktop"
 
 if [[ -d "${DESKTOP_DIR}" ]]; then
-  if command -v pnpm &>/dev/null; then
-    log "Installing desktop dependencies (pnpm install)..."
-    (cd "${DESKTOP_DIR}" && pnpm install)
+  if command -v bun &>/dev/null; then
+    log "Installing desktop dependencies (bun install)..."
+    (cd "${DESKTOP_DIR}" && bun install)
     success "Desktop dependencies installed"
   else
-    warn "pnpm not found — skipping desktop dependency install."
-    warn "Run '. ./bin/activate-hermit' to get pnpm, then 'just desktop-install'."
+    warn "bun run not found — skipping desktop dependency install."
+    warn "Run '. ./bin/activate-hermit' to get bun, then 'just desktop-install'."
   fi
 else
   warn "Desktop directory not found at ${DESKTOP_DIR} — skipping."
@@ -154,13 +154,13 @@ fi
 WEB_DIR="${REPO_ROOT}/web"
 
 if [[ -d "${WEB_DIR}" ]]; then
-  if command -v pnpm &>/dev/null; then
-    log "Installing web dependencies (pnpm install)..."
-    (cd "${WEB_DIR}" && pnpm install)
+  if command -v bun &>/dev/null; then
+    log "Installing web dependencies (bun install)..."
+    (cd "${WEB_DIR}" && bun install)
     success "Web dependencies installed"
   else
-    warn "pnpm not found — skipping web dependency install."
-    warn "Run '. ./bin/activate-hermit' to get pnpm, then 'just desktop-install'."
+    warn "bun run not found — skipping web dependency install."
+    warn "Run '. ./bin/activate-hermit' to get bun, then 'just desktop-install'."
   fi
 else
   warn "Web directory not found at ${WEB_DIR} — skipping."

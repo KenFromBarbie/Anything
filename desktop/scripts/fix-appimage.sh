@@ -192,14 +192,14 @@ if [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
   # macOS jobs in release.yml) — never pass the password via argv, where
   # it would be visible in /proc/<pid>/cmdline.
   echo "==> Re-signing AppImage"
-  (cd "$DESKTOP_DIR" && pnpm tauri signer sign "$APPIMAGE_ABS")
+  (cd "$DESKTOP_DIR" && bun run tauri signer sign "$APPIMAGE_ABS")
 
   TARBALL="$APPIMAGE_ABS.tar.gz"
   if [[ -f "$TARBALL" ]]; then
     echo "==> Recreating updater archive $TARBALL"
     tar -czf "$TARBALL" -C "$APPIMAGE_DIR" "$APPIMAGE_NAME"
     echo "==> Re-signing updater archive"
-    (cd "$DESKTOP_DIR" && pnpm tauri signer sign "$TARBALL")
+    (cd "$DESKTOP_DIR" && bun run tauri signer sign "$TARBALL")
   fi
 else
   echo "==> TAURI_SIGNING_PRIVATE_KEY not set — skipping signing (local build)"

@@ -1,14 +1,30 @@
 {
   "name": "buzz-workspace",
   "private": true,
-  "packageManager": "pnpm@11.4.0",
+  "packageManager": "bun@1.4.4",
+  "workspaces": [
+    "desktop",
+    "web",
+    "admin-web"
+  ],
   "scripts": {
-    "check": "pnpm -r check"
+    "check": "bun run --filter '*' check"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.6"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.19"
-  }
+  },
+  "overrides": {
+    "@radix-ui/react-dismissable-layer": "1.1.19",
+    "linkify-it": "^5.0.2"
+  },
+  "patchedDependencies": {
+    "virtua@0.49.3": "patches/virtua@0.49.3.patch",
+    "isomorphic-git@1.38.10": "patches/isomorphic-git.patch"
+  },
+  "trustedDependencies": [
+    "esbuild"
+  ]
 }

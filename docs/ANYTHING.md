@@ -8,7 +8,7 @@ Munder Difflin (`v0.5.5`, `../munder-difflin`, branch `sidecar`) hosted as an
 
 | Milestone | State |
 |---|---|
-| M0 Prereqs | Rust 1.95, pnpm 11.4, just, VS 2022 C++ Build Tools installed. No Docker: services run natively (below). |
+| M0 Prereqs | Rust 1.95, bun 1.4, just, VS 2022 C++ Build Tools installed. No Docker: services run natively (below). |
 | M1 Baseline | Done. Munder Difflin builds + runs. Buzz workspace + desktop build. Relay runs on native Postgres 17 + Garnet (no media storage). |
 | M2 Sidecar | Done. Munder main runs headless, unmodified; full UI runs in a browser against it. |
 | M3 Office in Buzz | Done. The Agents page is the Office: its floor fills the page (one sidebar entry, one agents row); it stays mounted after first open; host bridge verified; sidecar stops with Buzz. |

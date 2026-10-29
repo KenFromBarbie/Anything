@@ -61,7 +61,7 @@ if [ -f "$CA_PEM" ] && grep -q 'BEGIN CERTIFICATE' "$CA_PEM"; then
   log "using proxy CA bundle ($(grep -c 'BEGIN CERTIFICATE' "$CA_PEM") certs)"
 fi
 # (b) Use the host's configured npm registry (Artifactory) if it isn't public.
-HOST_NPM_REG="$(pnpm config get registry 2>/dev/null || echo '')"
+HOST_NPM_REG="$(npm config get registry 2>/dev/null || echo '')"
 if [ -n "$HOST_NPM_REG" ] && ! echo "$HOST_NPM_REG" | grep -q 'registry.npmjs.org'; then
   REG_ARG=(--build-arg "NPM_REGISTRY=${HOST_NPM_REG}")
   log "using npm registry mirror: $HOST_NPM_REG"

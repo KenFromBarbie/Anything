@@ -3,7 +3,7 @@
 # Public Buzz relay image — published as ghcr.io/block/buzz:<tag>.
 #
 # Builds the `buzz-relay` binary (Rust 1.95) and the `buzz-web` static bundle
-# (pnpm + vite), then assembles them into a small debian-slim runtime with
+# (bun + vite), then assembles them into a small debian-slim runtime with
 # `git` available (the relay shells out to git for repo hydrate / receive-pack
 # / upload-pack — see crates/buzz-relay/src/api/git).
 #
@@ -19,7 +19,7 @@ ARG DEBIAN_VERSION=bookworm
 # (e.g. a Cloudflare/Zscaler gateway that re-signs TLS). Empty by default, so
 # public CI builds are unaffected. Point it at a PEM file in the build context:
 #   docker build --build-arg EXTRA_CA_CERTS=path/to/proxy-ca.pem ...
-# Consumed by the network-touching stages below (cargo + pnpm).
+# Consumed by the network-touching stages below (cargo + bun).
 ARG EXTRA_CA_CERTS=
 
 # Optional npm registry for builds where the public registry is unreachable or
@@ -86,12 +86,12 @@ RUN strip target/release/buzz-relay \
     && strip target/release/buzz-admin \
     && strip target/release/buzz-pair-relay
 
-# ─── Stage 4: web bundle (pnpm + vite) ──────────────────────────────────────
+# ─── Stage 4: web bundle (bun + vite) ───────────────────────────────────────
 # Independent of the Rust layers so a CSS change doesn't bust Rust cache and
 # vice versa.
 FROM node:${NODE_VERSION}-${DEBIAN_VERSION}-slim AS web-builder
 WORKDIR /build
-# Trust an optional corporate-proxy CA so corepack + pnpm can fetch over an
+# Trust an optional corporate-proxy CA so npm + bun can fetch over an
 # intercepting TLS gateway (no-op if EXTRA_CA_CERTS is unset).
 ARG EXTRA_CA_CERTS
 COPY --chmod=0644 ${EXTRA_CA_CERTS:-Dockerfile} /tmp/extra-ca/src
@@ -102,29 +102,23 @@ RUN if [ -n "${EXTRA_CA_CERTS}" ]; then \
         && rm -rf /var/lib/apt/lists/*; \
     fi
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
-# Point npm + corepack at an optional mirror (no-op when NPM_REGISTRY is unset).
-# corepack reads COREPACK_NPM_REGISTRY to fetch the pinned pnpm; pnpm/npm read
-# the .npmrc registry for dependency installs.
+# Point npm + bun at an optional mirror (no-op when NPM_REGISTRY is unset):
+# npm fetches the pinned bun, and bun reads the .npmrc registry for installs.
 ARG NPM_REGISTRY
-ENV COREPACK_NPM_REGISTRY=${NPM_REGISTRY}
-# When using a mirror, disable corepack's npmjs signature check: the mirror
-# republishes tarballs without the public registry's provenance signatures, so
-# strict verification fails ("No compatible signature found"). Only relaxed on
-# the mirror path — public builds (NPM_REGISTRY unset) keep strict verification.
 RUN if [ -n "${NPM_REGISTRY}" ]; then \
-        echo "registry=${NPM_REGISTRY}" > /build/.npmrc \
-        && echo "COREPACK_INTEGRITY_KEYS=0" >> /etc/environment; \
+        echo "registry=${NPM_REGISTRY}" > /build/.npmrc; \
     fi
-ENV COREPACK_INTEGRITY_KEYS=${NPM_REGISTRY:+0}
-RUN corepack enable
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN npm install -g bun@1.4.4
+COPY package.json bun.lock ./
 COPY patches/ patches/
 COPY web/package.json web/
 COPY admin-web/package.json admin-web/
-RUN pnpm install --frozen-lockfile --filter buzz-web --filter buzz-admin-web
+# desktop is a workspace too; its manifest keeps the lockfile whole.
+COPY desktop/package.json desktop/
+RUN bun install --frozen-lockfile --filter buzz-web --filter buzz-admin-web
 COPY web/ web/
 COPY admin-web/ admin-web/
-RUN pnpm -C web build && pnpm -C admin-web build
+RUN bun run --cwd web build && bun run --cwd admin-web build
 
 # ─── Stage 5: shared runtime ────────────────────────────────────────────────
 FROM debian:${DEBIAN_VERSION}-slim AS runtime-base

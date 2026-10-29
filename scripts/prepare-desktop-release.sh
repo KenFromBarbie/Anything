@@ -31,7 +31,7 @@ git add \
   desktop/src-tauri/tauri.conf.json \
   desktop/src-tauri/Cargo.toml \
   desktop/src-tauri/Cargo.lock \
-  pnpm-lock.yaml
+  bun.lock
 
 agent_name="${RELEASE_AUTOMATION_NAME:-${AGENT_NAME:-Release Automation}}"
 agent_email="${RELEASE_AUTOMATION_EMAIL:-${AGENT_EMAIL:-release-automation@users.noreply.github.com}}"

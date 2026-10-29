@@ -8,10 +8,10 @@
     "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint .",
-    "check": "biome check . && pnpm typecheck && pnpm test",
+    "check": "biome check . && bun run typecheck && bun run test",
     "format": "biome format --write .",
     "test": "vitest run src --passWithNoTests",
-    "test:e2e": "pnpm build && playwright test"
+    "test:e2e": "bun run build && playwright test"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^6.0.0",

@@ -82,7 +82,7 @@ We review as capacity allows — focused PRs that follow this guide move fastest
 |------|---------|-------|
 | Rust | 1.88+ | Install via [rustup](https://rustup.rs/) |
 | Node.js | 24+ | Required for desktop app commands and `just ci` |
-| pnpm | 10+ | Required for desktop app commands and `just ci` |
+| bun | 1.4+ | Required for desktop app commands and `just ci` |
 | Flutter | 3.41+ | Required for mobile app — install via [flutter.dev](https://docs.flutter.dev/get-started/install) |
 | Docker | 24+ | For Postgres, Redis, MinIO |
 | `just` | latest | Task runner — `cargo install just` |
@@ -96,7 +96,7 @@ pinning. Activate it once per shell session:
 . ./bin/activate-hermit
 ```
 
-Hermit pins Rust, `just`, Node, pnpm, and other tools to the versions in
+Hermit pins Rust, `just`, Node, bun, and other tools to the versions in
 `bin/`. Each tool is downloaded on first use. You can also run `just bootstrap`
 (which `just setup` calls automatically) to pre-download all required tools
 upfront. If you don't use Hermit, ensure your toolchain meets the minimum
@@ -151,7 +151,7 @@ just hooks
 ```
 
 `just setup` runs `just bootstrap` first — it copies `.env.example` to `.env`
-if it doesn't already exist, and invokes `cargo`, `node`, and `pnpm` to trigger
+if it doesn't already exist, and invokes `cargo`, `node`, and `bun` to trigger
 Hermit's lazy tool download (each tool is fetched once on first invocation and
 cached thereafter). You can also run `just bootstrap` independently at any time;
 it is safe to re-run.

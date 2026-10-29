@@ -25,7 +25,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm exec vite preview --port 4173 --strictPort --host 127.0.0.1",
+    command: "bun run vite preview --port 4173 --strictPort --host 127.0.0.1",
     cwd: ".",
     reuseExistingServer: !process.env.CI,
     url: "http://127.0.0.1:4173",

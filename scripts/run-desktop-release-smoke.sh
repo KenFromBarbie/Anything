@@ -136,7 +136,7 @@ if [[ "${BUZZ_RELEASE_SMOKE_NO_BUILD:-0}" == "1" ]]; then
   log "reusing existing desktop E2E bundle"
 else
   log "building desktop E2E bundle"
-  pnpm -C desktop build:e2e
+  bun run --cwd desktop build:e2e
 fi
 phase build "${phase_start}"
 
@@ -144,7 +144,7 @@ phase_start="$(date +%s)"
 log "running release smoke"
 BUZZ_E2E_RELAY_URL="${RELAY_HTTP_URL}" \
 BUZZ_RELEASE_SMOKE_ARTIFACT_DIR="${ARTIFACT_DIR}" \
-pnpm -C desktop exec playwright test --config=playwright.release-smoke.config.ts
+bun run --cwd desktop playwright test --config=playwright.release-smoke.config.ts
 phase smoke "${phase_start}"
 phase total "${STARTED_AT}"
 log "artifacts: ${ARTIFACT_DIR}"

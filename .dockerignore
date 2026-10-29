@@ -5,6 +5,8 @@ desktop/src-tauri/target/
 
 # Native non-relay UI builds (not part of the public image)
 desktop/
+# ...except its manifest: it is a workspace in bun.lock
+!desktop/package.json
 mobile/
 # The desktop app's Office, and ArtCraft's leftover source
 office/

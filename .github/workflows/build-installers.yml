@@ -81,9 +81,9 @@ jobs:
         with:
           node-version: "24"
 
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 11.4.0
+          bun-version: 1.4.4
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -96,7 +96,7 @@ jobs:
             desktop/src-tauri -> target
 
       - name: Desktop dependencies
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Office (build, UI, runtime)
         shell: bash
@@ -187,7 +187,7 @@ jobs:
         shell: bash
         run: |
           cd desktop
-          pnpm tauri build --ci --bundles ${{ matrix.bundles }} --config src-tauri/tauri.release.conf.json
+          bun run tauri build --ci --bundles ${{ matrix.bundles }} --config src-tauri/tauri.release.conf.json
 
       # The app must carry a valid signature, or macOS calls it "damaged".
       - name: Check the macOS signature

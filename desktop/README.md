@@ -10,13 +10,13 @@ Desktop chat shell with:
 
 ## Scripts
 
-- `pnpm dev` - run the web frontend
-- `pnpm tauri dev` - run the desktop app
-- `pnpm build` - typecheck and build frontend
-- `pnpm typecheck` - TypeScript checks
-- `pnpm lint` - Biome lint
-- `pnpm format` - Biome format (write)
-- `pnpm check` - Biome check
+- `bun run dev` - run the web frontend
+- `bun run tauri dev` - run the desktop app
+- `bun run build` - typecheck and build frontend
+- `bun run typecheck` - TypeScript checks
+- `bun run lint` - Biome lint
+- `bun run format` - Biome format (write)
+- `bun run check` - Biome check
 
 ## Structure
 

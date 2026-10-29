@@ -108,27 +108,18 @@ pre-push:
       run: ./scripts/without-git-env.sh just test-unit
     desktop-check:
       files: git diff --name-only origin/main...HEAD
-      glob: ["desktop/**", "pnpm-lock.yaml"]
+      glob: ["desktop/**", "bun.lock"]
       exclude: ["desktop/src-tauri/**"]
-      env: &pnpm-verify-deps
-        # Warn when node_modules looks stale against the workspace (pnpm uses
-        # recorded workspace state and manifest mtimes; not a complete
-        # lockfile-content check). `warn`, not `error`: `just
-        # bump-desktop-version` leaves the workspace flagged, and release prep
-        # pushes through this hook.
-        pnpm_config_verify_deps_before_run: warn
       run: ./scripts/without-git-env.sh just desktop-check
     desktop-typecheck:
       files: git diff --name-only origin/main...HEAD
-      glob: ["desktop/**", "pnpm-lock.yaml"]
+      glob: ["desktop/**", "bun.lock"]
       exclude: ["desktop/src-tauri/**"]
-      env: *pnpm-verify-deps
       run: ./scripts/without-git-env.sh just desktop-typecheck
     desktop-test:
       files: git diff --name-only origin/main...HEAD
-      glob: ["desktop/**", "pnpm-lock.yaml"]
+      glob: ["desktop/**", "bun.lock"]
       exclude: ["desktop/src-tauri/**"]
-      env: *pnpm-verify-deps
       run: ./scripts/without-git-env.sh just desktop-test
     desktop-tauri-checks:
       # Keep local lint parity with Desktop Core CI for every path that can

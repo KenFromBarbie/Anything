@@ -32,7 +32,7 @@ bootstrap:
     echo "Ensuring toolchain via Hermit..."
     cargo --version &
     node --version &
-    pnpm --version &
+    bun --version &
     wait
     if ! command -v docker &>/dev/null; then
         echo "Error: Docker is required but not installed."
@@ -122,33 +122,33 @@ fmt-check:
 clippy:
     cargo clippy --workspace --all-targets -- -D warnings
 
-# Install JS dependencies (pnpm workspace — installs all packages from root)
+# Install JS dependencies (bun run workspace — installs all packages from root)
 desktop-install:
-    pnpm install
+    bun install
 
-# Install JS dependencies reproducibly for CI (pnpm workspace)
+# Install JS dependencies reproducibly for CI (bun run workspace)
 desktop-install-ci:
-    pnpm install --frozen-lockfile
+    bun install --frozen-lockfile
 
 # Run desktop lint and format checks
 desktop-check:
-    cd {{desktop_dir}} && pnpm check
+    cd {{desktop_dir}} && bun run check
 
 # Fix desktop lint and format issues
 desktop-fix:
-    cd {{desktop_dir}} && pnpm exec biome check --write .
+    cd {{desktop_dir}} && bun run biome check --write .
 
 # Run desktop TS helper unit tests
 desktop-test:
-    cd {{desktop_dir}} && pnpm test
+    cd {{desktop_dir}} && bun run test
 
 # Run desktop TypeScript checks
 desktop-typecheck:
-    cd {{desktop_dir}} && pnpm typecheck
+    cd {{desktop_dir}} && bun run typecheck
 
 # Build desktop frontend assets
 desktop-build:
-    cd {{desktop_dir}} && pnpm build
+    cd {{desktop_dir}} && bun run build
 
 # Format desktop Tauri Rust code
 desktop-tauri-fmt:
@@ -276,7 +276,7 @@ desktop-tauri-test-compiled-flags: _ensure-sidecar-stubs
 
 # Build the full desktop Tauri app locally (unsigned, for testing)
 # Sidecar binary list must stay in sync with _ensure-sidecar-stubs above.
-# pnpm install is unconditional here: release builds must start from a clean dep tree.
+# bun install is unconditional here: release builds must start from a clean dep tree.
 desktop-release-build target="aarch64-apple-darwin":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -290,8 +290,8 @@ desktop-release-build target="aarch64-apple-darwin":
     touch "desktop/src-tauri/binaries/buzz-dev-mcp-$TARGET"
     touch "desktop/src-tauri/binaries/git-credential-nostr-$TARGET"
     touch "desktop/src-tauri/binaries/buzz-$TARGET"
-    pnpm install
-    cd {{desktop_dir}} && pnpm tauri build --features mesh-llm --target {{target}}
+    bun install
+    cd {{desktop_dir}} && bun run tauri build --features mesh-llm --target {{target}}
 
 # Build an unsigned named macOS demo DMG with isolated app and runtime identities.
 desktop-demo-build demo_name target="aarch64-apple-darwin":
@@ -312,9 +312,9 @@ desktop-demo-build demo_name target="aarch64-apple-darwin":
       -p buzz-acp -p buzz-agent -p buzz-backend-kubernetes -p buzz-dev-mcp \
       -p git-credential-nostr -p buzz-cli
     ./scripts/bundle-sidecars.sh "$TARGET"
-    pnpm install
+    bun install
     cd {{desktop_dir}}
-    BUZZ_BUILD_DEMO_SLUG="$DEMO_SLUG" pnpm tauri build --features mesh-llm --target "$TARGET" --bundles app --config "$CONFIG_PATH"
+    BUZZ_BUILD_DEMO_SLUG="$DEMO_SLUG" bun run tauri build --features mesh-llm --target "$TARGET" --bundles app --config "$CONFIG_PATH"
     cd ..
     VERSION="$(node -p "require('./desktop/package.json').version")"
     DMG_ARCH="${TARGET%%-*}"; [[ "$DMG_ARCH" == "x86_64" ]] && DMG_ARCH=x64
@@ -334,11 +334,11 @@ desktop-e2e-seed: _ensure-migrations
 
 # Run desktop browser smoke tests
 desktop-e2e-smoke:
-    cd {{desktop_dir}} && pnpm test:e2e:smoke
+    cd {{desktop_dir}} && bun run test:e2e:smoke
 
 # Run desktop relay-backed e2e tests
 desktop-e2e-integration: _ensure-migrations
-    cd {{desktop_dir}} && pnpm test:e2e:integration
+    cd {{desktop_dir}} && bun run test:e2e:integration
 
 # Run the deterministic desktop correctness smoke against an isolated local relay
 desktop-release-smoke:
@@ -347,7 +347,7 @@ desktop-release-smoke:
 # Run only the e2e specs changed vs origin/main (both projects) before pushing
 desktop-e2e-pre-push: _ensure-migrations
     git fetch origin main
-    cd {{desktop_dir}} && pnpm build:e2e && pnpm exec playwright test --only-changed=origin/main
+    cd {{desktop_dir}} && bun run build:e2e && bun run playwright test --only-changed=origin/main
 
 # Run all checks suitable for CI / pre-push (no infra needed)
 ci: check test-unit desktop-test desktop-build desktop-tauri-check desktop-tauri-test web-build mobile-test
@@ -543,7 +543,7 @@ regen-model-corpus:
 # Playwright UI coverage.
 mesh-e2e:
     cargo test --manifest-path {{desktop_dir}}/src-tauri/Cargo.toml --features mesh-llm mesh_llm --lib
-    cd {{desktop_dir}} && pnpm test:e2e:smoke -- mesh-compute.spec.ts
+    cd {{desktop_dir}} && bun run test:e2e:smoke mesh-compute.spec.ts
 
 # Reset only development state, seed deterministic local channels, and launch
 # the mesh-enabled desktop with the repository's public Tyler test identity.
@@ -589,7 +589,7 @@ mesh-e2e-confidence:
 desktop-screenshot *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
-    pnpm -C {{desktop_dir}} build:e2e
+    bun run --cwd {{desktop_dir}} build:e2e
     cd {{desktop_dir}}
     if ! curl -sf http://127.0.0.1:4173/ >/dev/null 2>&1; then
         python3 -m http.server 4173 -d dist >/dev/null 2>&1 &
@@ -622,8 +622,8 @@ relay-web: bootstrap _ensure-migrations
     set -o allexport
     source .env
     set +o allexport
-    [[ -d node_modules ]] || pnpm install
-    pnpm -C web build
+    [[ -d node_modules ]] || bun install
+    bun run --cwd web build
     BUZZ_WEB_DIR=./web/dist cargo run -p buzz-relay
 
 # Build and run the private admin dashboard
@@ -634,8 +634,8 @@ admin: bootstrap _ensure-migrations
     set -o allexport
     source .env
     set +o allexport
-    [[ -d node_modules ]] || pnpm install
-    pnpm -C admin-web build
+    [[ -d node_modules ]] || bun install
+    bun run --cwd admin-web build
     export BUZZ_ADMIN_HOST="${BUZZ_ADMIN_HOST:-admin.localhost:3000}"
     export BUZZ_ADMIN_WEB_DIR="${BUZZ_ADMIN_WEB_DIR:-{{justfile_directory()}}/admin-web/dist}"
     # Default to disabled auth locally: localhost is the network boundary and a
@@ -656,8 +656,8 @@ admin-check: fmt-check
     cargo check -p buzz-relay --all-targets
     cargo test -p buzz-relay api::admin
     cargo test -p buzz-relay router::tests
-    pnpm -C admin-web check
-    pnpm -C admin-web test:e2e
+    bun run --cwd admin-web check
+    bun run --cwd admin-web test:e2e
 
 # Start the relay server in release mode
 relay-release: bootstrap _ensure-migrations
@@ -723,12 +723,12 @@ dev *ARGS: bootstrap _ensure-sidecar-stubs _ensure-migrations
         exit 1
     fi
     cd {{desktop_dir}}
-    [[ -d node_modules ]] || pnpm install
+    [[ -d node_modules ]] || bun install
     source ../scripts/instance-env.sh
     INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.BUZZ_TAURI_CONFIG).identifier)")
     echo "Starting on Vite port ${BUZZ_VITE_PORT}, relay ${BUZZ_RELAY_URL}"
     FEATURES=(); [[ -n "{{mesh}}" ]] && FEATURES=(--features mesh-llm)
-    pnpm exec tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$BUZZ_TAURI_CONFIG" {{ARGS}}
+    bun run tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$BUZZ_TAURI_CONFIG" {{ARGS}}
 
 # Run only the desktop app. No relay, database, Docker, migrations, or .env are needed.
 # The app opens normally and asks for a community before making a relay connection.
@@ -744,7 +744,7 @@ desktop-standalone *ARGS: _ensure-sidecar-stubs
         chmod +x "desktop/src-tauri/binaries/${bin}-${TARGET}"
     done
     cd {{desktop_dir}}
-    [[ -d node_modules ]] || pnpm install
+    [[ -d node_modules ]] || bun install
     unset BUZZ_PRIVATE_KEY BUZZ_SHARE_IDENTITY
     if [[ -n "{{fresh}}" ]]; then
         export BUZZ_RESET_WEBVIEW_STATE=1
@@ -761,14 +761,14 @@ desktop-standalone *ARGS: _ensure-sidecar-stubs
     if [[ -n "{{mesh}}" ]]; then
         FEATURES=(--features mesh-llm)
     fi
-    pnpm exec tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$BUZZ_TAURI_CONFIG" {{ARGS}}
+    bun run tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$BUZZ_TAURI_CONFIG" {{ARGS}}
 
 # Run the desktop app against the internal staging relay (installs deps + builds agent tools automatically)
 staging *ARGS: bootstrap _ensure-sidecar-stubs
     #!/usr/bin/env bash
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
-    pnpm install  # unconditional: staging must always start with a clean dep tree
+    bun install  # unconditional: staging must always start with a clean dep tree
     cargo build --release -p buzz-acp -p buzz-agent -p buzz-backend-kubernetes -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr
     FEATURES=()
     if [[ -n "{{mesh}}" ]]; then
@@ -796,14 +796,14 @@ staging *ARGS: bootstrap _ensure-sidecar-stubs
     INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.BUZZ_TAURI_CONFIG).identifier)")
     trap '../scripts/cleanup-instance-agents.sh "$INSTANCE_ID" || true' EXIT
     echo "Starting staging on Vite port ${BUZZ_VITE_PORT}, relay ${BUZZ_RELAY_URL}"
-    pnpm exec tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$BUZZ_TAURI_CONFIG" {{ARGS}}
+    bun run tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$BUZZ_TAURI_CONFIG" {{ARGS}}
 
 # Run the desktop app against the production relay (installs deps + builds agent tools automatically)
 production *ARGS: bootstrap _ensure-sidecar-stubs
     #!/usr/bin/env bash
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
-    pnpm install  # unconditional: production must always start with a clean dep tree
+    bun install  # unconditional: production must always start with a clean dep tree
     cargo build --release -p buzz-acp -p buzz-agent -p buzz-backend-kubernetes -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr
     FEATURES=()
     if [[ -n "{{mesh}}" ]]; then
@@ -831,17 +831,17 @@ production *ARGS: bootstrap _ensure-sidecar-stubs
     INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.BUZZ_TAURI_CONFIG).identifier)")
     trap '../scripts/cleanup-instance-agents.sh "$INSTANCE_ID" || true' EXIT
     echo "Starting production on Vite port ${BUZZ_VITE_PORT}, relay ${BUZZ_RELAY_URL}"
-    pnpm exec tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$BUZZ_TAURI_CONFIG" {{ARGS}}
+    bun run tauri dev ${FEATURES[@]+"${FEATURES[@]}"} --config "$BUZZ_TAURI_CONFIG" {{ARGS}}
 
 # Run the desktop frontend dev server (port derived from worktree)
 desktop-dev:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{desktop_dir}}
-    [[ -d node_modules ]] || pnpm install
+    [[ -d node_modules ]] || bun install
     source ../scripts/instance-env.sh
     echo "Starting frontend dev server on Vite port ${BUZZ_VITE_PORT}, relay ${BUZZ_RELAY_URL}"
-    pnpm exec vite --port "${BUZZ_VITE_PORT}" --strictPort
+    bun run vite --port "${BUZZ_VITE_PORT}" --strictPort
 
 # Build the Office UI (office/, or BUZZ_OFFICE_DIR) into desktop/public/office-app
 office-web:
@@ -872,33 +872,33 @@ studio-web:
 web:
     #!/usr/bin/env bash
     set -euo pipefail
-    [[ -d node_modules ]] || pnpm install
+    [[ -d node_modules ]] || bun install
     source scripts/instance-env.sh
     export VITE_PORT=$((BUZZ_VITE_PORT + 100))
     export VITE_RELAY_URL="${BUZZ_RELAY_URL}"
     echo "Starting web dev server on port ${VITE_PORT}, relay ${BUZZ_RELAY_URL}"
     cd {{web_dir}}
-    pnpm exec vite --port "${VITE_PORT}" --strictPort
+    bun run vite --port "${VITE_PORT}" --strictPort
 
 # Run web lint and format checks
 web-check:
-    cd {{web_dir}} && pnpm check
+    cd {{web_dir}} && bun run check
 
 # Fix web lint and format issues
 web-fix:
-    cd {{web_dir}} && pnpm exec biome check --write .
+    cd {{web_dir}} && bun run biome check --write .
 
 # Run web TypeScript checks
 web-typecheck:
-    cd {{web_dir}} && pnpm typecheck
+    cd {{web_dir}} && bun run typecheck
 
 # Build web frontend assets
 web-build:
-    cd {{web_dir}} && pnpm build
+    cd {{web_dir}} && bun run build
 
 # Run web browser smoke tests
 web-e2e-smoke:
-    cd {{web_dir}} && pnpm test:e2e:smoke
+    cd {{web_dir}} && bun run test:e2e:smoke
 
 # ─── Mobile ──────────────────────────────────────────────────────────────────
 
@@ -1023,7 +1023,7 @@ bump-desktop-version version:
         fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n');
     "
     # JSON.stringify expands arrays/objects in a way biome rejects; reformat to match.
-    (cd desktop && pnpm exec biome format --write src-tauri/tauri.conf.json)
+    (cd desktop && bun run biome format --write src-tauri/tauri.conf.json)
     # desktop/src-tauri/Cargo.toml — only first version line (under [package])
     node -e "
         const fs = require('fs');
@@ -1033,7 +1033,7 @@ bump-desktop-version version:
         fs.writeFileSync(p, t);
     "
     # Regenerate lockfiles
-    pnpm install --lockfile-only
+    bun install --lockfile-only
     cargo update -p buzz-desktop --manifest-path desktop/src-tauri/Cargo.toml
     echo "Bumped desktop manifests to {{ version }} and regenerated lockfiles"
 
@@ -1090,7 +1090,7 @@ _release-pr lane version:
             TAG_EXCLUDE='*-*'
             TAG_PREFIX="v"
             CHANGELOG="CHANGELOG.md"
-            ADD_FILES=(desktop/package.json desktop/src-tauri/tauri.conf.json desktop/src-tauri/Cargo.toml desktop/src-tauri/Cargo.lock pnpm-lock.yaml CHANGELOG.md)
+            ADD_FILES=(desktop/package.json desktop/src-tauri/tauri.conf.json desktop/src-tauri/Cargo.toml desktop/src-tauri/Cargo.lock bun.lock CHANGELOG.md)
             LOG_PATHS=(desktop/ crates/buzz-core/ crates/buzz-persona/ crates/buzz-sdk/ crates/buzz-agent/)
             ARTIFACT="Buzz Desktop" ;;
         relay)
