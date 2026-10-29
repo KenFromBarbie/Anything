@@ -71,6 +71,8 @@ const ROSTER_PREFIX = 'MD_OFFICE_ROSTER ';
  *  Browser), one JSON line each on stdout; browser results come back on stdin. */
 const ACTION_PREFIX = 'MD_OFFICE_ACTION ';
 const BROWSE_TIMEOUT_MS = 60000;
+/** A request sent again within this long is the one the agent already has. */
+const REPEAT_WINDOW_MS = 10 * 60_000;
 const ARTIFACTS_KEPT = 500;
 /** How often the vault's mirrors (agents' memory, meetings) are refreshed. */
 const VAULT_SYNC_MS = 3 * 60_000;
@@ -646,15 +648,56 @@ ${global}
       const known = this.thread(t[1]);
       if (known?.agents.includes(who.agentId)) return { why: 'followup', channel, root: known.root };
     }
-    // Michael reads every owner message in the channels he's in, tagged or
-    // not (calls have their own rules); one that @mentions another office
-    // agent is theirs.
-    if (who === this.michael && String(ev.pubkey ?? '').toLowerCase() === this.owner && !who.callChannels?.has(channel)) {
-      const others = this.identities().filter((i) => i !== who && i.pubkey);
-      const forSomeoneElse = ev.tags.some((t) => t[0] === 'p' && others.some((o) => o.pubkey === t[1]));
-      if (!forSomeoneElse) return { why: 'channel', channel };
+    // Michael reads every message in the channels he's in (calls have their
+    // own rules): the owner's, tagged or not, and the other agents' posts.
+    // One that tags other agents is theirs to do; he reads it to know.
+    if (who === this.michael && !who.callChannels?.has(channel)) {
+      const forOthers = this.identities()
+        .filter((i) => i !== who && i.pubkey && ev.tags.some((t) => t[0] === 'p' && t[1] === i.pubkey))
+        .map((i) => i.name);
+      return { why: 'channel', channel, forOthers };
     }
     return null;
+  }
+
+  /** When `who` was first handed the same words in this channel within the
+   *  last REPEAT_WINDOW_MS (mentions, punctuation and case aside), or null;
+   *  remembers this one either way. */
+  isRepeat(ev, who, channel) {
+    const words = String(ev.content ?? '')
+      .replace(/nostr:\S+/g, ' ')
+      .replace(/@[\w.-]+(?: \(office\))?/gi, ' ')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim();
+    if (!words) return null;
+    const now = Date.now();
+    this.recentAsks ??= new Map();
+    const key = `${who.agentId} | ${channel} | ${words}`;
+    for (const [k, at] of this.recentAsks) if (now - at > REPEAT_WINDOW_MS) this.recentAsks.delete(k);
+    const first = this.recentAsks.get(key) ?? null;
+    if (first === null) this.recentAsks.set(key, now);
+    return first;
+  }
+
+  /** Another agent posted in one of Michael's channels: he reads it, as an
+   *  update (no reply asked). */
+  async informMichael(ev, fromAgent, channel) {
+    const send = this.shim.ipcMain.handlers.get('hive:send');
+    if (!send) return false;
+    const result = await send({ sender: null, senderFrame: null }, {
+      to: GOD,
+      act: 'inform',
+      subject: `${fromAgent.name} posted in a channel`,
+      body: `[CHANNEL UPDATE: ${fromAgent.name} posted in a channel you are in. No reply needed; read it so you know where things stand.]
+
+${String(ev.content ?? '').slice(0, 2000)}`,
+      conversation: `buzz-${this.threadRootOf(ev) ?? ev.id}`,
+      requires_reply: false
+    }, 'human');
+    if (!result?.ok) return false;
+    this.log.log(`[buzz-bridge] Michael read ${fromAgent.name}'s post ${ev.id.slice(0, 12)}… in ${channel.slice(0, 8)}`);
+    return true;
   }
 
   /** Whether a channel is one of the office agents' DMs. */
@@ -687,6 +730,9 @@ ${global}
       this.log.log(`[buzz-bridge] ignored a ${route.why} for ${who.name} from non-owner ${ev.pubkey.slice(0, 12)}…`);
       return true;
     } else {
+      // What the other agents post in his channels, Michael reads to know
+      // (no reply asked, so no back-and-forth).
+      if (route.why === 'channel') return this.informMichael(ev, fromAgent, channel);
       // The office's own agents reach each other only by an explicit @mention,
       // and only so many times per thread.
       if (route.why !== 'mention') return true;
@@ -699,6 +745,9 @@ ${global}
     }
     const send = this.shim.ipcMain.handlers.get('hive:send');
     if (!send) return false;
+    // The same request sent again soon after (untagged, then again with an
+    // @mention, say) still reaches the agent, marked as one it already has.
+    const sentBefore = channel && !fromAgent ? this.isRepeat(ev, who, channel) : null;
     // The agent answers in the channel itself, right under the message, like
     // a chat; in a thread only when the message was in one (a long DM answer
     // still gets a thread, see replyAs).
@@ -746,9 +795,14 @@ ${global}
       `[CHANNEL ${fromAgent ? 'MESSAGE' : 'REQUEST'} — ${where}, ${from}. No one is watching this terminal.]`,
       fromAgent
         ? 'Help with what they ask if it is yours to do; otherwise say so in the thread.'
-        : route.why === 'channel'
-          ? 'You were not tagged. Act only if it is meant for you or the office (a request, a question to the team, work you run); otherwise do nothing, and do not reply just to acknowledge it.'
-          : 'Handle it as you would any request from the human: do it yourself or route it to the right agent.',
+        : route.why === 'channel' && route.forOthers?.length
+          ? `This is for ${route.forOthers.join(', ')} (tagged): they do it. Read it so you know; step in only if they need you or it is going wrong.`
+          : route.why === 'channel'
+            ? 'You were not tagged. Act only if it is meant for you or the office (a request, a question to the team, work you run); otherwise do nothing, and do not reply just to acknowledge it.'
+            : 'Handle it as you would any request from the human: do it yourself or route it to the right agent.',
+      ...(sentBefore
+        ? [`The owner already sent you this same message at ${new Date(sentBefore).toISOString().slice(11, 16)} UTC: it is the same request, not a second one. Do not do the work twice; make sure the first one gets done and answered.`]
+        : []),
       ...(inCall && !opts.asWork
         ? [
           'You are in a voice call: your reply is read aloud straight away. Answer in one to three short spoken sentences, plain words only (no markdown, lists, links or code), and reply quickly with --in-channel (in the call, not a thread); do longer work afterwards and say so.'
@@ -796,8 +850,8 @@ ${global}
     if (!result?.ok) return false;
     this.remember(ev.id, root, route.channel, threaded, who.agentId);
     this.saveState();
-    // Seen (not for untagged chatter Michael only reads along with).
-    if (route.why !== 'channel') await this.run(['reactions', 'add', '--event', ev.id, '--emoji', '👀'], undefined, who).catch(() => {});
+    // Seen: every message an agent gets is marked, so the owner knows it was read.
+    await this.run(['reactions', 'add', '--event', ev.id, '--emoji', '👀'], undefined, who).catch(() => {});
     this.log.log(`[buzz-bridge] delivered ${route.why} ${ev.id.slice(0, 12)}… to ${who.name}${fromAgent ? ` (from ${fromAgent.name})` : ''}`);
     return true;
   }

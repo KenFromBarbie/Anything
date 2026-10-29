@@ -270,20 +270,34 @@ test('the vault mirrors each agent\'s memory and keeps their own notes', async (
   assert.match(fs.readFileSync(path.join(vault, 'Agents.md'), 'utf8'), /\[\[Agents\/Michael\|Michael\]\]/);
 });
 
-test('Michael reads untagged owner messages in his channels, but not ones for another agent', async (t) => {
+test('Michael reads every message in his channels; strangers are kept out', async (t) => {
   const { b, jim, sent, calls } = await withJim(t);
+  // Untagged: delivered, and marked read.
   await b.handleEvent(message(OWNER, { content: 'can someone make an eth chart?' }), b.michael);
   assert.equal(sent.length, 1);
-  assert.match(sent[0].body, /you were not tagged/);
-  assert.match(sent[0].body, /do not reply just to acknowledge/);
-  assert.ok(!calls.some((c) => c.args[0] === 'reactions'), 'no 👀 on chatter he only reads');
-  // Meant for Jim: Jim's, not Michael's.
+  assert.match(sent[0].body, /you were not tagged/i);
+  assert.ok(calls.some((c) => c.args[0] === 'reactions'), '👀 on what he read');
+  // For Jim: Michael reads it too, as Jim's to do.
   await b.handleEvent(message(OWNER, { mention: jim.pubkey, content: '@Jim do it' }), b.michael);
-  assert.equal(sent.length, 1);
-  // Strangers and other agents' untagged messages aren't delivered.
+  assert.equal(sent.length, 2);
+  assert.match(sent[1].body, /This is for Jim/);
+  // Jim's own post: an update for Michael, no reply asked.
+  await b.handleEvent(message(jim.pubkey, { content: 'deck is done' }), b.michael);
+  assert.equal(sent.length, 3);
+  assert.equal(sent[2].act, 'inform');
+  assert.equal(sent[2].requires_reply, false);
+  // Someone who is neither the owner nor an office agent: kept out.
   await b.handleEvent(message(STRANGER, { content: 'hi' }), b.michael);
-  await b.handleEvent(message(jim.pubkey, { content: 'status' }), b.michael);
-  assert.equal(sent.length, 1);
+  assert.equal(sent.length, 3);
+});
+
+test('the same request sent again still reaches Michael, marked as one he has', async (t) => {
+  const { b, sent } = await withJim(t);
+  await b.handleEvent(message(OWNER, { content: 'make a chart of US trading sessions' }), b.michael);
+  await b.handleEvent(message(OWNER, { mention: b.michael.pubkey, content: 'make a chart of US trading sessions @Michael' }), b.michael);
+  assert.equal(sent.length, 2);
+  assert.doesNotMatch(sent[0].body, /already sent you this same message/);
+  assert.match(sent[1].body, /already sent you this same message/);
 });
 
 test('an answer goes in the channel; in a thread only when asked in one', async (t) => {
