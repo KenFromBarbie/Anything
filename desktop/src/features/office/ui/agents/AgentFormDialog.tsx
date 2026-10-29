@@ -211,11 +211,13 @@ export function AgentFormDialog({
                   onChange={(event) => {
                     const name = event.target.value;
                     set("name", name);
-                    // Naming them after a cast member picks that look.
+                    // Naming them after a cast member picks that look
+                    // ("Pam", "pam", "Pam Beesly").
+                    const first = name.trim().split(/\s+/)[0]?.toLowerCase();
                     const cast = options.data?.characters.find(
                       (c) =>
-                        c.displayName.toLowerCase() ===
-                        name.trim().toLowerCase(),
+                        c.displayName.toLowerCase() === first ||
+                        c.name.toLowerCase() === first,
                     );
                     if (cast) set("character", cast.name);
                   }}
@@ -229,7 +231,25 @@ export function AgentFormDialog({
                   <select
                     className={SELECT_CLASS}
                     id="agent-character"
-                    onChange={(event) => set("character", event.target.value)}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      // Picking a look names them after it, unless they
+                      // already have a name of their own.
+                      const previous = options.data?.characters.find(
+                        (c) => c.name === form.character,
+                      );
+                      const picked = options.data?.characters.find(
+                        (c) => c.name === next,
+                      );
+                      if (
+                        picked &&
+                        (!form.name.trim() ||
+                          form.name.trim() === previous?.displayName)
+                      ) {
+                        set("name", picked.displayName);
+                      }
+                      set("character", next);
+                    }}
                     value={form.character}
                   >
                     {options.data?.characters.map((c) => (

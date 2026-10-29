@@ -2,11 +2,11 @@ import * as React from "react";
 import {
   Activity,
   Bell,
+  Bot,
   Brain,
   Clock,
   GitBranch,
   History,
-  LayoutDashboard,
   ListChecks,
   Loader2,
   type LucideIcon,
@@ -32,6 +32,7 @@ import {
   useOfficeOverlay,
   useOfficePanelState,
 } from "@/features/office/lib/officeLink";
+import { useOpenAgentDm } from "@/features/office/lib/agentDm";
 import { useShowOfficePart } from "@/features/office/lib/officeView";
 import { startOffice } from "@/features/office/ui/OfficeHost";
 import { cn } from "@/shared/lib/cn";
@@ -51,17 +52,19 @@ import { ModelsBudgetsSection } from "./sections/ModelsBudgetsSection";
 import { SkillsSection } from "./sections/SkillsSection";
 import { WorkersSection } from "./sections/WorkersSection";
 
-/** Michael's panel, in Buzz's own UI: his terminal, then his sections
- *  grouped three to a tab (Triggers are the Automations page now). */
-type GodTab = "terminal" | "team" | "knowledge" | "insights";
-const GOD_TABS: { key: GodTab; label: string; icon: LucideIcon }[] = [
-  { key: "terminal", label: "Terminal", icon: SquareTerminal },
+/** The Agents page's tabs, the same whoever is selected: the floor and the
+ *  selected agent, every terminal, then the floor-wide sections (Triggers
+ *  are the Automations page). */
+type PageTab = "agents" | "terminals" | "team" | "knowledge" | "insights";
+const PAGE_TABS: { key: PageTab; label: string; icon: LucideIcon }[] = [
+  { key: "agents", label: "Agents", icon: Bot },
+  { key: "terminals", label: "Terminals", icon: SquareTerminal },
   { key: "team", label: "Team & models", icon: Users },
   { key: "knowledge", label: "Memory & skills", icon: Brain },
   { key: "insights", label: "Graph, activity & workers", icon: Network },
 ];
-const GOD_TAB_PARTS: Record<
-  Exclude<GodTab, "terminal" | "team">,
+const TAB_PARTS: Record<
+  "knowledge" | "insights",
   (() => React.ReactElement)[]
 > = {
   knowledge: [MemorySection, SkillsSection],
@@ -90,12 +93,12 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
 let handledAddRequests = 0;
 
 /**
- * The Agents page, in Buzz's own UI: the floor's agents as cards, then the
- * selected agent — their header and controls, their sections, and in the
- * Terminal section their live terminal with the message queue (and, for
- * Michael, the floor monitor) under it.
+ * The Agents page, in Buzz's own UI, with one row of tabs: the agents (cards,
+ * then the selected one's header, controls and setup; Chat opens their DM,
+ * and the menu their git, messages and traces), every terminal, and the
+ * floor-wide sections.
  *
- * Only the terminal itself, and the deeper sections (memory, graph, git, …),
+ * Only the terminals themselves, and an agent's git, messages and traces,
  * come from the Office: the live Office frame (OfficeHost, mounted once in
  * AppShell so it keeps running everywhere in Buzz) is pinned over that area.
  * While one of the Office's own overlays is open (adding or editing an agent,
@@ -110,38 +113,39 @@ export function OfficeAgentsPage() {
     sendToOffice({ type: "state-request" });
   }, []);
   const { agents, selectedId, loaded } = useOfficeAgents();
-  const { sections, section } = useOfficePanelState();
+  const { sections } = useOfficePanelState();
   const overlay = useOfficeOverlay();
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
   const michaelName = agents.find((agent) => agent.isGod)?.name ?? "Michael";
-  // Michael's terminal is always in view; the other agents open on a chat
-  // and their setup, with the terminal and the rest one tab away.
-  const [workerView, setWorkerView] = React.useState<"overview" | "office">(
-    "overview",
-  );
+  const chat = useOpenAgentDm();
+  const [tab, setTab] = React.useState<PageTab>("agents");
+  // In the Agents tab an agent opens on its setup; its Office panels (git,
+  // messages, traces, its terminal) are one click away.
+  const [agentView, setAgentView] = React.useState<"setup" | "office">("setup");
   const [viewFor, setViewFor] = React.useState(selectedId);
   if (viewFor !== selectedId) {
     setViewFor(selectedId);
-    setWorkerView("overview");
+    setAgentView("setup");
   }
-  const showOverview =
-    !!selected && !selected.isGod && workerView === "overview";
-  const [godTab, setGodTab] = React.useState<GodTab>("terminal");
-  const godNative = !!selected?.isGod && godTab !== "terminal";
-  const onTerminal = selected?.isGod
-    ? godTab === "terminal"
-    : !section || section === "terminal";
-  const frameRef =
-    overlay || showOverview || godNative ? undefined : setOfficeAnchor;
-  const openGodTab = (tab: GodTab) => {
-    setGodTab(tab);
-    if (tab === "terminal") openOfficeSection("terminal");
-  };
+  // The Office frame is pinned over the page only where an Office panel shows.
+  const showsFrame =
+    !overlay &&
+    !!selected &&
+    (tab === "terminals" || (tab === "agents" && agentView === "office"));
+  const frameRef = showsFrame ? setOfficeAnchor : undefined;
 
   const select = (id: string) =>
     void callOffice("agents.select", { id }).catch((error: Error) =>
       toast.error(error.message),
     );
+  const openTab = (next: PageTab) => {
+    setTab(next);
+    if (next === "terminals") openOfficeSection("terminal");
+  };
+  const showTerminalOf = (id: string) => {
+    select(id);
+    openOfficeSection("terminal");
+  };
   const [adding, setAdding] = React.useState(false);
   const addAgent = () => setAdding(true);
   // "New Office agent" from a channel asks for the dialog, possibly before
@@ -153,6 +157,27 @@ export function OfficeAgentsPage() {
       setAdding(true);
     }
   }, [addRequests]);
+
+  const tabButton = (active: boolean) =>
+    cn(
+      "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm transition-colors",
+      active
+        ? "bg-muted font-medium text-foreground"
+        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+    );
+  const officeEmbed = (terminal: boolean) => (
+    // See-through: the terminal is translucent over the panel.
+    <div
+      className={cn(
+        "overflow-hidden rounded-xl border border-border/70",
+        terminal
+          ? "h-[min(60vh,36rem)] min-h-80 bg-transparent"
+          : "h-[min(75vh,48rem)] min-h-96 bg-background",
+      )}
+      data-testid="office-embed"
+      ref={frameRef}
+    />
+  );
 
   return (
     <div
@@ -171,145 +196,145 @@ export function OfficeAgentsPage() {
           title="Agents"
         />
 
+        <nav
+          aria-label="Agents"
+          // shrink-0: the page is a scrolling column, which would squash a
+          // sideways-scrolling row to nothing.
+          className="-mx-1 flex shrink-0 items-center gap-1 overflow-x-auto px-1 pb-0.5"
+          data-testid="agents-sections"
+        >
+          {PAGE_TABS.map(({ key, label, icon: Icon }) => (
+            <button
+              aria-current={tab === key ? "page" : undefined}
+              className={tabButton(tab === key)}
+              data-testid={`agents-section-${key}`}
+              key={key}
+              onClick={() => openTab(key)}
+              type="button"
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
+        </nav>
+
         {!loaded || agents.length === 0 ? (
           <div className="flex items-center gap-2 rounded-2xl border border-border/70 px-4 py-6 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
             {loaded ? `${michaelName} is clocking in…` : "Opening the Office…"}
           </div>
-        ) : (
-          <AgentCards
-            agents={agents}
-            onAdd={addAgent}
-            onSelect={select}
-            selectedId={selectedId}
-          />
-        )}
-
-        {selected ? (
-          <section
-            className="grid gap-4 rounded-2xl border border-border/70 bg-background/40 p-4"
-            data-testid="agents-selected"
-          >
-            <AgentHeader agent={selected} michaelName={michaelName} />
-            {selected.isGod ? (
-              <nav
-                aria-label="Michael's sections"
-                className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-0.5"
-                data-testid="agents-sections"
+        ) : tab === "agents" ? (
+          <>
+            <AgentCards
+              agents={agents}
+              onAdd={addAgent}
+              onSelect={select}
+              selectedId={selectedId}
+            />
+            {selected ? (
+              <section
+                className="grid gap-4 rounded-2xl border border-border/70 bg-background/40 p-4"
+                data-testid="agents-selected"
               >
-                {GOD_TABS.map(({ key, label, icon: Icon }) => (
-                  <button
-                    aria-current={godTab === key ? "page" : undefined}
-                    className={cn(
-                      "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm transition-colors",
-                      godTab === key
-                        ? "bg-muted font-medium text-foreground"
-                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                    )}
-                    data-testid={`agents-section-${key}`}
-                    key={key}
-                    onClick={() => openGodTab(key)}
-                    type="button"
-                  >
-                    <Icon className="h-4 w-4" />
-                    {label}
-                  </button>
-                ))}
-              </nav>
-            ) : sections.length > 0 ? (
-              <nav
-                aria-label="Agent sections"
-                className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 pb-0.5"
-                data-testid="agents-sections"
-              >
-                {!selected.isGod ? (
-                  <button
-                    aria-current={showOverview ? "page" : undefined}
-                    className={cn(
-                      "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm transition-colors",
-                      showOverview
-                        ? "bg-muted font-medium text-foreground"
-                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                    )}
-                    data-testid="agents-section-overview"
-                    onClick={() => setWorkerView("overview")}
-                    type="button"
-                  >
-                    <LayoutDashboard className="h-4 w-4" />
-                    Chat & manage
-                  </button>
-                ) : null}
-                {sections
-                  // Trigger history is a tab of Buzz's Triggers section.
-                  .filter(({ key }) => key !== "trigger-history")
-                  .map(({ key, label }) => {
-                    const Icon = SECTION_ICONS[key] ?? Activity;
-                    const active = !showOverview && key === section;
-                    return (
-                      <button
-                        aria-current={active ? "page" : undefined}
-                        className={cn(
-                          "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm capitalize transition-colors",
-                          active
-                            ? "bg-muted font-medium text-foreground"
-                            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                        )}
-                        data-testid={`agents-section-${key}`}
-                        key={key}
-                        onClick={() => {
-                          setWorkerView("office");
-                          openOfficeSection(key);
-                        }}
-                        type="button"
-                      >
-                        <Icon className="h-4 w-4" />
-                        {label}
-                      </button>
-                    );
-                  })}
-              </nav>
-            ) : null}
-            {showOverview ? (
-              <AgentOverview agent={selected} />
-            ) : selected.isGod && godTab === "team" ? (
-              <div className="grid gap-4" data-testid="agents-tab-team">
-                <FloorMonitor
-                  agents={agents}
-                  onSelect={select}
-                  selectedId={selectedId}
+                <AgentHeader
+                  agent={selected}
+                  chatPending={chat.pending}
+                  michaelName={michaelName}
+                  onChat={() => void chat.open(selected)}
+                  onOpenPanel={(key) => {
+                    setAgentView("office");
+                    openOfficeSection(key);
+                  }}
+                  panels={sections
+                    // Their terminal is the Terminals tab; trigger history
+                    // the Automations page.
+                    .filter(
+                      ({ key }) =>
+                        key !== "terminal" && key !== "trigger-history",
+                    )
+                    .map(({ key, label }) => ({
+                      key,
+                      label,
+                      icon: SECTION_ICONS[key] ?? Activity,
+                    }))}
                 />
-                <ModelsBudgetsSection />
-              </div>
-            ) : selected.isGod &&
-              (godTab === "knowledge" || godTab === "insights") ? (
-              <div className="grid gap-4" data-testid={`agents-tab-${godTab}`}>
-                {GOD_TAB_PARTS[godTab].map((Part) => (
-                  <Part key={Part.name} />
+                {agentView === "setup" ? (
+                  <AgentOverview agent={selected} />
+                ) : (
+                  <>
+                    <button
+                      className="justify-self-start text-sm text-muted-foreground hover:text-foreground"
+                      data-testid="agent-back-to-setup"
+                      onClick={() => setAgentView("setup")}
+                      type="button"
+                    >
+                      ← Setup
+                    </button>
+                    {officeEmbed(false)}
+                  </>
+                )}
+              </section>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Pick an agent to see and manage them.
+              </p>
+            )}
+          </>
+        ) : tab === "terminals" ? (
+          <section className="grid gap-3" data-testid="agents-tab-terminals">
+            <div
+              className="-mx-1 flex flex-wrap items-center gap-1 px-1"
+              data-testid="terminal-switcher"
+            >
+              {agents
+                .filter((agent) => agent.hasTerminal)
+                .map((agent) => (
+                  <button
+                    aria-current={agent.id === selectedId ? "true" : undefined}
+                    className={tabButton(agent.id === selectedId)}
+                    data-testid={`terminal-of-${agent.id}`}
+                    key={agent.id}
+                    onClick={() => showTerminalOf(agent.id)}
+                    type="button"
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ background: agent.accent }}
+                    />
+                    {agent.name}
+                    <span className="text-xs text-muted-foreground">
+                      {agent.action || agent.status}
+                    </span>
+                  </button>
                 ))}
-              </div>
-            ) : onTerminal ? (
+            </div>
+            {selected?.hasTerminal ? (
               <>
-                {/* See-through: the terminal is translucent over the panel. */}
-                <div
-                  className="h-[min(60vh,36rem)] min-h-80 overflow-hidden rounded-xl border border-border/70 bg-transparent"
-                  data-testid="office-embed"
-                  ref={frameRef}
-                />
+                {officeEmbed(true)}
                 <QueueComposer agent={selected} />
               </>
             ) : (
-              <div
-                className="h-[min(75vh,48rem)] min-h-96 overflow-hidden rounded-xl border border-border/70 bg-background"
-                data-testid="office-embed"
-                ref={frameRef}
-              />
+              <p className="text-sm text-muted-foreground">
+                Pick a terminal above.
+              </p>
             )}
           </section>
-        ) : loaded && agents.length > 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Pick an agent to chat with them and manage them.
-          </p>
-        ) : null}
+        ) : tab === "team" ? (
+          <div className="grid gap-4" data-testid="agents-tab-team">
+            <FloorMonitor
+              agents={agents}
+              onSelect={select}
+              selectedId={selectedId}
+            />
+            <ModelsBudgetsSection />
+          </div>
+        ) : (
+          <div className="grid gap-4" data-testid={`agents-tab-${tab}`}>
+            {TAB_PARTS[tab].map((Part) => (
+              <Part key={Part.name} />
+            ))}
+          </div>
+        )}
       </div>
 
       {overlay ? (

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
+  Brain,
   Download,
   Gauge,
   Mic,
@@ -61,6 +62,7 @@ import {
 import { OfficeBackdropSetting } from "./OfficeBackdropSetting";
 import { ChannelTemplatesSettingsCard } from "./ChannelTemplatesSettingsCard";
 import { MeetingSettingsCard } from "./MeetingSettingsCard";
+import { MemorySkillsSettingsCard } from "./MemorySkillsSettingsCard";
 import { UpdatesSettingsCard } from "./UpdatesSettingsCard";
 import { ExperimentalFeaturesCard } from "./ExperimentalFeaturesCard";
 import { KeyboardShortcutsCard } from "./KeyboardShortcutsCard";
@@ -83,6 +85,7 @@ export type SettingsSection =
   | "agents"
   | "ai-accounts"
   | "meetings"
+  | "memory"
   | "updates"
   | "channel-templates"
   | "appearance"
@@ -99,6 +102,7 @@ const SETTINGS_SECTION_VALUES: readonly SettingsSection[] = [
   "agents",
   "ai-accounts",
   "meetings",
+  "memory",
   "updates",
   "channel-templates",
   "appearance",
@@ -173,6 +177,11 @@ export const settingsSections: SettingsSectionDescriptor[] = [
     value: "meetings",
     label: "Meetings",
     icon: Mic,
+  },
+  {
+    value: "memory",
+    label: "Memory & skills",
+    icon: Brain,
   },
   {
     value: "updates",
@@ -814,6 +823,8 @@ export function renderSettingsSection(
       return <AiAccountsSettingsCard />;
     case "meetings":
       return <MeetingSettingsCard />;
+    case "memory":
+      return <MemorySkillsSettingsCard />;
     case "updates":
       return <UpdatesSettingsCard />;
     case "channel-templates":

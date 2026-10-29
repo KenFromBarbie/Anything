@@ -305,7 +305,25 @@ class BuzzBridge {
     if (!hive) return null;
     try {
       const floor = [{ id: GOD, name: this.michael.name }, ...(this.readRoster() ?? [])];
-      return syncVault(hive, floor);
+      const vault = syncVault(hive, floor);
+      // Notes for every server (Settings → Memory & skills), mirrored in.
+      const global = this.globalMemory();
+      const mirror = join(vault, 'Global.md');
+      const text = global
+        ? `---
+tags: [global, mirror]
+---
+<!-- Notes for every server, from the app's Settings → Memory & skills: edits here are overwritten. -->
+# Notes for every server
+
+${global}
+`
+        : '';
+      let old = null;
+      try { old = fs.readFileSync(mirror, 'utf8'); } catch { /* none yet */ }
+      if (text && old !== text) fs.writeFileSync(mirror, text);
+      else if (!text && old !== null) fs.rmSync(mirror, { force: true });
+      return vault;
     } catch (e) {
       this.log.warn('[buzz-bridge] could not update the vault:', e.message);
       return null;
@@ -446,6 +464,9 @@ class BuzzBridge {
           ''
         ]
         : []),
+      '## The owner’s notes for every server',
+      `The owner keeps standing notes for the agents of every server at ${this.globalMemoryPath()} (also in the vault as Global.md). Read them before acting; they win over this server's notes when they disagree. They are edited in the app's Settings, not by agents.`,
+      '',
       '## Mentions',
       'Write @Name in the text to bring an office agent in. Agents who can post:',
       ...agents,
@@ -625,7 +646,20 @@ class BuzzBridge {
       const known = this.thread(t[1]);
       if (known?.agents.includes(who.agentId)) return { why: 'followup', channel, root: known.root };
     }
+    // Michael reads every owner message in the channels he's in, tagged or
+    // not (calls have their own rules); one that @mentions another office
+    // agent is theirs.
+    if (who === this.michael && String(ev.pubkey ?? '').toLowerCase() === this.owner && !who.callChannels?.has(channel)) {
+      const others = this.identities().filter((i) => i !== who && i.pubkey);
+      const forSomeoneElse = ev.tags.some((t) => t[0] === 'p' && others.some((o) => o.pubkey === t[1]));
+      if (!forSomeoneElse) return { why: 'channel', channel };
+    }
     return null;
+  }
+
+  /** Whether a channel is one of the office agents' DMs. */
+  isDmChannel(channel) {
+    return this.identities().some((i) => i.dmChannels?.has(channel));
   }
 
   /** The Buzz thread an event sits in (NIP-10 root marker, else its first e tag). */
@@ -665,10 +699,12 @@ class BuzzBridge {
     }
     const send = this.shim.ipcMain.handlers.get('hive:send');
     if (!send) return false;
-    // In channels the agent answers in the thread; in a DM it answers inline
-    // (in its thread when the owner wrote in one; long answers get a thread).
-    const threaded = route.why !== 'dm' || route.inThread === true;
-    const root = route.root ?? ev.id;
+    // The agent answers in the channel itself, right under the message, like
+    // a chat; in a thread only when the message was in one (a long DM answer
+    // still gets a thread, see replyAs).
+    const inThreadRoot = route.root ?? this.threadRootOf(ev);
+    const threaded = Boolean(inThreadRoot);
+    const root = inThreadRoot ?? ev.id;
     const inCall = !!channel && who.callChannels?.has(channel);
     // A meeting: a call with several of the office's agents (each transcript
     // p-tags all of them). Only who is asked answers, so they don't all talk
@@ -701,13 +737,18 @@ class BuzzBridge {
     }
     const where = inCall && !opts.asWork
       ? 'a live voice call (what the owner said, transcribed)'
-      : route.why === 'dm' ? 'a direct message' : route.why === 'followup' ? 'a follow-up in a channel thread you are in' : 'a channel mention';
+      : route.why === 'dm' ? 'a direct message'
+        : route.why === 'followup' ? 'a follow-up in a channel thread you are in'
+          : route.why === 'channel' ? 'a message in a channel you are in (you were not tagged)'
+            : 'a channel mention';
     const from = fromAgent ? `from ${fromAgent.name}, one of the office's agents` : 'from the office owner';
     const body = [
       `[CHANNEL ${fromAgent ? 'MESSAGE' : 'REQUEST'} — ${where}, ${from}. No one is watching this terminal.]`,
       fromAgent
         ? 'Help with what they ask if it is yours to do; otherwise say so in the thread.'
-        : 'Handle it as you would any request from the human: do it yourself or route it to the right agent.',
+        : route.why === 'channel'
+          ? 'You were not tagged. Act only if it is meant for you or the office (a request, a question to the team, work you run); otherwise do nothing, and do not reply just to acknowledge it.'
+          : 'Handle it as you would any request from the human: do it yourself or route it to the right agent.',
       ...(inCall && !opts.asWork
         ? [
           'You are in a voice call: your reply is read aloud straight away. Answer in one to three short spoken sentences, plain words only (no markdown, lists, links or code), and reply quickly with --in-channel (in the call, not a thread); do longer work afterwards and say so.'
@@ -718,11 +759,9 @@ class BuzzBridge {
       'When you have a substantive answer (or need a decision), post it back:',
       '  1. write the reply as markdown to a file',
       `  2. run: ${this.replyCommand()} --reply-to ${ev.id} --text-file "<that file>"`,
-      ...(threaded
-        ? [
-          '     That answers in the thread under the message. For a quick answer to a simple question, or when they ask you to reply in the channel (not a thread), add --in-channel to post in the channel itself.'
-        ]
-        : []),
+      threaded
+        ? '     That answers in the thread the message is in.'
+        : '     That posts your answer in the channel, right under the message (not in a thread).',
       'If you delegate, pass that exact command on so the agent can reply itself. Never post a bare "done".',
       `When you made something for this (a deck, document, video, image, site), publish each piece with ${this.showCommand()} --file "<path>" --title "<what it is>" and put the markdown link it prints in your reply, so the owner can open it from the chat.`,
       `If this becomes board work, record where it came from on every card you make for it: "buzz": {"replyTo": "${ev.id}"}. Questions for the owner about that work are asked in this thread (the command above), not on the card.`,
@@ -757,7 +796,8 @@ class BuzzBridge {
     if (!result?.ok) return false;
     this.remember(ev.id, root, route.channel, threaded, who.agentId);
     this.saveState();
-    await this.run(['reactions', 'add', '--event', ev.id, '--emoji', '👀'], undefined, who).catch(() => {});
+    // Seen (not for untagged chatter Michael only reads along with).
+    if (route.why !== 'channel') await this.run(['reactions', 'add', '--event', ev.id, '--emoji', '👀'], undefined, who).catch(() => {});
     this.log.log(`[buzz-bridge] delivered ${route.why} ${ev.id.slice(0, 12)}… to ${who.name}${fromAgent ? ` (from ${fromAgent.name})` : ''}`);
     return true;
   }
@@ -1133,6 +1173,9 @@ class BuzzBridge {
     const others = this.identities().filter((i) => i !== who && i.pubkey).map((i) => `@${i.name}`);
     return [
       '',
+      ...(this.globalMemory()
+        ? [`The owner's notes for every server (standing preferences and rules; follow them): ${this.globalMemoryPath()}`]
+        : []),
       `You can post in any channel (by name or id; you join it if needed): ${this.postCommand()} --channel <name> --text-file "<file>"`,
       `When you make something for the owner (a deck, document, video, image, a site), show it in the app's Artifacts page: ${this.showCommand()} --file "<path>" --title "<what it is>" (add --preview "<pdf>" for a PPTX/DOCX; --url <address> for a site).`,
       `Open a web page in the app's Browser for the owner, or read back what it shows: ${this.browseCommand()} --open <url> | --read | --back | --reload`,
@@ -1181,18 +1224,19 @@ class BuzzBridge {
     if (!thread) return [403, { ok: false, error: 'unknown thread: only messages delivered to an office agent can be answered' }];
     if (!text) return [400, { ok: false, error: 'empty reply' }];
     let who = this.byAgent(String(msg.as ?? '')) ?? this.byAgent(thread.agents[0]) ?? this.michael;
-    if (!thread.threaded && !thread.agents.includes(who.agentId)) who = this.byAgent(thread.agents[0]) ?? this.michael;
+    // In a DM only the agent it is with speaks.
+    if (!thread.threaded && this.isDmChannel(thread.channel) && !thread.agents.includes(who.agentId)) who = this.byAgent(thread.agents[0]) ?? this.michael;
     if (!thread.agents.includes(who.agentId)) {
       await this.run(['channels', 'join', '--channel', thread.channel], undefined, who).catch(() => {});
     }
     const args = ['messages', 'send', '--channel', thread.channel, '--content', '-', ...this.mentionArgs(text, who)];
-    // In a channel the answer goes in the thread, unless the agent answers in
-    // the channel itself (--in-channel: a quick answer, or when asked to).
+    // Asked in a thread, the answer stays in it (unless --in-channel);
+    // otherwise it goes in the channel itself, under the message.
     const inChannel = msg.inChannel === true;
     if (thread.threaded && !inChannel) args.push('--reply-to', thread.root);
     // A DM answer is inline, like a chat; a long one goes in a thread under
     // the message so the conversation stays readable.
-    else if (!thread.threaded && text.length > LONG_DM_REPLY) args.push('--reply-to', thread.root);
+    else if (!thread.threaded && text.length > LONG_DM_REPLY && this.isDmChannel(thread.channel)) args.push('--reply-to', thread.root);
     const r = await this.run(args, text, who);
     // Replying to the agent's own message counts as a follow-up in this thread.
     if (r?.event_id) {
@@ -1237,6 +1281,15 @@ class BuzzBridge {
     }
     if (r?.event_id) this.pollNow();
     return [200, { ok: true, eventId: r?.event_id, channel: c.name, as: who.name }];
+  }
+
+  /** The app's notes for every server (`<app data>/global-memory.md`, next to
+   *  each server's Office folder), trimmed; '' when there are none. */
+  globalMemory() {
+    try { return fs.readFileSync(this.globalMemoryPath(), 'utf8').trim(); } catch { return ''; }
+  }
+  globalMemoryPath() {
+    return join(this.userData, '..', 'global-memory.md');
   }
 
   /** The hive folder (`<harnessHome>/hive`), or null before setup. */

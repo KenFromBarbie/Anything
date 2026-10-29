@@ -3,6 +3,8 @@ import {
   Ban,
   Code2,
   Hand,
+  type LucideIcon,
+  MessageSquare,
   MoreHorizontal,
   Pencil,
   ShieldCheck,
@@ -53,9 +55,20 @@ const onError = (error: Error) => toast.error(error.message);
 export function AgentHeader({
   agent,
   michaelName,
+  onChat,
+  chatPending = false,
+  panels = [],
+  onOpenPanel,
 }: {
   agent: OfficeAgent;
   michaelName: string;
+  /** Chat: their DM in the Inbox. */
+  onChat?: () => void;
+  chatPending?: boolean;
+  /** The Office's panels for this agent (git, messages, traces), opened from
+   *  the menu: the page has one row of tabs, the page's own. */
+  panels?: { key: string; label: string; icon: LucideIcon }[];
+  onOpenPanel?: (key: string) => void;
 }) {
   const actions = useOfficeAgentActions(agent.id);
   const control = useAgentControl(agent.id, !agent.isGod && agent.hasTerminal);
@@ -161,6 +174,19 @@ export function AgentHeader({
             </Button>
           </>
         ) : null}
+        {onChat ? (
+          <Button
+            data-testid="agent-chat"
+            disabled={chatPending}
+            onClick={onChat}
+            size="sm"
+            title={`Your DM with ${agent.name}, in the Inbox.`}
+            variant="outline"
+          >
+            <MessageSquare />
+            Chat
+          </Button>
+        ) : null}
         <Button
           data-testid="agents-ide"
           onClick={() => actions.ide.mutate({}, { onError })}
@@ -187,6 +213,16 @@ export function AgentHeader({
                 <Pencil />
                 Edit agent
               </DropdownMenuItem>
+              {panels.map(({ key, label, icon: Icon }) => (
+                <DropdownMenuItem
+                  data-testid={`agent-panel-${key}`}
+                  key={key}
+                  onSelect={() => onOpenPanel?.(key)}
+                >
+                  <Icon />
+                  <span className="capitalize">{label}</span>
+                </DropdownMenuItem>
+              ))}
               <DropdownMenuItem
                 onSelect={() => actions.openTerminal.mutate({}, { onError })}
               >

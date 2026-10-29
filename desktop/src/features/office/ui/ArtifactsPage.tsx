@@ -199,10 +199,13 @@ function TextArtifact({ src, markdown }: { src: string; markdown: boolean }) {
 export function ArtifactPanel({
   id,
   onExpand,
+  bare = false,
 }: {
   id: string;
   /** Shown in a chat message: a button that opens it larger. */
   onExpand?: () => void;
+  /** In a chat message: the artifact itself, no card around it. */
+  bare?: boolean;
 }) {
   const { data: items, isLoading } = useArtifacts();
   const item = items?.find((candidate) => candidate.id === id);
@@ -214,15 +217,18 @@ export function ArtifactPanel({
       </p>
     );
   }
-  return <ArtifactViewer compact item={item} onExpand={onExpand} />;
+  return <ArtifactViewer bare={bare} compact item={item} onExpand={onExpand} />;
 }
 
 export function ArtifactViewer({
   item,
   compact = false,
   onExpand,
+  bare = false,
 }: {
   item: Artifact;
+  /** The artifact itself at full width (in chat), its buttons over a corner. */
+  bare?: boolean;
   /** In a side panel: no border or header of its own beyond the title row. */
   compact?: boolean;
   onExpand?: () => void;
@@ -286,6 +292,55 @@ export function ArtifactViewer({
       <p className="p-6 text-sm text-muted-foreground">
         The app can't show this kind of file here. Open it in its own app.
       </p>
+    );
+  }
+
+  if (bare) {
+    // Pages, PDFs and previews get room to be used in place; pictures, video
+    // and text take their own size.
+    const framed =
+      (item.kind === "pdf" || item.kind === "html" || !!preview) &&
+      item.kind !== "image" &&
+      item.kind !== "video" &&
+      item.kind !== "text";
+    return (
+      <div
+        className={cn(
+          "group relative overflow-hidden rounded-xl border border-border/60 bg-background/40",
+          framed && "h-[36rem]",
+          item.kind === "image" && "[&_img]:max-h-[40rem]",
+        )}
+        data-testid="artifact-viewer"
+        title={`${item.title} · ${item.agent}`}
+      >
+        {body}
+        <div className="absolute right-2 top-2 flex gap-1 opacity-70 transition-opacity group-hover:opacity-100">
+          {item.path ? (
+            <Button
+              aria-label="Open in its own app"
+              className="h-7 bg-background/90 px-2 shadow-sm"
+              onClick={open}
+              size="sm"
+              variant="outline"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open
+            </Button>
+          ) : null}
+          {onExpand ? (
+            <Button
+              aria-label="Open larger beside the chat"
+              className="h-7 w-7 bg-background/90 shadow-sm"
+              data-testid="artifact-expand"
+              onClick={onExpand}
+              size="icon"
+              variant="outline"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+            </Button>
+          ) : null}
+        </div>
+      </div>
     );
   }
 

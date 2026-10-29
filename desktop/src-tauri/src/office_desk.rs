@@ -346,6 +346,38 @@ pub async fn office_artifact_open(app: AppHandle, id: String) -> Result<(), Stri
         .map_err(|e| e.to_string())
 }
 
+// ─── Notes for every server (Settings → Memory & skills) ────────────────────
+
+/// `<app data>/global-memory.md`: notes every server's agents read. Each
+/// Office's bridge mirrors it into its vault and points its agents at it.
+fn global_memory_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("global-memory.md"))
+}
+
+#[tauri::command]
+pub async fn global_memory_get(app: AppHandle) -> Result<String, String> {
+    match std::fs::read_to_string(global_memory_path(&app)?) {
+        Ok(text) => Ok(text),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn global_memory_set(app: AppHandle, text: String) -> Result<(), String> {
+    let path = global_memory_path(&app)?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    let tmp = path.with_extension("md.tmp");
+    std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
+}
+
 // ─── The office vault (Memory tab) ──────────────────────────────────────────
 
 /// The active Office's Obsidian vault (`<hive>/vault`, kept by the bridge).

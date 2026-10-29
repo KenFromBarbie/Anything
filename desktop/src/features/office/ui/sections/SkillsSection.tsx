@@ -134,7 +134,13 @@ export function SkillsSection() {
     mutationFn: (url: string) =>
       callOffice<boolean>("agent.message", {
         id: michael?.id ?? "god",
-        text: installSkillRequest(url),
+        text: installSkillRequest(url, {
+          kind: "server",
+          // Where this server's agents work (Michael's hive included).
+          folders: [
+            ...new Set(agents.map((agent) => agent.cwd).filter(Boolean)),
+          ],
+        }),
       }),
     onSuccess: (_result, url) => {
       setRepo("");
@@ -169,7 +175,7 @@ export function SkillsSection() {
   return (
     <div className="grid gap-4" data-testid="section-skills">
       <SectionCard
-        description="Paste a GitHub repository with skills in it. Michael reads it, installs its skills for every agent, and tells you what he added."
+        description="Paste a GitHub repository with skills in it. Michael reads it, installs its skills for this server's agents, and tells you what he added. To install for every server, use Settings → Memory & skills."
         title="Add from GitHub"
       >
         <form

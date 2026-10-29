@@ -630,6 +630,8 @@ pub fn run() {
             office_desk::office_artifact_open,
             office_desk::office_vault,
             office_desk::office_vault_open,
+            office_desk::global_memory_get,
+            office_desk::global_memory_set,
             office::office_status,
             office::get_call_models,
             office::set_call_model,

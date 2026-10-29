@@ -8,19 +8,20 @@ const ArtifactPanel = React.lazy(async () => ({
 
 /**
  * A `buzz://artifact/<id>` link in chat (something an Office agent made):
- * the artifact itself, shown right in the message. Its expand button opens it
- * larger in the channel's side pane. A span: the link sits inside a
- * paragraph or list item.
+ * the artifact itself, in the message at full width — a live page, the PDF,
+ * the picture or video — with Open and expand over its corner. A span: the
+ * link sits inside a paragraph or list item.
  */
 export function ArtifactLinkChip({ id }: { id: string; label: string }) {
   return (
     <span
-      className="my-2 block h-[26rem] w-full max-w-2xl overflow-hidden rounded-xl border border-border/70 bg-background/60 align-top"
+      className="my-2 block w-full max-w-3xl align-top"
       data-artifact-id={id}
       data-testid="artifact-embed"
     >
       <React.Suspense fallback={null}>
         <ArtifactPanel
+          bare
           id={id}
           onExpand={() => openDeskPanel({ kind: "artifact", id })}
         />

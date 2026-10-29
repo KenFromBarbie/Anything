@@ -1,9 +1,7 @@
-import { MessageSquare, Settings2 } from "lucide-react";
+import { Settings2 } from "lucide-react";
 
 import type { OfficeAgent } from "@/features/office/lib/officeLink";
 import { SubsectionLabel } from "@/shared/ui/PageHeader";
-
-import { AgentChat } from "./AgentChat";
 
 function contextText(agent: OfficeAgent): string {
   if (agent.contextTokens == null) return "—";
@@ -14,7 +12,8 @@ function contextText(agent: OfficeAgent): string {
 }
 
 /**
- * A floor agent at a glance: a chat with them, and how they're set up. Their
+ * A floor agent at a glance: how they're set up (chatting with them is their
+ * DM in the Inbox, the Chat button above). Their
  * controls (pause, stop, 1:1, edit, restart, archive) sit in the header above;
  * the terminal and the Office's other panels are tabs, opened when wanted.
  */
@@ -32,19 +31,7 @@ export function AgentOverview({ agent }: { agent: OfficeAgent }) {
     ["Michael", agent.onHold ? "on hold (1:1 with you)" : "can hand them work"],
   ];
   return (
-    <div
-      className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
-      data-testid="agent-overview"
-    >
-      <section className="grid content-start gap-2">
-        <SubsectionLabel>
-          <span className="inline-flex items-center gap-1.5">
-            <MessageSquare className="h-3.5 w-3.5" />
-            Chat
-          </span>
-        </SubsectionLabel>
-        <AgentChat agent={agent} />
-      </section>
+    <div className="grid max-w-2xl gap-4" data-testid="agent-overview">
       <section className="grid content-start gap-2">
         <SubsectionLabel>
           <span className="inline-flex items-center gap-1.5">
@@ -70,7 +57,8 @@ export function AgentOverview({ agent }: { agent: OfficeAgent }) {
         ) : null}
         <p className="text-xs text-muted-foreground">
           Pause, stop, take aside for a 1:1, edit or restart from the buttons
-          above. The terminal is under its own tab.
+          above. Chat opens your DM with them in the Inbox; their terminal is in
+          Terminals, and their git, messages and traces are under ⋯.
         </p>
       </section>
     </div>

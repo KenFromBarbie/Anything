@@ -112,7 +112,7 @@ test('a delegated agent replies in the thread as itself, not as Michael', async 
   assert.equal(body.as, 'Jim');
   const send = calls.find((c) => c.args[0] === 'messages' && c.args[1] === 'send');
   assert.equal(send.as, 'Jim');
-  assert.deepEqual(send.args.slice(send.args.indexOf('--reply-to'), send.args.indexOf('--reply-to') + 2), ['--reply-to', ask.id]);
+  assert.ok(!send.args.includes('--reply-to'), 'answered in the channel, not a thread');
   assert.ok(send.args.includes('--mention') && send.args.includes(b.michael.pubkey), '@Michael is notified');
   // Jim is now in that thread: the owner's follow-up reaches him too.
   assert.ok(b.thread(ask.id).agents.includes('jim-1'));
@@ -268,6 +268,35 @@ test('the vault mirrors each agent\'s memory and keeps their own notes', async (
   assert.match(fs.readFileSync(path.join(vault, 'Agents', 'Jim.md'), 'utf8'), /Owns \[\[Projects\/Deck\]\]/);
   assert.match(fs.readFileSync(path.join(vault, 'Agents', 'Jim', 'Memory.md'), 'utf8'), /ten slides/);
   assert.match(fs.readFileSync(path.join(vault, 'Agents.md'), 'utf8'), /\[\[Agents\/Michael\|Michael\]\]/);
+});
+
+test('Michael reads untagged owner messages in his channels, but not ones for another agent', async (t) => {
+  const { b, jim, sent, calls } = await withJim(t);
+  await b.handleEvent(message(OWNER, { content: 'can someone make an eth chart?' }), b.michael);
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].body, /you were not tagged/);
+  assert.match(sent[0].body, /do not reply just to acknowledge/);
+  assert.ok(!calls.some((c) => c.args[0] === 'reactions'), 'no 👀 on chatter he only reads');
+  // Meant for Jim: Jim's, not Michael's.
+  await b.handleEvent(message(OWNER, { mention: jim.pubkey, content: '@Jim do it' }), b.michael);
+  assert.equal(sent.length, 1);
+  // Strangers and other agents' untagged messages aren't delivered.
+  await b.handleEvent(message(STRANGER, { content: 'hi' }), b.michael);
+  await b.handleEvent(message(jim.pubkey, { content: 'status' }), b.michael);
+  assert.equal(sent.length, 1);
+});
+
+test('an answer goes in the channel; in a thread only when asked in one', async (t) => {
+  const { b, calls } = await withJim(t);
+  const top = message(OWNER, { mention: b.michael.pubkey });
+  await b.handleEvent(top, b.michael);
+  await b.replyAs({ replyTo: top.id, text: 'Here it is', as: 'god' });
+  assert.ok(!sendArgs(calls).includes('--reply-to'), 'in the channel');
+  const inThread = message(OWNER, { mention: b.michael.pubkey, replyTo: 'root-1' });
+  await b.handleEvent(inThread, b.michael);
+  await b.replyAs({ replyTo: inThread.id, text: 'In the thread', as: 'god' });
+  const args = sendArgs(calls);
+  assert.deepEqual(args.slice(args.indexOf('--reply-to'), args.indexOf('--reply-to') + 2), ['--reply-to', 'root-1']);
 });
 
 test('the floor is reported to Buzz once per change, Michael excluded', async (t) => {
