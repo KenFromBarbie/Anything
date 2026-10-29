@@ -5,7 +5,6 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
-  Globe,
   ImageIcon,
   ImageOff,
   Loader2,
@@ -95,26 +94,20 @@ let draftBrief = "";
  * it, and Buzz makes its folder, opens a channel for it and hands the brief to
  * Michael, who researches and saves what he finds into the folder.
  */
-const RESEARCH_TABS: {
-  key: "projects" | "artifacts" | "browser";
-  label: string;
-  icon: LucideIcon;
-}[] = [
+type ResearchTab = "projects" | "artifacts";
+
+const RESEARCH_TABS: { key: ResearchTab; label: string; icon: LucideIcon }[] = [
   { key: "projects", label: "Projects", icon: FolderOpen },
   { key: "artifacts", label: "Artifacts", icon: Package },
-  { key: "browser", label: "Browser", icon: Globe },
 ];
 
 const ArtifactsPage = React.lazy(async () => ({
   default: (await import("@/features/office/ui/ArtifactsPage")).ArtifactsPage,
 }));
-const BrowserPage = React.lazy(async () => ({
-  default: (await import("@/features/office/ui/BrowserPage")).BrowserPage,
-}));
 
 /**
- * Research: projects, plus what the Office's agents made (Artifacts) and
- * the app's Browser, as tabs.
+ * Research: projects, and what the Office's agents made (Artifacts, where a
+ * site opens in the app's browser).
  */
 export function ResearchPage({
   projectId,
@@ -122,24 +115,18 @@ export function ResearchPage({
   artifactId = null,
 }: {
   projectId: string | null;
+  /** "browser" (older links) is the Artifacts tab, showing the browser. */
   tab?: "projects" | "artifacts" | "browser";
   artifactId?: string | null;
 }) {
-  const { goArtifacts, goBrowser, goResearch } = useAppNavigation();
+  const { goArtifacts, goResearch } = useAppNavigation();
+  const select = (key: ResearchTab) =>
+    key === "projects" ? void goResearch() : void goArtifacts();
   if (projectId || tab === "projects") {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         {projectId ? null : (
-          <ResearchTabs
-            active="projects"
-            onSelect={(key) =>
-              key === "artifacts"
-                ? void goArtifacts()
-                : key === "browser"
-                  ? void goBrowser()
-                  : undefined
-            }
-          />
+          <ResearchTabs active="projects" onSelect={select} />
         )}
         <ResearchProjects projectId={projectId} />
       </div>
@@ -148,33 +135,19 @@ export function ResearchPage({
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-6 sm:px-6"
-      data-testid={`research-tab-${tab}`}
+      data-testid="research-tab-artifacts"
     >
       <ResearchTabs
-        active={tab}
+        active="artifacts"
         className="-mx-4 sm:-mx-6"
-        onSelect={(key) =>
-          key === "projects"
-            ? void goResearch()
-            : key === "artifacts"
-              ? void goArtifacts()
-              : void goBrowser()
-        }
+        onSelect={select}
       />
       <PageHeader
-        description={
-          tab === "artifacts"
-            ? "What the Office's agents made for you: decks, documents, videos, images and sites."
-            : "Web pages inside the app. Agents open sites here for you to see, and read them back to check their work."
-        }
-        title={tab === "artifacts" ? "Artifacts" : "Browser"}
+        description="What the Office's agents made for you: decks, documents, videos, images and sites."
+        title="Artifacts"
       />
       <React.Suspense fallback={null}>
-        {tab === "artifacts" ? (
-          <ArtifactsPage embedded initialId={artifactId} />
-        ) : (
-          <BrowserPage embedded />
-        )}
+        <ArtifactsPage embedded initialId={artifactId} />
       </React.Suspense>
     </div>
   );
@@ -185,9 +158,9 @@ function ResearchTabs({
   className,
   onSelect,
 }: {
-  active: "projects" | "artifacts" | "browser";
+  active: ResearchTab;
   className?: string;
-  onSelect: (key: "projects" | "artifacts" | "browser") => void;
+  onSelect: (key: ResearchTab) => void;
 }) {
   return (
     <nav

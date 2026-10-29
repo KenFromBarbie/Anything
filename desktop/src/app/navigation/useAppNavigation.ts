@@ -142,7 +142,7 @@ export function useAppNavigation() {
   const goBrowser = React.useCallback(
     (behavior?: NavigationBehavior) =>
       commitNavigation(
-        { to: "/research", search: { tab: "browser" } },
+        { to: "/research", search: { tab: "artifacts" } },
         behavior,
       ),
     [commitNavigation],

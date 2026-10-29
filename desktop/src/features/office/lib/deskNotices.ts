@@ -7,6 +7,7 @@ import { useAppNavigation } from "@/app/navigation/useAppNavigation";
 import {
   getDeskPanel,
   openDeskPanel,
+  setBrowsing,
   setDeskPanelFallback,
 } from "@/shared/lib/deskPanel";
 
@@ -26,11 +27,15 @@ export function useDeskNotices(): void {
 
   React.useEffect(() => {
     // Outside a channel, links and "View" go to Research's tabs.
-    setDeskPanelFallback((panel) =>
-      panel.kind === "artifact"
-        ? void nav.current.goArtifacts(panel.id)
-        : void nav.current.goBrowser(),
-    );
+    setDeskPanelFallback((panel) => {
+      if (panel.kind === "artifact") {
+        void nav.current.goArtifacts(panel.id);
+        return;
+      }
+      // A page was opened: Artifacts shows it in the live browser.
+      setBrowsing(true);
+      void nav.current.goBrowser();
+    });
     return () => setDeskPanelFallback(null);
   }, []);
 
@@ -55,9 +60,11 @@ export function useDeskNotices(): void {
       BROWSER_EVENT,
       (e) => {
         if (e.payload?.op !== "open" || !e.payload.agent) return;
-        // Already looking at the Browser.
+        // An agent opened a page: Artifacts shows it in the live browser.
+        setBrowsing(true);
+        // Already looking at the browser (beside a chat, or in Artifacts).
         if (getDeskPanel()?.kind === "browser") return;
-        if (/[?&]tab=browser\b/.test(window.location.hash)) return;
+        if (/[?&]tab=artifacts\b/.test(window.location.hash)) return;
         toast(`${e.payload.agent} opened a page in the Browser`, {
           description: e.payload.url,
           action: {

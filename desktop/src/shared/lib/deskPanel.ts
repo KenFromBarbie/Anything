@@ -75,6 +75,31 @@ export function useDeskPanel(): DeskPanel | null {
   );
 }
 
+/**
+ * Research → Artifacts shows the gallery until a site or page is opened,
+ * then the live browser; this says which, so a page opened from elsewhere
+ * (an agent, an artifact link) lands on the live browser.
+ */
+let browsing = false;
+const browsingListeners = new Set<() => void>();
+
+export function setBrowsing(next: boolean): void {
+  if (browsing === next) return;
+  browsing = next;
+  for (const listener of browsingListeners) listener();
+}
+
+export function useBrowsing(): boolean {
+  return React.useSyncExternalStore(
+    (listener) => {
+      browsingListeners.add(listener);
+      return () => browsingListeners.delete(listener);
+    },
+    () => browsing,
+    () => browsing,
+  );
+}
+
 const ARTIFACT_LINK_RE = /^buzz:\/\/artifact\/([A-Za-z0-9-]{4,64})\/?$/;
 
 /** The artifact id in a `buzz://artifact/<id>` link, or null. */

@@ -13,11 +13,17 @@ import {
   Music,
   Package,
   Presentation,
+  Search,
 } from "lucide-react";
 
 import { cn } from "@/shared/lib/cn";
-import { openDeskPanel } from "@/shared/lib/deskPanel";
+import {
+  openDeskPanel,
+  setBrowsing,
+  useBrowsing,
+} from "@/shared/lib/deskPanel";
 import { Button } from "@/shared/ui/button";
+import { Input } from "@/shared/ui/input";
 import { Markdown } from "@/shared/ui/markdown";
 import { PageHeader } from "@/shared/ui/PageHeader";
 
@@ -60,6 +66,10 @@ const KIND_ICONS: Record<Artifact["kind"], LucideIcon> = {
   site: Globe,
 };
 
+const BrowserPage = React.lazy(async () => ({
+  default: (await import("./BrowserPage")).BrowserPage,
+}));
+
 export function useArtifacts() {
   const client = useQueryClient();
   React.useEffect(() => {
@@ -83,9 +93,43 @@ function when(ms: number) {
   });
 }
 
+/** The gallery's filters, Claude-style. */
+type Filter = "all" | "documents" | "slides" | "media" | "sites";
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "documents", label: "Documents" },
+  { key: "slides", label: "Slides" },
+  { key: "media", label: "Media" },
+  { key: "sites", label: "Sites" },
+];
+
+const SLIDES_RE = /\.(pptx?|odp|key)$/i;
+
+function filterOf(item: Artifact): Exclude<Filter, "all"> {
+  if (item.kind === "site" || item.kind === "html") return "sites";
+  if (item.kind === "image" || item.kind === "video" || item.kind === "audio")
+    return "media";
+  if (SLIDES_RE.test(item.path ?? "")) return "slides";
+  return "documents";
+}
+
+const COVERS = [
+  "from-sky-500/60 to-indigo-600/60",
+  "from-emerald-500/60 to-teal-700/60",
+  "from-amber-400/60 to-rose-500/60",
+  "from-fuchsia-500/60 to-purple-700/60",
+];
+
+function coverFor(id: string): string {
+  let hash = 0;
+  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+  return COVERS[Math.abs(hash) % COVERS.length] ?? COVERS[0];
+}
+
 /**
- * Artifacts: the decks, documents, videos, images and sites the Office's
- * agents made, newest first, with a viewer. Files the app can't draw itself
+ * Artifacts: what the Office's agents made, as a gallery of cards with a
+ * live look at each (laid out like Projects, filtered like Claude's), and
+ * each one full size when opened. Files the app can't draw itself
  * (PowerPoint, Word) show their PDF preview when the agent made one, and
  * open in their own app.
  */
@@ -99,12 +143,25 @@ export function ArtifactsPage({
   initialId?: string | null;
 }) {
   const { data: items = [], isLoading } = useArtifacts();
-  const [selectedId, setSelectedId] = React.useState<string | null>(initialId);
+  const [openId, setOpenId] = React.useState<string | null>(initialId);
   React.useEffect(() => {
-    if (initialId) setSelectedId(initialId);
+    if (initialId) setOpenId(initialId);
   }, [initialId]);
-  const selected =
-    items.find((item) => item.id === selectedId) ?? items[0] ?? null;
+  const [filter, setFilter] = React.useState<Filter>("all");
+  const [query, setQuery] = React.useState("");
+  const opened = items.find((item) => item.id === openId) ?? null;
+  // A site (or a page an agent opened) shows in the live browser here.
+  const browsing = useBrowsing() && embedded;
+
+  const q = query.trim().toLowerCase();
+  const shown = items.filter(
+    (item) =>
+      (filter === "all" || filterOf(item) === filter) &&
+      (!q ||
+        item.title.toLowerCase().includes(q) ||
+        item.agent.toLowerCase().includes(q) ||
+        (item.note ?? "").toLowerCase().includes(q)),
+  );
 
   return (
     <div
@@ -120,51 +177,202 @@ export function ArtifactsPage({
           title="Artifacts"
         />
       )}
-      {isLoading ? null : items.length === 0 ? (
-        <p className="rounded-2xl border border-border/70 bg-background/40 px-4 py-6 text-sm text-muted-foreground">
-          Nothing yet. When an agent finishes a deck, document, video or site,
-          it shows up here.
-        </p>
-      ) : (
-        <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-[18rem_minmax(0,1fr)]">
-          <ul
-            className="flex min-h-0 flex-col gap-1 overflow-y-auto"
-            data-testid="artifacts-list"
+      {browsing ? (
+        <React.Suspense fallback={null}>
+          <BrowserPage embedded onHome={() => setBrowsing(false)} />
+        </React.Suspense>
+      ) : opened ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <button
+            className="self-start text-sm text-muted-foreground hover:text-foreground"
+            data-testid="artifact-back"
+            onClick={() => setOpenId(null)}
+            type="button"
           >
-            {items.map((item) => {
-              const Icon = KIND_ICONS[item.kind] ?? Package;
-              const active = item.id === selected?.id;
-              return (
-                <li key={item.id}>
-                  <button
-                    aria-current={active ? "true" : undefined}
-                    className={cn(
-                      "flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-left transition-colors",
-                      active
-                        ? "bg-muted"
-                        : "hover:bg-muted/60 text-muted-foreground hover:text-foreground",
-                    )}
-                    data-testid={`artifact-${item.id}`}
-                    onClick={() => setSelectedId(item.id)}
-                    type="button"
-                  >
-                    <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span className="grid min-w-0 gap-0.5">
-                      <span className="truncate text-sm font-medium text-foreground">
-                        {item.title}
-                      </span>
-                      <span className="truncate text-xs text-muted-foreground">
-                        {item.agent} · {when(item.createdAt)}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {selected ? <ArtifactViewer item={selected} /> : null}
+            ← All artifacts
+          </button>
+          <ArtifactViewer
+            className="h-[calc(100vh-15rem)] min-h-[28rem]"
+            item={opened}
+          />
         </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1" role="tablist">
+              {FILTERS.map(({ key, label }) => (
+                <button
+                  aria-selected={filter === key}
+                  className={cn(
+                    "h-8 rounded-lg px-3 text-sm transition-colors",
+                    filter === key
+                      ? "bg-muted font-medium text-foreground"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                  )}
+                  data-testid={`artifacts-filter-${key}`}
+                  key={key}
+                  onClick={() => setFilter(key)}
+                  role="tab"
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="relative ml-auto w-full max-w-64">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Search artifacts"
+                className="pl-9"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search"
+                value={query}
+              />
+            </div>
+          </div>
+          {isLoading ? null : items.length === 0 ? (
+            <p className="rounded-2xl border border-border/70 bg-background/40 px-4 py-6 text-sm text-muted-foreground">
+              Nothing yet. When an agent finishes a deck, document, video or
+              site, it shows up here.
+            </p>
+          ) : shown.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nothing matches.</p>
+          ) : (
+            <div
+              className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3"
+              data-testid="artifacts-grid"
+            >
+              {shown.map((item) => (
+                <ArtifactCard
+                  item={item}
+                  key={item.id}
+                  onOpen={() => {
+                    if (item.kind === "site" && item.url) {
+                      // A site opens in the live browser, here.
+                      setBrowsing(true);
+                      void invoke("browser_navigate", { url: item.url }).catch(
+                        () => {},
+                      );
+                    } else {
+                      setOpenId(item.id);
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
+    </div>
+  );
+}
+
+/** A gallery card: a live look at the artifact, then what it is. */
+function ArtifactCard({
+  item,
+  onOpen,
+}: {
+  item: Artifact;
+  onOpen: () => void;
+}) {
+  const Icon = KIND_ICONS[item.kind] ?? Package;
+  return (
+    <button
+      className="group flex flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 text-left transition-colors hover:border-border"
+      data-testid={`artifact-${item.id}`}
+      onClick={onOpen}
+      type="button"
+    >
+      <div className="relative h-40 w-full overflow-hidden bg-muted/30">
+        <ArtifactThumb item={item} />
+        {/* Clicks go to the card, not into the preview. */}
+        <span className="absolute inset-0" />
+      </div>
+      <div className="flex items-center gap-3 p-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background/60">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </span>
+        <span className="grid min-w-0 gap-0.5">
+          <span className="truncate text-sm font-medium">{item.title}</span>
+          <span className="truncate text-xs text-muted-foreground">
+            {item.agent} · {when(item.createdAt)}
+          </span>
+        </span>
+      </div>
+    </button>
+  );
+}
+
+/**
+ * The card's look at the artifact: the picture, the video's first frame, the
+ * page or PDF drawn small (at desktop width, scaled down), else a colour.
+ */
+function ArtifactThumb({ item }: { item: Artifact }) {
+  const src = item.path ? convertFileSrc(item.path) : null;
+  const preview = item.previewPath ? convertFileSrc(item.previewPath) : null;
+  if (item.kind === "image" && src) {
+    return (
+      <img
+        alt=""
+        className="h-full w-full object-cover"
+        draggable={false}
+        src={src}
+      />
+    );
+  }
+  if (item.kind === "video" && src) {
+    return (
+      <video
+        className="h-full w-full object-cover"
+        muted
+        preload="metadata"
+        src={`${src}#t=0.5`}
+      />
+    );
+  }
+  if (item.kind === "text" && src) {
+    // The text itself, drawn small.
+    return (
+      <div className="pointer-events-none absolute left-0 top-0 w-[200%] origin-top-left scale-50 bg-background/80">
+        <TextArtifact markdown={/\.md$/i.test(item.path ?? "")} src={src} />
+      </div>
+    );
+  }
+  const page =
+    item.kind === "html" && src
+      ? src
+      : item.kind === "pdf" && src
+        ? `${src}#toolbar=0&navpanes=0&view=FitH`
+        : preview
+          ? `${preview}#toolbar=0&navpanes=0&view=FitH`
+          : null;
+  if (page) {
+    // Drawn at 1024×640 and scaled to the card, like a screenshot.
+    return (
+      <iframe
+        className="pointer-events-none absolute left-0 top-0 h-[640px] w-[1024px] origin-top-left scale-[0.27] border-0 bg-white"
+        loading="lazy"
+        sandbox={item.kind === "html" ? "allow-scripts" : undefined}
+        src={page}
+        tabIndex={-1}
+        title={`Preview of ${item.title}`}
+      />
+    );
+  }
+  const Icon = KIND_ICONS[item.kind] ?? Package;
+  return (
+    <div
+      className={cn(
+        "flex h-full w-full flex-col items-center justify-center gap-2 bg-linear-to-br text-white/90",
+        coverFor(item.id),
+      )}
+    >
+      <Icon className="h-8 w-8" />
+      {item.kind === "site" && item.url ? (
+        <span className="max-w-[80%] truncate text-xs text-white/80">
+          {item.url}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -225,8 +433,10 @@ export function ArtifactViewer({
   compact = false,
   onExpand,
   bare = false,
+  className,
 }: {
   item: Artifact;
+  className?: string;
   /** The artifact itself at full width (in chat), its buttons over a corner. */
   bare?: boolean;
   /** In a side panel: no border or header of its own beyond the title row. */
@@ -351,6 +561,7 @@ export function ArtifactViewer({
         compact
           ? "h-full"
           : "rounded-2xl border border-border/70 bg-background/40",
+        className,
       )}
       data-testid="artifact-viewer"
     >

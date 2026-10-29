@@ -26,16 +26,19 @@ export type BrowserEvent = {
 export const BROWSER_EVENT = "agent-browser";
 
 /**
- * The Browser: a real web view inside the app where you, and the Office's
- * agents (`buzz-browse`), open pages. Like the Studio, the view itself is a
- * native view laid over this page's area (see `office_desk.rs`); it's hidden,
- * not closed, when you leave, so the page stays where it was.
+ * The live browser: a real web view inside the app where you, and the
+ * Office's agents (`buzz-browse`), open pages. Like the Studio, the view
+ * itself is a native view laid over this page's area (see `office_desk.rs`);
+ * it's hidden, not closed, when you leave, so the page stays where it was.
  */
 export function BrowserPage({
   embedded = false,
+  onHome,
 }: {
   /** Inside another page or a channel's side panel: no header of its own. */
   embedded?: boolean;
+  /** Back to where it was opened from (Research → Artifacts). */
+  onHome?: () => void;
 }) {
   const areaRef = React.useRef<HTMLDivElement>(null);
   const [address, setAddress] = React.useState("");
@@ -136,6 +139,16 @@ export function BrowserPage({
           title="Browser"
         />
       )}
+      {onHome ? (
+        <button
+          className="self-start text-sm text-muted-foreground hover:text-foreground"
+          data-testid="browser-home"
+          onClick={onHome}
+          type="button"
+        >
+          ← All artifacts
+        </button>
+      ) : null}
       <form
         className="flex items-center gap-1.5"
         data-testid="browser-toolbar"
