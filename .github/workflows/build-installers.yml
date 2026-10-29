@@ -1,5 +1,4 @@
-# Builds Anything installers for Windows, macOS and Linux, and the
-# Studio's separate download.
+# Builds Anything installers for Windows, macOS and Linux.
 #
 # - Every push to main and every manual run: builds all three and uploads the
 #   installers as workflow artifacts (Actions → the run → Artifacts).
@@ -216,42 +215,10 @@ jobs:
           path: ${{ matrix.artifacts }}
           if-no-files-found: error
 
-  # The Studio's UI is not in the installers: the app downloads it on demand
-  # from the release (studio-app-<version>.zip, checked against its .sha256).
-  studio:
-    name: Studio download
-    runs-on: ubuntu-22.04
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-      - name: Build the Studio UI
-        env:
-          ARTCRAFT_BASE: /studio-app/
-        run: |
-          cd studio/frontend
-          npm ci
-          cd apps/artcraft
-          npx vite build --outDir "$GITHUB_WORKSPACE/desktop/studio-dist/studio-app" --emptyOutDir
-      - name: Package it
-        run: |
-          version=$(node -p "require('./desktop/package.json').version")
-          mkdir -p out
-          (cd desktop/studio-dist && zip -qr "../../out/studio-app-${version}.zip" studio-app)
-          (cd out && sha256sum "studio-app-${version}.zip" > "studio-app-${version}.zip.sha256")
-          ls -la out
-      - uses: actions/upload-artifact@v4
-        with:
-          name: anything-studio
-          path: out/*
-          if-no-files-found: error
-
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, studio]
+    needs: [build]
     runs-on: ubuntu-latest
     permissions:
       contents: write

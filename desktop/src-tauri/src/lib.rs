@@ -53,7 +53,6 @@ mod research;
 mod reset;
 mod secret_store;
 mod shutdown;
-mod studio;
 mod team_catalog;
 mod templates;
 mod terminal_runtime;
@@ -223,9 +222,6 @@ pub fn run() {
     // builds; see that module for why.
     let builder = ptt_shortcut::install(builder);
 
-    // The Studio: ArtCraft's plugins and state (see `studio`).
-    let (builder, artcraft_startup) = studio::install(builder);
-
     // Register the updater only in configured release builds; omit it locally.
     #[cfg(buzz_updater_enabled)]
     let builder = if cfg!(debug_assertions) {
@@ -267,10 +263,6 @@ pub fn run() {
             ai_accounts::guard::start(app_handle.clone());
             // Servers on this computer start with the app.
             local_servers::start_all(&app_handle);
-            // ArtCraft's background work, without a window of its own, once
-            // the Studio is installed; its UI opens with the Studio page
-            // (`studio::studio_place`).
-            studio::start_if_installed(&app_handle, artcraft_startup);
             // Windows: the app draws its own title bar (WindowControls).
             #[cfg(target_os = "windows")]
             title_bar::use_app_title_bar(&app_handle);
@@ -560,11 +552,9 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(studio::with_artcraft_commands(tauri::generate_handler![
-            studio::studio_place,
+        .invoke_handler(tauri::generate_handler![
             title_bar::set_title_bar_colors,
             title_bar::window_control,
-            studio::studio_theme,
             updater::updater_check,
             updater::updater_install,
             updater::updater_settings_get,
@@ -577,10 +567,6 @@ pub fn run() {
             local_state_backup::local_state_backup_load,
             server_planner::server_pick_files,
             server_planner::server_attach_files,
-            studio::studio_status,
-            studio::studio_install,
-            studio::studio_set_tools,
-            studio::studio_uninstall,
             notion::notion_status,
             notion::notion_connect,
             notion::notion_disconnect,
@@ -628,6 +614,7 @@ pub fn run() {
             office_desk::browser_state,
             office_desk::office_artifacts,
             office_desk::office_artifact_open,
+            office_desk::office_artifact_save_edit,
             office_desk::office_vault,
             office_desk::office_vault_open,
             office_desk::global_memory_get,
@@ -994,7 +981,7 @@ pub fn run() {
             tray_menu::take_tray_actions,
             #[cfg(target_os = "macos")]
             tray_menu::update_tray_agent_activity,
-        ]))
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
     let shutdown_done = Arc::new(AtomicBool::new(false));

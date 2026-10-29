@@ -44,7 +44,7 @@ pub fn set_window_vibrancy(
     {
         use window_vibrancy::{apply_vibrancy, clear_vibrancy, NSVisualEffectMaterial};
 
-        // The window itself: with Studio or the Browser open it also holds
+        // The window itself: with the Browser open it also holds
         // child webviews, and is no longer a `WebviewWindow`.
         let window = app_handle
             .get_window("main")

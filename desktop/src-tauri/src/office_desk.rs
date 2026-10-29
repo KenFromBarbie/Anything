@@ -331,6 +331,63 @@ pub async fn office_artifacts(app: AppHandle) -> Result<Vec<Value>, String> {
     Ok(artifact_list(&dir))
 }
 
+/// The Studio's quick edits (crop, rotate, draw, text) on an image artifact:
+/// the result is a new artifact next to it, "(edited)", by you.
+#[tauri::command]
+pub async fn office_artifact_save_edit(
+    app: AppHandle,
+    from_id: String,
+    png_base64: String,
+) -> Result<Value, String> {
+    use base64::Engine as _;
+    let dir = artifacts_dir(&app).ok_or("the Office is not set up")?;
+    let source = artifact_list(&dir)
+        .into_iter()
+        .find(|i| i["id"].as_str() == Some(from_id.as_str()))
+        .ok_or("no such artifact")?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(png_base64.trim_start_matches("data:image/png;base64,"))
+        .map_err(|e| format!("not a PNG: {e}"))?;
+    if !bytes.starts_with(b"\x89PNG") {
+        return Err("not a PNG".into());
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or_default();
+    let id = format!("{now:x}-edit");
+    let stem = source["file"]
+        .as_str()
+        .and_then(|f| f.rsplit('/').next())
+        .and_then(|f| f.rsplit_once('.').map(|(stem, _)| stem.to_string()))
+        .unwrap_or_else(|| "image".into());
+    let name = format!("{stem}-edited.png");
+    std::fs::create_dir_all(dir.join(&id)).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join(&id).join(&name), &bytes).map_err(|e| e.to_string())?;
+    let entry = json!({
+        "id": id,
+        "title": format!("{} (edited)", source["title"].as_str().unwrap_or("Image")),
+        "note": "Edited in the app",
+        "agentId": "",
+        "agent": "You",
+        "createdAt": now,
+        "file": format!("{id}/{name}"),
+        "kind": "image",
+    });
+    let index = dir.join("index.json");
+    let mut list: Vec<Value> = std::fs::read(&index)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default();
+    list.push(entry.clone());
+    let tmp = dir.join("index.json.tmp");
+    std::fs::write(&tmp, serde_json::to_vec_pretty(&list).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &index).map_err(|e| e.to_string())?;
+    let _ = app.emit(ARTIFACT_EVENT, &entry);
+    Ok(entry)
+}
+
 /// Open an artifact's file in its own app (PowerPoint, Word, a video player).
 #[tauri::command]
 pub async fn office_artifact_open(app: AppHandle, id: String) -> Result<(), String> {

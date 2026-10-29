@@ -1,23 +1,9 @@
-import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { ViewLoadingFallback } from "@/shared/ui/ViewLoadingFallback";
-
-const StudioScreen = React.lazy(async () => {
-  const module = await import("@/features/studio/ui/StudioScreen");
-  return { default: module.StudioScreen };
-});
-
+// The Studio is part of Research → Artifacts now (make something, ask for
+// changes); old links land there.
 export const Route = createFileRoute("/studio")({
-  component: StudioRouteComponent,
+  beforeLoad: () => {
+    throw redirect({ to: "/research", search: { tab: "artifacts" } });
+  },
 });
-
-function StudioRouteComponent() {
-  return (
-    <React.Suspense
-      fallback={<ViewLoadingFallback includeHeader kind="pulse" />}
-    >
-      <StudioScreen />
-    </React.Suspense>
-  );
-}

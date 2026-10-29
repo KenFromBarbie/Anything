@@ -74,6 +74,15 @@ const BROWSE_TIMEOUT_MS = 60000;
 /** A request sent again within this long is the one the agent already has. */
 const REPEAT_WINDOW_MS = 10 * 60_000;
 const ARTIFACTS_KEPT = 500;
+/** How to make an artifact that looks right in the app (chat and Artifacts). */
+const ARTIFACT_DESIGN = [
+  'Artifacts are shown inside the app: in the chat, across the message (about 500 to 1200px wide), and full size in Artifacts. Design them for that:',
+  '- Fill the width: a fluid layout, no fixed page width or outer margins; it must work from 380px to 1400px wide.',
+  '- Match the app: follow prefers-color-scheme (dark and light), a transparent or near-black background in dark, the system UI font.',
+  '- No scrolling inside it: let it show at its natural height. In HTML, add this before </body> so the chat shows it at its full height:',
+  '  <script>new ResizeObserver(()=>parent.postMessage({anythingHeight:document.documentElement.scrollHeight},"*")).observe(document.documentElement)</script>',
+  '- Charts and dashboards use the width: wide charts, grids that reflow, compact headers. Decks and documents: a PDF preview that reads well at that width.'
+];
 /** How often the vault's mirrors (agents' memory, meetings) are refreshed. */
 const VAULT_SYNC_MS = 3 * 60_000;
 /** What the app's viewer does with a file, by extension. */
@@ -205,7 +214,7 @@ class BuzzBridge {
     const fresh = () => ({ since: Math.floor(Date.now() / 1000), seen: [] });
     let s = {};
     try { s = JSON.parse(fs.readFileSync(this.statePath, 'utf8')); } catch { /* first run */ }
-    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [], toldHistory: s.toldHistory ?? [], toldDesk: s.toldDesk ?? [], toldDesk2: s.toldDesk2 ?? [], toldVault: s.toldVault ?? [] };
+    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [], toldHistory: s.toldHistory ?? [], toldDesk: s.toldDesk ?? [], toldDesk2: s.toldDesk2 ?? [], toldVault: s.toldVault ?? [], toldDesign: s.toldDesign ?? [] };
     // Older state files: one cursor (Michael's) and thread entries holding the
     // thread itself (an object, or before that just the channel id).
     if (!state.cursors[GOD]) state.cursors[GOD] = s.since !== undefined ? { since: s.since, seen: s.seen ?? [] } : fresh();
@@ -448,6 +457,8 @@ ${global}
       'Decks, documents, videos, images, PDFs or a site you built: publish each finished piece (and each new version) so the owner sees it in the app. Make a PDF of any PPTX/DOCX and pass it as --preview so it can be viewed in the app.',
       'It prints a markdown link (`[Title](buzz://artifact/<id>)`): always put that link in your reply or post about the work, so the owner opens it straight from the chat.',
       '',
+      ...ARTIFACT_DESIGN,
+      '',
       `    ${this.showCommand()} --file "<path>" --title "<what it is>" [--preview "<pdf>"] [--note "<one line>"]`,
       `    ${this.showCommand()} --url <http address> --title "<what it is>"`,
       '',
@@ -512,6 +523,18 @@ ${global}
         act: 'inform',
         subject: 'How to read a channel\'s history',
         body: `[OFFICE NOTE] You can read any channel's message history, including files and links shared there: ${this.historyCommand()} --channel <name> (or --thread <event id>). Channel requests now come with the recent messages before them too. The guide is ${join(root, 'BUZZ.md')}.`,
+        requires_reply: false
+      }, 'human')).catch(() => {});
+    }
+    this.state.toldDesign ??= [];
+    for (const who of this.identities()) {
+      if (!who.pubkey || this.state.toldDesign.includes(who.agentId)) continue;
+      this.state.toldDesign.push(who.agentId);
+      void Promise.resolve(send({ sender: null, senderFrame: null }, {
+        to: who.agentId,
+        act: 'inform',
+        subject: 'Make artifacts that fit the app',
+        body: `[OFFICE NOTE] ${ARTIFACT_DESIGN.join('\n')}\nThe full guide is ${join(root, 'BUZZ.md')}.`,
         requires_reply: false
       }, 'human')).catch(() => {});
     }
@@ -817,7 +840,7 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
         ? '     That answers in the thread the message is in.'
         : '     That posts your answer in the channel, right under the message (not in a thread).',
       'If you delegate, pass that exact command on so the agent can reply itself. Never post a bare "done".',
-      `When you made something for this (a deck, document, video, image, site), publish each piece with ${this.showCommand()} --file "<path>" --title "<what it is>" and put the markdown link it prints in your reply, so the owner can open it from the chat.`,
+      `When you made something for this (a deck, document, video, image, site), publish each piece with ${this.showCommand()} --file "<path>" --title "<what it is>" and put the markdown link it prints in your reply, so the owner can open it from the chat. Design it for the app (fluid width, the app's light/dark theme, no inner scrolling; for HTML the height snippet): see the artifact section of BUZZ.md.`,
       `If this becomes board work, record where it came from on every card you make for it: "buzz": {"replyTo": "${ev.id}"}. Questions for the owner about that work are asked in this thread (the command above), not on the card.`,
       ...this.buzzToolsNote(who),
       '',

@@ -159,17 +159,6 @@ export function useAppNavigation() {
     [commitNavigation],
   );
 
-  const goStudio = React.useCallback(
-    (behavior?: NavigationBehavior) =>
-      commitNavigation(
-        {
-          to: "/studio",
-        },
-        behavior,
-      ),
-    [commitNavigation],
-  );
-
   const goFiles = React.useCallback(
     (behavior?: NavigationBehavior) =>
       commitNavigation(
@@ -564,7 +553,6 @@ export function useAppNavigation() {
     goArtifacts,
     goBrowser,
     goResearch,
-    goStudio,
     goFiles,
     goNotion,
     goChannel,

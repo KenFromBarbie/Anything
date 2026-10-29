@@ -15,7 +15,7 @@ const ArtifactPanel = React.lazy(async () => ({
 export function ArtifactLinkChip({ id }: { id: string; label: string }) {
   return (
     <span
-      className="my-2 block w-full max-w-3xl align-top"
+      className="my-2 block w-full align-top"
       data-artifact-id={id}
       data-testid="artifact-embed"
     >

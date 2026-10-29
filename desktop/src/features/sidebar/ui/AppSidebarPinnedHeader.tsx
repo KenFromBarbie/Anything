@@ -6,7 +6,6 @@ import {
   Folders,
   Inbox,
   ListChecks,
-  Palette,
   Workflow,
   Zap,
 } from "lucide-react";
@@ -120,8 +119,7 @@ export function AppSidebarPrimaryMenu({
   projectsOverviewActive,
   selectedView,
 }: AppSidebarPrimaryMenuProps) {
-  const { goAutomations, goOffice, goResearch, goStudio, goTasks } =
-    useAppNavigation();
+  const { goAutomations, goOffice, goResearch, goTasks } = useAppNavigation();
   return (
     <>
       <SidebarHeader
@@ -244,19 +242,6 @@ export function AppSidebarPrimaryMenu({
             </SidebarMenuButton>
           </SidebarMenuItem>
           <PinnedResearchProjects />
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="data-[active=true]:font-normal"
-              data-testid="open-studio-view"
-              isActive={selectedView === "studio"}
-              onClick={() => void goStudio()}
-              tooltip="Studio"
-              type="button"
-            >
-              <Palette className="h-4 w-4" />
-              <SidebarMenuLabel>Studio</SidebarMenuLabel>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
           <ProtectedBestieSidebarEntry />
           <FeatureGate feature="workflows">
             <SidebarMenuItem>

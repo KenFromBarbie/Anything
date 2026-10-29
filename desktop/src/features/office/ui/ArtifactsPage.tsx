@@ -12,6 +12,7 @@ import {
   type LucideIcon,
   Music,
   Package,
+  Pencil,
   Presentation,
   Search,
 } from "lucide-react";
@@ -25,6 +26,9 @@ import {
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Markdown } from "@/shared/ui/markdown";
+
+import { ImageQuickEdit } from "./ImageQuickEdit";
+import { AskForChanges, StudioMake } from "./StudioMake";
 import { PageHeader } from "@/shared/ui/PageHeader";
 
 /** Something an Office agent made and showed (`buzz-show`). */
@@ -148,6 +152,7 @@ export function ArtifactsPage({
     if (initialId) setOpenId(initialId);
   }, [initialId]);
   const [filter, setFilter] = React.useState<Filter>("all");
+  const [editing, setEditing] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const opened = items.find((item) => item.id === openId) ?? null;
   // A site (or a page an agent opened) shows in the live browser here.
@@ -183,21 +188,44 @@ export function ArtifactsPage({
         </React.Suspense>
       ) : opened ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
-          <button
-            className="self-start text-sm text-muted-foreground hover:text-foreground"
-            data-testid="artifact-back"
-            onClick={() => setOpenId(null)}
-            type="button"
-          >
-            ← All artifacts
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              className="text-sm text-muted-foreground hover:text-foreground"
+              data-testid="artifact-back"
+              onClick={() => setOpenId(null)}
+              type="button"
+            >
+              ← All artifacts
+            </button>
+            <span className="flex-1" />
+            {opened.kind === "image" && opened.path ? (
+              <Button
+                data-testid="artifact-edit"
+                onClick={() => setEditing(true)}
+                size="sm"
+                variant="outline"
+              >
+                <Pencil />
+                Edit
+              </Button>
+            ) : null}
+          </div>
+          {opened.kind === "image" ? (
+            <ImageQuickEdit
+              item={opened}
+              onOpenChange={setEditing}
+              open={editing}
+            />
+          ) : null}
           <ArtifactViewer
-            className="h-[calc(100vh-15rem)] min-h-[28rem]"
+            className="h-[calc(100vh-19rem)] min-h-[24rem]"
             item={opened}
           />
+          {opened.kind === "site" ? null : <AskForChanges item={opened} />}
         </div>
       ) : (
         <>
+          {embedded ? <StudioMake artifacts={items} /> : null}
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1" role="tablist">
               {FILTERS.map(({ key, label }) => (
@@ -377,6 +405,40 @@ function ArtifactThumb({ item }: { item: Artifact }) {
   );
 }
 
+/** A page shown in chat at the height it says it needs: artifacts built for
+ *  the app post `{ anythingHeight }` to their parent (see the agents' guide,
+ *  BUZZ.md); one that doesn't gets a fixed frame and scrolls. */
+const PAGE_HEIGHT = { initial: 576, min: 160, max: 1600 };
+
+function SizedPage({ src, title }: { src: string; title: string }) {
+  const frame = React.useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = React.useState(PAGE_HEIGHT.initial);
+  React.useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== frame.current?.contentWindow) return;
+      const wanted = Number(
+        (event.data as { anythingHeight?: unknown } | null)?.anythingHeight,
+      );
+      if (!Number.isFinite(wanted) || wanted <= 0) return;
+      setHeight(
+        Math.min(PAGE_HEIGHT.max, Math.max(PAGE_HEIGHT.min, Math.ceil(wanted))),
+      );
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+  return (
+    <iframe
+      className="block w-full border-0"
+      ref={frame}
+      sandbox="allow-scripts"
+      src={src}
+      style={{ height }}
+      title={title}
+    />
+  );
+}
+
 /** A text artifact: Markdown rendered, anything else as it is. */
 function TextArtifact({ src, markdown }: { src: string; markdown: boolean }) {
   const text = useQuery({
@@ -513,17 +575,18 @@ export function ArtifactViewer({
       item.kind !== "image" &&
       item.kind !== "video" &&
       item.kind !== "text";
+    const page = item.kind === "html" && src;
     return (
       <div
         className={cn(
           "group relative overflow-hidden rounded-xl border border-border/60 bg-background/40",
-          framed && "h-[36rem]",
+          framed && !page && "h-[36rem]",
           item.kind === "image" && "[&_img]:max-h-[40rem]",
         )}
         data-testid="artifact-viewer"
         title={`${item.title} · ${item.agent}`}
       >
-        {body}
+        {page ? <SizedPage src={src} title={item.title} /> : body}
         <div className="absolute right-2 top-2 flex gap-1 opacity-70 transition-opacity group-hover:opacity-100">
           {item.path ? (
             <Button
