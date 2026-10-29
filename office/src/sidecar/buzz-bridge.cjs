@@ -74,6 +74,8 @@ const BROWSE_TIMEOUT_MS = 60000;
 /** A request sent again within this long is the one the agent already has. */
 const REPEAT_WINDOW_MS = 10 * 60_000;
 const ARTIFACTS_KEPT = 500;
+/** The most a published site's folder may hold. */
+const SITE_MAX_BYTES = 200 * 1024 * 1024;
 /** How to make an artifact that looks right in the app (chat and Artifacts). */
 const ARTIFACT_DESIGN = [
   'Artifacts are shown inside the app: in the chat, across the message (about 500 to 1200px wide), and full size in Artifacts. Design them for that:',
@@ -214,7 +216,7 @@ class BuzzBridge {
     const fresh = () => ({ since: Math.floor(Date.now() / 1000), seen: [] });
     let s = {};
     try { s = JSON.parse(fs.readFileSync(this.statePath, 'utf8')); } catch { /* first run */ }
-    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [], toldHistory: s.toldHistory ?? [], toldDesk: s.toldDesk ?? [], toldDesk2: s.toldDesk2 ?? [], toldVault: s.toldVault ?? [], toldDesign: s.toldDesign ?? [] };
+    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [], toldHistory: s.toldHistory ?? [], toldDesk: s.toldDesk ?? [], toldDesk2: s.toldDesk2 ?? [], toldVault: s.toldVault ?? [], toldDesign: s.toldDesign ?? [], toldSites: s.toldSites ?? [] };
     // Older state files: one cursor (Michael's) and thread entries holding the
     // thread itself (an object, or before that just the channel id).
     if (!state.cursors[GOD]) state.cursors[GOD] = s.since !== undefined ? { since: s.since, seen: s.seen ?? [] } : fresh();
@@ -460,7 +462,9 @@ ${global}
       ...ARTIFACT_DESIGN,
       '',
       `    ${this.showCommand()} --file "<path>" --title "<what it is>" [--preview "<pdf>"] [--note "<one line>"]`,
-      `    ${this.showCommand()} --url <http address> --title "<what it is>"`,
+      `    ${this.showCommand()} --dir "<site folder>" --title "<what it is>"   (a site: the whole folder, opened at its index.html)`,
+      `    ${this.showCommand()} --url <https address> --title "<what it is>"   (only a site that is really online)`,
+      'Never publish a localhost address: the server behind it stops when you do (or the app restarts), and the owner is left with a dead link. Publish the site’s folder with --dir; the app serves it itself.',
       '',
       '## The app’s Browser',
       'Open a page in the app for the owner to look at (a site you built, a reference), and read back its text and links to check it:',
@@ -523,6 +527,18 @@ ${global}
         act: 'inform',
         subject: 'How to read a channel\'s history',
         body: `[OFFICE NOTE] You can read any channel's message history, including files and links shared there: ${this.historyCommand()} --channel <name> (or --thread <event id>). Channel requests now come with the recent messages before them too. The guide is ${join(root, 'BUZZ.md')}.`,
+        requires_reply: false
+      }, 'human')).catch(() => {});
+    }
+    this.state.toldSites ??= [];
+    for (const who of this.identities()) {
+      if (!who.pubkey || this.state.toldSites.includes(who.agentId)) continue;
+      this.state.toldSites.push(who.agentId);
+      void Promise.resolve(send({ sender: null, senderFrame: null }, {
+        to: who.agentId,
+        act: 'inform',
+        subject: 'Publishing sites',
+        body: `[OFFICE NOTE] Publish a site's folder with ${this.showCommand()} --dir "<folder>" --title "<what it is>": the app copies it and serves it at its index.html, so it keeps working after you stop. Never publish a localhost --url: that server dies with your session and the owner gets a dead link. If you published one, publish the folder again.`,
         requires_reply: false
       }, 'human')).catch(() => {});
     }
@@ -1254,7 +1270,7 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
         ? [`The owner's notes for every server (standing preferences and rules; follow them): ${this.globalMemoryPath()}`]
         : []),
       `You can post in any channel (by name or id; you join it if needed): ${this.postCommand()} --channel <name> --text-file "<file>"`,
-      `When you make something for the owner (a deck, document, video, image, a site), show it in the app's Artifacts page: ${this.showCommand()} --file "<path>" --title "<what it is>" (add --preview "<pdf>" for a PPTX/DOCX; --url <address> for a site).`,
+      `When you make something for the owner (a deck, document, video, image, a site), show it in the app's Artifacts page: ${this.showCommand()} --file "<path>" --title "<what it is>" (add --preview "<pdf>" for a PPTX/DOCX; --dir "<folder>" for a site, never a localhost --url).`,
       `Open a web page in the app's Browser for the owner, or read back what it shows: ${this.browseCommand()} --open <url> | --read | --back | --reload`,
       `You can read any channel's history (newest 50; --limit up to ${HISTORY_MAX}, --before <older> pages back, --thread <event id> reads a thread): ${this.historyCommand()} --channel <name>`,
       ...(others.length > 0
@@ -1386,13 +1402,16 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
 
   /** `buzz-show`: publish something an agent made to the app's Artifacts page.
    *  A file is copied into `shared/artifacts/<id>/` (so later edits to the
-   *  working copy don't change what was shown); a URL is listed as a site. */
+   *  working copy don't change what was shown); a site's folder (`--dir`) is
+   *  copied whole and opens at its index.html, served by the app, so it keeps
+   *  working when the agent stops; a URL is listed as a site. */
   async showArtifact(msg) {
     const hive = this.hiveDir();
     if (!hive) return [503, { ok: false, error: 'the Office is not set up yet' }];
     const file = String(msg.file ?? '').trim();
     const url = String(msg.url ?? '').trim();
-    if (!file && !url) return [400, { ok: false, error: '--file <path> or --url <address> is required' }];
+    const dir = String(msg.dir ?? '').trim();
+    if (!file && !url && !dir) return [400, { ok: false, error: '--file <path>, --dir <site folder> or --url <address> is required' }];
     if (url && !/^https?:\/\//i.test(url)) return [400, { ok: false, error: 'only http(s) addresses can be shown' }];
     const id = `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
     const root = join(hive, 'shared', 'artifacts');
@@ -1413,7 +1432,11 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
       return `${id}/${name}`;
     };
     try {
-      if (file) {
+      if (dir) {
+        entry.file = this.copySite(dir, join(root, id), String(msg.entry ?? 'index.html'));
+        entry.file = `${id}/${entry.file}`;
+        entry.kind = 'html';
+      } else if (file) {
         entry.file = copy(file, '--file');
         const ext = entry.file.split('.').pop().toLowerCase();
         entry.kind = ARTIFACT_KINDS[ext] ?? 'file';
@@ -1441,6 +1464,35 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
       // What the agent should put in its reply: the owner clicks it in chat.
       markdown: `[${entry.title.replace(/[[\]]/g, '')}](${link})`
     }];
+  }
+
+  /** Copy a site's folder (no node_modules, .git or dotfiles; at most
+   *  SITE_MAX_BYTES) into `dest/<folder name>/`; returns the entry page's
+   *  path inside `dest`. */
+  copySite(from, dest, entryName) {
+    const path = require('node:path');
+    const src = path.resolve(from);
+    if (!fs.existsSync(src) || !fs.statSync(src).isDirectory()) throw new Error(`no folder at ${src} (--dir)`);
+    const name = path.basename(src);
+    let bytes = 0;
+    const walk = (dir, out) => {
+      fs.mkdirSync(out, { recursive: true });
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (e.name.startsWith('.') || e.name === 'node_modules') continue;
+        const a = path.join(dir, e.name);
+        const b = path.join(out, e.name);
+        if (e.isDirectory()) walk(a, b);
+        else if (e.isFile()) {
+          bytes += fs.statSync(a).size;
+          if (bytes > SITE_MAX_BYTES) throw new Error('the site folder is too large (over 200 MB)');
+          fs.copyFileSync(a, b);
+        }
+      }
+    };
+    walk(src, path.join(dest, name));
+    const entry = entryName.replace(/^[/\\]+/, '');
+    if (!fs.existsSync(path.join(dest, name, entry))) throw new Error(`the site folder has no ${entry} (--entry)`);
+    return `${name}/${entry.replace(/\\/g, '/')}`;
   }
 
   /** `buzz-browse`: open a page in the app's Browser for the owner, or read

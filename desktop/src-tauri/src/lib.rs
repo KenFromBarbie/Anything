@@ -44,6 +44,7 @@ mod local_servers;
 mod updater;
 mod office;
 mod office_desk;
+mod components;
 mod persona_catalog;
 mod prevent_sleep;
 mod ptt_shortcut;
@@ -615,6 +616,8 @@ pub fn run() {
             office_desk::office_artifacts,
             office_desk::office_artifact_open,
             office_desk::office_artifact_save_edit,
+            components::component_status,
+            components::component_install,
             office_desk::office_vault,
             office_desk::office_vault_open,
             office_desk::global_memory_get,

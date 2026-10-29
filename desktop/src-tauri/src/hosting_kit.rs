@@ -82,9 +82,26 @@ fn kit_in(dir: &Path, archive: Option<(PathBuf, PathBuf)>) -> Kit {
     }
 }
 
+/// The kit: this build's own (older installers carried it), else the
+/// downloaded `hosting` component (see `components`; `local_server_create`
+/// fetches it the first time a server is made here).
+pub fn find(app: &AppHandle) -> Option<Kit> {
+    bundled_kit(app).or_else(|| {
+        let dir = crate::components::ready(app, crate::components::Component::Hosting)?;
+        let kit = kit_in(&dir, None);
+        kit.ensure_executable();
+        kit.relay.is_file().then_some(kit)
+    })
+}
+
+/// Whether this build carries the kit itself.
+pub fn bundled(app: &AppHandle) -> bool {
+    bundled_kit(app).is_some()
+}
+
 /// The kit in this build's resources, if it has one. Cheap: a zipped kit is
 /// only unpacked by `prepare` (from `ensure_running`).
-pub fn find(app: &AppHandle) -> Option<Kit> {
+fn bundled_kit(app: &AppHandle) -> Option<Kit> {
     let dir = plain(app.path().resource_dir().ok()?).join("hosting");
     let zipped = dir.join("kit.zip");
     if zipped.is_file() {

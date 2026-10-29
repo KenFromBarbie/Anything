@@ -4,10 +4,6 @@
   "identifier": "app.anything.desktop",
   "bundle": {
     "createUpdaterArtifacts": false,
-    "resources": {
-      "office-runtime/": "office/",
-      "hosting-kit/": "hosting/"
-    },
     "macOS": {
       "signingIdentity": "-"
     }

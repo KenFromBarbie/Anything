@@ -236,6 +236,26 @@ test('buzz-show copies the file into the artifacts and tells the app', async (t)
   assert.equal(notWeb, 400);
 });
 
+test('buzz-show --dir copies a site folder and opens it at its index.html', async (t) => {
+  const { b } = await withJim(t);
+  const hive = withHive(b);
+  const site = path.join(b.userData, 'charts-site');
+  fs.mkdirSync(path.join(site, 'js'), { recursive: true });
+  fs.mkdirSync(path.join(site, 'node_modules', 'x'), { recursive: true });
+  fs.writeFileSync(path.join(site, 'index.html'), '<h1>charts</h1>');
+  fs.writeFileSync(path.join(site, 'js', 'app.js'), 'console.log(1)');
+  fs.writeFileSync(path.join(site, 'node_modules', 'x', 'big.js'), 'x');
+  const [[code, body]] = await captureStdout(() => b.showArtifact({ dir: site, title: 'Charts', as: 'jim-1' }));
+  assert.equal(code, 200);
+  assert.equal(body.kind, 'html');
+  const index = JSON.parse(fs.readFileSync(path.join(hive, 'shared', 'artifacts', 'index.json'), 'utf8'));
+  const copied = path.join(hive, 'shared', 'artifacts', index[0].file);
+  assert.ok(index[0].file.endsWith('charts-site/index.html'));
+  assert.equal(fs.readFileSync(copied, 'utf8'), '<h1>charts</h1>');
+  assert.ok(fs.existsSync(path.join(path.dirname(copied), 'js', 'app.js')), 'the rest of the site comes along');
+  assert.ok(!fs.existsSync(path.join(path.dirname(copied), 'node_modules')), 'but not node_modules');
+});
+
 test('buzz-browse asks the app and returns its answer', async (t) => {
   const { b } = await withJim(t);
   const [pending, lines] = await captureStdout(() => {

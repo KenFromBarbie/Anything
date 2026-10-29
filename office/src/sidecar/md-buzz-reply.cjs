@@ -11,7 +11,7 @@
  *   buzz-history --channel general [--limit 100] [--before <unix time>]  (read a channel)
  *   buzz-history --thread <event id>                        (read a thread)
  *   buzz-show --file deck.pptx --title "Deck" --preview deck.pdf  (the app's Artifacts page)
- *   buzz-show --url http://localhost:5173 --title "Landing page"
+ *   buzz-show --dir ./site --title "Landing page"   (a site's folder; opens at index.html)
  *   buzz-browse --open <url> | --read | --back | --reload   (the app's Browser)
  *
  * The agent is identified by the AGENT_ID the hive gives every agent terminal;
@@ -52,7 +52,7 @@ async function readText() {
   const thread = arg('--thread');
   const browseOp = ['open', 'read', 'back', 'reload'].find((op) => process.argv.includes(`--${op}`));
   if (history && !channel && !thread) fail('--channel <name> (channel history) or --thread <event id> (a thread) is required');
-  if (show && !arg('--file') && !arg('--url')) fail('--file <path> (a file you made) or --url <address> (a site) is required');
+  if (show && !arg('--file') && !arg('--url') && !arg('--dir')) fail('--file <path> (a file you made), --dir <folder> (a site) or --url <address> is required');
   if (browse && !browseOp) fail('one of --open <url>, --read, --back or --reload is required');
   if (!history && !show && !browse && !replyTo && !channel) fail('--reply-to <event id> (reply in a thread) or --channel <name> (new message) is required');
   if (!configPath) fail('--config is required (use the buzz-reply / buzz-post / buzz-history / buzz-show / buzz-browse wrapper)');
@@ -67,7 +67,7 @@ async function readText() {
   const inChannel = process.argv.includes('--in-channel');
   const body = JSON.stringify(history
     ? { channel, thread, limit: arg('--limit'), before: arg('--before'), as }
-    : show ? { file: arg('--file'), url: arg('--url'), title: arg('--title'), preview: arg('--preview'), note: arg('--note'), as }
+    : show ? { file: arg('--file'), dir: arg('--dir'), entry: arg('--entry'), url: arg('--url'), title: arg('--title'), preview: arg('--preview'), note: arg('--note'), as }
       : browse ? { op: browseOp, url: arg('--open'), as }
         : replyTo ? { replyTo, text, as, inChannel } : { channel, text, as });
   const req = http.request({

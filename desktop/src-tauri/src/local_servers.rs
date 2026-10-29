@@ -291,6 +291,11 @@ pub async fn local_server_create(
     name: String,
 ) -> Result<CreatedLocalServer, String> {
     let name = clean_name(&name)?;
+    // The first server made here: fetch the hosting kit if this build
+    // doesn't carry it (the page shows the download's progress).
+    if relay_setup().is_err() && crate::hosting_kit::find(&app).is_none() {
+        crate::components::ensure(&app, crate::components::Component::Hosting).await?;
+    }
     relay_source(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let mut servers = load_registry(&app);
@@ -344,7 +349,9 @@ pub fn server_work_folder(app: AppHandle, name: String) -> Result<String, String
 /// or the hosting kit an installed app carries.
 #[tauri::command]
 pub fn local_servers_available(app: AppHandle) -> bool {
-    relay_setup().is_ok() || crate::hosting_kit::find(&app).is_some()
+    // Without a kit here yet, making a server downloads it.
+    let _ = app;
+    true
 }
 
 /// How often the local servers are checked and restarted if down.
@@ -362,7 +369,23 @@ pub fn start_all(app: &AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
         use std::sync::atomic::Ordering;
+        // Servers made here before the hosting kit left the installer: fetch
+        // the kit first (once; later passes retry if this one fails).
+        let mut fetched = false;
         while !STOPPING.load(Ordering::Acquire) {
+            if !fetched
+                && relay_setup().is_err()
+                && crate::hosting_kit::find(&app).is_none()
+                && !load_registry(&app).is_empty()
+            {
+                match tauri::async_runtime::block_on(crate::components::ensure(
+                    &app,
+                    crate::components::Component::Hosting,
+                )) {
+                    Ok(_) => fetched = true,
+                    Err(error) => eprintln!("buzz-desktop: hosting kit: {error}"),
+                }
+            }
             for server in load_registry(&app) {
                 if STOPPING.load(Ordering::Acquire) {
                     return;

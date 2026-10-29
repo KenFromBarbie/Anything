@@ -197,24 +197,35 @@ pub struct OfficeState {
     roster_lock: tokio::sync::Mutex<()>,
 }
 
-/// Where the office runtime lives: `BUZZ_OFFICE_DIR` in development (a
-/// munder-difflin checkout), `<resources>/office` in packaged builds.
-fn office_dir(app: &AppHandle) -> Result<PathBuf, String> {
+/// The Office runtime this build carries, if any: `BUZZ_OFFICE_DIR` in
+/// development (the office checkout), `<resources>/office` in installers
+/// that still bundle it. Otherwise it's the `office` component, downloaded
+/// the first time the Office opens (see `components`).
+pub(crate) fn bundled_office_dir(app: &AppHandle) -> Option<PathBuf> {
     if let Some(dir) = std::env::var_os("BUZZ_OFFICE_DIR") {
-        return Ok(PathBuf::from(dir));
+        return Some(PathBuf::from(dir));
     }
-    let resources = app
-        .path()
-        .resource_dir()
-        .map_err(|e| format!("no resource dir: {e}"))?;
-    Ok(resources.join("office"))
+    let dir = app.path().resource_dir().ok()?.join("office");
+    dir.join("src")
+        .join("sidecar")
+        .join("launcher.cjs")
+        .is_file()
+        .then_some(dir)
 }
 
-/// The JS runtime that runs the sidecar. Electron in Node mode, so the
-/// Electron-ABI native modules (node-pty, better-sqlite3) load as built.
+/// The JS runtime that runs the sidecar: the plain Node an installed Office
+/// carries (`runtime/node`, with its native modules built for it; see
+/// scripts/stage-office-runtime.mjs), else, in development, Electron in Node
+/// mode, for which the Office's postinstall built the native modules.
 fn office_runtime(dir: &Path) -> PathBuf {
     if let Some(bin) = std::env::var_os("BUZZ_OFFICE_RUNTIME") {
         return PathBuf::from(bin);
+    }
+    let node = dir
+        .join("runtime")
+        .join(if cfg!(target_os = "windows") { "node.exe" } else { "node" });
+    if node.is_file() {
+        return node;
     }
     let dist = dir.join("node_modules").join("electron").join("dist");
     if cfg!(target_os = "windows") {
@@ -295,11 +306,11 @@ fn buzz_cli() -> Option<PathBuf> {
 
 fn spawn_sidecar(
     app: &AppHandle,
+    dir: &Path,
     scope: &OfficeScope,
     user_data: &Path,
     agent: Option<&crate::commands::OfficeAgentIdentity>,
 ) -> Result<Running, String> {
-    let dir = office_dir(app)?;
     let launcher = dir.join("src").join("sidecar").join("launcher.cjs");
     if !launcher.is_file() {
         return Err(format!("office runtime not found at {}", dir.display()));
@@ -640,10 +651,16 @@ pub async fn office_connect(
             None
         }
     };
+    // The runtime: this build's, or the downloaded component (fetched now
+    // the first time; the Office page shows its progress).
+    let dir = match bundled_office_dir(&app) {
+        Some(dir) => dir,
+        None => crate::components::ensure(&app, crate::components::Component::Office).await?,
+    };
     let handle = app.clone();
     let spawn_scope = scope.clone();
     let running = tauri::async_runtime::spawn_blocking(move || {
-        spawn_sidecar(&handle, &spawn_scope, &user_data, agent.as_ref())
+        spawn_sidecar(&handle, &dir, &spawn_scope, &user_data, agent.as_ref())
     })
     .await
     .map_err(|e| format!("office start task failed: {e}"))??;

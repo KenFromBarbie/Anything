@@ -74,9 +74,40 @@ export function useDeskNotices(): void {
         });
       },
     );
+    // A part of the app downloaded on first use (components.rs): one note
+    // per part, kept up to date until it's in.
+    const offComponent = listen<{
+      name: string;
+      phase: "downloading" | "installing" | "done";
+      received: number;
+      total: number | null;
+    }>(COMPONENT_EVENT, (e) => {
+      const { name, phase, received, total } = e.payload;
+      const label = COMPONENT_LABELS[name] ?? name;
+      const id = `component-${name}`;
+      if (phase === "done") {
+        toast.success(`${label} is ready.`, { id });
+      } else if (phase === "installing") {
+        toast.loading(`Setting up ${label.toLowerCase()}…`, { id });
+      } else {
+        const mb = (n: number) => `${Math.round(n / 1048576)} MB`;
+        toast.loading(`Downloading ${label.toLowerCase()}…`, {
+          id,
+          description: total ? `${mb(received)} of ${mb(total)}` : mb(received),
+        });
+      }
+    });
     return () => {
       void offArtifact.then((f) => f());
       void offBrowser.then((f) => f());
+      void offComponent.then((f) => f());
     };
   }, []);
 }
+
+/** Parts of the app fetched the first time they're needed (components.rs). */
+const COMPONENT_EVENT = "component-progress";
+const COMPONENT_LABELS: Record<string, string> = {
+  office: "The Office",
+  hosting: "Server hosting",
+};

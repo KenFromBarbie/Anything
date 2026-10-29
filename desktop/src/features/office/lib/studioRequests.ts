@@ -59,7 +59,7 @@ const HOW: Record<MakeKind, string> = {
     "Draw it in code: SVG, or a PNG rendered with Pillow, matplotlib or headless HTML. Publish a PNG (and the SVG if you made one).",
   video:
     "Build it in code: frames (Pillow/matplotlib/HTML) or slides turned into an MP4 with ffmpeg (or moviepy), with captions burnt in. Publish the MP4.",
-  site: "Build it as a static site (HTML/CSS/JS) in a folder of its own. Publish its index.html as a file, and if you serve it locally also with --url.",
+  site: "Build it as a static site (HTML/CSS/JS) in a folder of its own, with an index.html. Publish the folder with --dir \"<folder>\" (the app serves it, so it keeps working); never publish a localhost --url, which dies when its server stops.",
 };
 
 /** Made to be seen in the app (the same rules as the agents' BUZZ.md). */

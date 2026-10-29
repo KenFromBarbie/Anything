@@ -43,17 +43,20 @@ jobs:
             bundles: nsis
             artifacts: |
               desktop/src-tauri/target/release/bundle/nsis/*.exe
+              components/*
           - name: macOS (Apple silicon)
             os: macos-latest
             bundles: app,dmg
             artifacts: |
               desktop/src-tauri/target/release/bundle/dmg/*.dmg
+              components/*
           - name: Linux
             os: ubuntu-22.04
             bundles: deb,appimage
             artifacts: |
               desktop/src-tauri/target/release/bundle/deb/*.deb
               desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+              components/*
     runs-on: ${{ matrix.os }}
     timeout-minutes: 240
     steps:
@@ -113,6 +116,12 @@ jobs:
           cd ..
           test -f desktop/public/office-app/index.html || { echo "the Office UI wasn't built into desktop/public/office-app"; exit 1; }
           node scripts/stage-office-runtime.mjs
+          # Not in the installer: a download the app fetches the first time
+          # the Office opens (desktop/src-tauri/src/components.rs).
+          version=$(node -p "require('./desktop/package.json').version")
+          case "$RUNNER_OS" in Windows) platform=windows-x64 ;; macOS) platform=macos-arm64 ;; Linux) platform=linux-x64 ;; esac
+          py=$(command -v python3 || command -v python)
+          "$py" scripts/zip-component.py desktop/src-tauri/office-runtime "components/anything-office-$version-$platform.zip"
 
       - name: Helper binaries
         shell: bash
@@ -125,8 +134,9 @@ jobs:
           ./scripts/bundle-sidecars.sh
 
       # What lets an installed app host servers on its own computer: the
-      # relay, a portable Postgres and a self-contained Garnet (the cache),
-      # bundled under hosting/ (see desktop/src-tauri/src/hosting_kit.rs).
+      # relay, a portable Postgres and a self-contained Garnet (the cache).
+      # Not in the installer: a download the app fetches the first time a
+      # server is made here (components.rs, hosting_kit.rs).
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
@@ -168,15 +178,10 @@ jobs:
           find "$kit/garnet" -name "*.pdb" -delete
           test -f "$kit/garnet/GarnetServer$ext" || { echo "missing GarnetServer"; exit 1; }
           du -sh "$kit"/*
-          # The AppImage packager inspects every program in the bundle and
-          # fails on the kit's libraries: Linux ships the kit zipped, and the
-          # app unpacks it on first use (hosting_kit.rs).
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            (cd "$kit" && zip -qr -9 ../hosting-kit.zip .)
-            rm -rf "$kit" && mkdir -p "$kit"
-            mv desktop/src-tauri/hosting-kit.zip "$kit/kit.zip"
-            du -sh "$kit/kit.zip"
-          fi
+          version=$(node -p "require('./desktop/package.json').version")
+          case "$RUNNER_OS" in Windows) platform=windows-x64 ;; macOS) platform=macos-arm64 ;; Linux) platform=linux-x64 ;; esac
+          py=$(command -v python3 || command -v python)
+          "$py" scripts/zip-component.py "$kit" "components/anything-hosting-$version-$platform.zip"
 
       - name: Build the app
         shell: bash
@@ -192,8 +197,8 @@ jobs:
           app="$(ls -d desktop/src-tauri/target/release/bundle/macos/*.app | head -1)"
           codesign -dv --verbose=2 "$app" 2>&1 | head -20
           codesign --verify --strict --verbose=2 "$app"
-          # Nested code (the Office runtime, native modules) keeps its own
-          # signatures; report any that don't verify without failing on them.
+          # Nested code keeps its own signatures; report any that don't
+          # verify without failing on them.
           codesign --verify --deep --strict --verbose=2 "$app" || echo "::warning::nested code didn't verify deeply (see above)"
 
       # Plain lower-case names for downloads:
