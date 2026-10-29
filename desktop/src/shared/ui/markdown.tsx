@@ -1539,12 +1539,18 @@ export function createMarkdownComponents(
           typeof child.props.href === "string" &&
           isAudioAttachment(imetaByUrl?.get(child.props.href)),
       );
+      // An artifact link renders the artifact itself, block-level.
+      const hasArtifact = childArray.some(
+        (child) =>
+          React.isValidElement<{ href?: string }>(child) &&
+          parseArtifactLink(child.props.href) !== null,
+      );
 
       if (isImageOnlyParagraph(childArray)) {
         return <ImageMosaic>{imageChildren}</ImageMosaic>;
       }
 
-      if (hasBlockMedia(childArray) || hasAudioAttachment) {
+      if (hasBlockMedia(childArray) || hasAudioAttachment || hasArtifact) {
         return <div>{children}</div>;
       }
 
@@ -1650,7 +1656,7 @@ export function createMarkdownComponents(
  * sixteen instances ever exist. Module-stable maps mean cached markdown
  * element trees (see ./markdown/nodeCache.ts) never embed per-mount closures.
  */
-const MARKDOWN_COMPONENT_SCHEMA_VERSION = "9";
+const MARKDOWN_COMPONENT_SCHEMA_VERSION = "10";
 const markdownComponentsByVariant = new Map<string, MarkdownComponentSet>();
 
 type MarkdownComponentSet = { components: Components; variant: string };
