@@ -95,6 +95,17 @@ jobs:
             . -> target
             desktop/src-tauri -> target
 
+      # sherpa-onnx's build script downloads its libraries into
+      # target/sherpa-onnx-prebuilt, which the cache doesn't keep, while the
+      # script's cached output still points there. Make it run again.
+      - name: Rerun sherpa-onnx's download
+        shell: bash
+        run: |
+          for t in target desktop/src-tauri/target; do
+            [ -d "$t/sherpa-onnx-prebuilt" ] && continue
+            find "$t" -maxdepth 4 -type d \( -path "*/build/sherpa-onnx-sys-*" -o -path "*/.fingerprint/sherpa-onnx-sys-*" \) -prune -exec rm -rf {} + 2>/dev/null || true
+          done
+
       - name: Desktop dependencies
         run: bun install --frozen-lockfile
 
