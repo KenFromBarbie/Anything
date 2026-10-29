@@ -70,7 +70,7 @@ const ROSTER_PREFIX = 'MD_OFFICE_ROSTER ';
 /** Things for the app to do for an agent (show an artifact, drive the
  *  Browser), one JSON line each on stdout; browser results come back on stdin. */
 const ACTION_PREFIX = 'MD_OFFICE_ACTION ';
-const BROWSE_TIMEOUT_MS = 45000;
+const BROWSE_TIMEOUT_MS = 60000;
 const ARTIFACTS_KEPT = 500;
 /** How often the vault's mirrors (agents' memory, meetings) are refreshed. */
 const VAULT_SYNC_MS = 3 * 60_000;

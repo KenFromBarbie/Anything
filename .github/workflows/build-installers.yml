@@ -5,8 +5,11 @@
 #   installers as workflow artifacts (Actions → the run → Artifacts).
 # - A tag like v0.6.0: also publishes them on a GitHub Release.
 #
-# The builds are unsigned (no Apple/Microsoft signing keys): Windows shows a
-# SmartScreen prompt and macOS needs right-click → Open the first time.
+# There are no Apple/Microsoft signing keys: Windows shows a SmartScreen
+# prompt, and the macOS app is ad-hoc signed (signingIdentity "-" in
+# tauri.release.conf.json), so macOS asks once ("Open Anyway" in Privacy &
+# Security) instead of calling it damaged, which it does with an unsigned or
+# broken signature on Apple silicon.
 
 name: Build installers
 
@@ -181,6 +184,18 @@ jobs:
         run: |
           cd desktop
           pnpm tauri build --ci --bundles ${{ matrix.bundles }} --config src-tauri/tauri.release.conf.json
+
+      # The app must carry a valid signature, or macOS calls it "damaged".
+      - name: Check the macOS signature
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app="$(ls -d desktop/src-tauri/target/release/bundle/macos/*.app | head -1)"
+          codesign -dv --verbose=2 "$app" 2>&1 | head -20
+          codesign --verify --strict --verbose=2 "$app"
+          # Nested code (the Office runtime, native modules) keeps its own
+          # signatures; report any that don't verify without failing on them.
+          codesign --verify --deep --strict --verbose=2 "$app" || echo "::warning::nested code didn't verify deeply (see above)"
 
       # Plain lower-case names for downloads:
       # anything_<version>_<arch>.<ext>.

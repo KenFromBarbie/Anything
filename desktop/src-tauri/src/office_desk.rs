@@ -103,7 +103,9 @@ async fn eval_json(webview: &Webview, js: &str) -> Result<Value, String> {
             }
         })
         .map_err(|e| e.to_string())?;
-    let out = tokio::time::timeout(Duration::from_secs(10), rx)
+    // Generous: right after the app starts, its UI thread can be busy for a
+    // while before the page's answer comes back.
+    let out = tokio::time::timeout(Duration::from_secs(20), rx)
         .await
         .map_err(|_| "the page did not answer")?
         .map_err(|_| "the page did not answer")?;
@@ -159,8 +161,18 @@ async fn agent_browse(app: &AppHandle, msg: &Value) -> Result<Value, String> {
             let url = web_url(msg["url"].as_str().unwrap_or_default())?;
             let webview = browser(app, Some(url.clone())).await?;
             let _ = app.emit(BROWSER_EVENT, json!({ "op": "open", "url": url.as_str(), "agent": agent }));
-            let page = settle_and_read(&webview, 20).await?;
-            Ok(json!({ "url": page["url"], "title": page["title"], "opened": true }))
+            // The page is open even if reading it back is slow: say so with
+            // its address rather than failing the open.
+            match settle_and_read(&webview, 20).await {
+                Ok(page) => {
+                    Ok(json!({ "url": page["url"], "title": page["title"], "opened": true }))
+                }
+                Err(error) => Ok(json!({
+                    "url": webview.url().map(|u| u.to_string()).unwrap_or_else(|_| url.to_string()),
+                    "opened": true,
+                    "note": format!("opened, but couldn't read the page yet ({error}); try --read in a moment"),
+                })),
+            }
         }
         "read" => {
             let webview = app

@@ -48,14 +48,19 @@ export function setDeskPanelFallback(
   fallback = handler;
 }
 
-/** The panel to draw, for a screen that can draw it (counted while mounted). */
-export function useDeskPanelHost(): DeskPanel | null {
+/**
+ * The panel to draw, for a screen that can draw it: counted as a host while
+ * mounted and `active` (a screen that sometimes draws something else, like
+ * a project channel's home, passes false then, so links fall back).
+ */
+export function useDeskPanelHost(active = true): DeskPanel | null {
   React.useEffect(() => {
+    if (!active) return;
     hosts += 1;
     return () => {
       hosts -= 1;
     };
-  }, []);
+  }, [active]);
   return useDeskPanel();
 }
 

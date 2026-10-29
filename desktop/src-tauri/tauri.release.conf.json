@@ -7,6 +7,9 @@
     "resources": {
       "office-runtime/": "office/",
       "hosting-kit/": "hosting/"
+    },
+    "macOS": {
+      "signingIdentity": "-"
     }
   }
 }

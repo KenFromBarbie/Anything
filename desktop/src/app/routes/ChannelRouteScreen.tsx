@@ -133,8 +133,6 @@ export function ChannelRouteScreen({
   const projectsQuery = useProjectsQuery();
   const identityQuery = useIdentityQuery();
   const profileQuery = useProfileQuery();
-  // The Browser or an agent's artifact, beside the chat.
-  const deskPanel = useDeskPanelHost();
   const channels = channelsQuery.data ?? [];
   const memberChannel =
     channels.find((channel) => channel.id === channelId) ?? null;
@@ -167,6 +165,9 @@ export function ChannelRouteScreen({
   );
   const projectHome =
     enumeratedProjectHome ?? projectHomeLookupQuery.data ?? null;
+  // The Browser or an agent's artifact, beside the chat (a project's home
+  // channel draws its own panels, so links open in Research there).
+  const deskPanel = useDeskPanelHost(!(projectHome && !isHuddleTranscript));
   const [targetMessageEvents, setTargetMessageEvents] = React.useState<
     RelayEvent[]
   >(() => {
