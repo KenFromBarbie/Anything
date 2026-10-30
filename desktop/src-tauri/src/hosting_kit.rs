@@ -82,7 +82,7 @@ fn kit_in(dir: &Path, archive: Option<(PathBuf, PathBuf)>) -> Kit {
     }
 }
 
-/// The kit: this build's own (older installers carried it), else the
+/// The kit: a debug build's own, else the
 /// downloaded `hosting` component (see `components`; `local_server_create`
 /// fetches it the first time a server is made here).
 pub fn find(app: &AppHandle) -> Option<Kit> {
@@ -100,8 +100,13 @@ pub fn bundled(app: &AppHandle) -> bool {
 }
 
 /// The kit in this build's resources, if it has one. Cheap: a zipped kit is
-/// only unpacked by `prepare` (from `ensure_running`).
+/// only unpacked by `prepare` (from `ensure_running`). Debug builds only:
+/// installers no longer carry it, and a kit an older installer left in the
+/// install folder would keep running the old relay after an update.
 fn bundled_kit(app: &AppHandle) -> Option<Kit> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
     let dir = plain(app.path().resource_dir().ok()?).join("hosting");
     let zipped = dir.join("kit.zip");
     if zipped.is_file() {

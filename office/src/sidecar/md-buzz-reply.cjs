@@ -6,6 +6,7 @@
  *   buzz-reply --reply-to <event id> --text-file reply.md
  *   buzz-reply --reply-to <event id> --text "short reply"
  *   buzz-reply --reply-to <event id> --in-channel --text-file reply.md  (answer in the channel itself, not the thread)
+ *   buzz-reply --reply-to <event id> --in-thread --text-file reply.md   (answer in a thread, when the owner asked for one)
  *   echo "reply" | buzz-reply --reply-to <event id>
  *   buzz-post --channel general --text-file message.md     (new conversation)
  *   buzz-history --channel general [--limit 100] [--before <unix time>]  (read a channel)
@@ -65,11 +66,12 @@ async function readText() {
   const as = process.env.AGENT_ID || undefined;
   const path = history ? '/history' : show ? '/show' : browse ? '/browse' : replyTo ? '/reply' : '/post';
   const inChannel = process.argv.includes('--in-channel');
+  const inThread = process.argv.includes('--in-thread');
   const body = JSON.stringify(history
     ? { channel, thread, limit: arg('--limit'), before: arg('--before'), as }
     : show ? { file: arg('--file'), dir: arg('--dir'), entry: arg('--entry'), url: arg('--url'), title: arg('--title'), preview: arg('--preview'), note: arg('--note'), as }
       : browse ? { op: browseOp, url: arg('--open'), as }
-        : replyTo ? { replyTo, text, as, inChannel } : { channel, text, as });
+        : replyTo ? { replyTo, text, as, inChannel, inThread } : { channel, text, as });
   const req = http.request({
     host: '127.0.0.1',
     port: config.port,

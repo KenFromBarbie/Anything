@@ -49,7 +49,6 @@ const AUTO_JOIN = ['general'];
 const GOD = 'god';
 /** A DM reply longer than this (characters) is posted as a thread under the
  *  message instead of inline. */
-const LONG_DM_REPLY = 1200;
 
 /** Agent-authored messages relayed per thread before the bridge stops passing
  *  them on (until the owner speaks in that thread again): two agents that keep
@@ -788,8 +787,8 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
     // @mention, say) still reaches the agent, marked as one it already has.
     const sentBefore = channel && !fromAgent ? this.isRepeat(ev, who, channel) : null;
     // The agent answers in the channel itself, right under the message, like
-    // a chat; in a thread only when the message was in one (a long DM answer
-    // still gets a thread, see replyAs).
+    // a chat; in a thread only when the message was in one or the owner
+    // asks for a thread (see replyAs).
     const inThreadRoot = route.root ?? this.threadRootOf(ev);
     const threaded = Boolean(inThreadRoot);
     const root = inThreadRoot ?? ev.id;
@@ -854,7 +853,7 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
       `  2. run: ${this.replyCommand()} --reply-to ${ev.id} --text-file "<that file>"`,
       threaded
         ? '     That answers in the thread the message is in.'
-        : '     That posts your answer in the channel, right under the message (not in a thread).',
+        : '     That posts your answer in the channel, right under the message. Keep it there: add --in-thread only if the owner asked you to answer in a thread.',
       'If you delegate, pass that exact command on so the agent can reply itself. Never post a bare "done".',
       `When you made something for this (a deck, document, video, image, site), publish each piece with ${this.showCommand()} --file "<path>" --title "<what it is>" and put the markdown link it prints in your reply, so the owner can open it from the chat. Design it for the app (fluid width, the app's light/dark theme, no inner scrolling; for HTML the height snippet): see the artifact section of BUZZ.md.`,
       `If this becomes board work, record where it came from on every card you make for it: "buzz": {"replyTo": "${ev.id}"}. Questions for the owner about that work are asked in this thread (the command above), not on the card.`,
@@ -1323,13 +1322,11 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
       await this.run(['channels', 'join', '--channel', thread.channel], undefined, who).catch(() => {});
     }
     const args = ['messages', 'send', '--channel', thread.channel, '--content', '-', ...this.mentionArgs(text, who)];
-    // Asked in a thread, the answer stays in it (unless --in-channel);
-    // otherwise it goes in the channel itself, under the message.
+    // The answer goes in the channel itself, under the message, like a chat.
+    // In a thread only when the message was in one (unless --in-channel) or
+    // the owner asked for a thread (--in-thread).
     const inChannel = msg.inChannel === true;
-    if (thread.threaded && !inChannel) args.push('--reply-to', thread.root);
-    // A DM answer is inline, like a chat; a long one goes in a thread under
-    // the message so the conversation stays readable.
-    else if (!thread.threaded && text.length > LONG_DM_REPLY && this.isDmChannel(thread.channel)) args.push('--reply-to', thread.root);
+    if ((thread.threaded && !inChannel) || msg.inThread === true) args.push('--reply-to', thread.root);
     const r = await this.run(args, text, who);
     // Replying to the agent's own message counts as a follow-up in this thread.
     if (r?.event_id) {

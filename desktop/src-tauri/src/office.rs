@@ -198,12 +198,17 @@ pub struct OfficeState {
 }
 
 /// The Office runtime this build carries, if any: `BUZZ_OFFICE_DIR` in
-/// development (the office checkout), `<resources>/office` in installers
-/// that still bundle it. Otherwise it's the `office` component, downloaded
-/// the first time the Office opens (see `components`).
+/// development (the office checkout), or `<resources>/office` in a debug
+/// build. Otherwise it's the `office` component, downloaded the first time
+/// the Office opens (see `components`). Installers no longer carry it, and
+/// one an older installer left in the install folder is ignored: an update
+/// doesn't remove it, and it would keep the old Office running.
 pub(crate) fn bundled_office_dir(app: &AppHandle) -> Option<PathBuf> {
     if let Some(dir) = std::env::var_os("BUZZ_OFFICE_DIR") {
         return Some(PathBuf::from(dir));
+    }
+    if !cfg!(debug_assertions) {
+        return None;
     }
     let dir = app.path().resource_dir().ok()?.join("office");
     dir.join("src")

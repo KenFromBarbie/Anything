@@ -396,12 +396,14 @@ test('a DM is answered inline, even though it tags the agent', async (t) => {
   assert.ok(!sendArgs(calls).includes('--reply-to'), 'inline, not in a thread');
 });
 
-test('a long DM answer, or one to a message in a DM thread, goes in the thread', async (t) => {
+test('answers stay in the chat however long; a thread only when asked for or already in one', async (t) => {
   const { b, calls } = dmBridge(t);
   await b.refreshDmChannels(b.michael);
   const ask = dm(OWNER);
   await b.handleEvent(ask, b.michael);
   await b.replyAs({ replyTo: ask.id, text: 'x'.repeat(2000) });
+  assert.ok(!sendArgs(calls).includes('--reply-to'), 'a long answer is inline too');
+  await b.replyAs({ replyTo: ask.id, text: 'in a thread, as asked', inThread: true });
   assert.deepEqual(sendArgs(calls).slice(-2), ['--reply-to', ask.id]);
 
   const inThread = dm(OWNER, { replyTo: 'root-1' });
