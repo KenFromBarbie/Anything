@@ -83,6 +83,8 @@ tauri-plugin-opener = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-window-state = "2"
 tauri-plugin-dialog = "2"
+# Removing things the app made sends them to the Recycle Bin / Trash.
+trash = "5"
 tauri-plugin-upload = "2.4.0"
 tauri-plugin-log = "2.8.0"
 tauri-plugin-updater = "2"

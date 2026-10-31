@@ -2,7 +2,10 @@ import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { convertFileSrc, invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { useMutation } from "@tanstack/react-query";
 import {
+  Box,
+  Check,
   ExternalLink,
   FileText,
   Film,
@@ -15,7 +18,9 @@ import {
   Pencil,
   Presentation,
   Search,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { cn } from "@/shared/lib/cn";
 import {
@@ -23,10 +28,21 @@ import {
   setBrowsing,
   useBrowsing,
 } from "@/shared/lib/deskPanel";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/ui/alert-dialog";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Markdown } from "@/shared/ui/markdown";
 
+import { Codebases } from "./Codebases";
 import { ImageQuickEdit } from "./ImageQuickEdit";
 import { AskForChanges, StudioMake } from "./StudioMake";
 import { PageHeader } from "@/shared/ui/PageHeader";
@@ -48,6 +64,7 @@ export type Artifact = {
     | "text"
     | "office"
     | "file"
+    | "model"
     | "site";
   /** Absolute paths (from the app), for the viewer. */
   path?: string;
@@ -67,8 +84,17 @@ const KIND_ICONS: Record<Artifact["kind"], LucideIcon> = {
   text: FileText,
   office: Presentation,
   file: Package,
+  model: Box,
   site: Globe,
 };
+
+// three.js loads only when a model is on screen.
+const ModelViewer = React.lazy(async () => ({
+  default: (await import("./ModelViewer")).ModelViewer,
+}));
+const ModelThumb = React.lazy(async () => ({
+  default: (await import("./ModelViewer")).ModelThumb,
+}));
 
 const BrowserPage = React.lazy(async () => ({
   default: (await import("./BrowserPage")).BrowserPage,
@@ -98,12 +124,13 @@ function when(ms: number) {
 }
 
 /** The gallery's filters, Claude-style. */
-type Filter = "all" | "documents" | "slides" | "media" | "sites";
+type Filter = "all" | "documents" | "slides" | "media" | "models" | "sites";
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "documents", label: "Documents" },
   { key: "slides", label: "Slides" },
   { key: "media", label: "Media" },
+  { key: "models", label: "3D" },
   { key: "sites", label: "Sites" },
 ];
 
@@ -111,6 +138,7 @@ const SLIDES_RE = /\.(pptx?|odp|key)$/i;
 
 function filterOf(item: Artifact): Exclude<Filter, "all"> {
   if (item.kind === "site" || item.kind === "html") return "sites";
+  if (item.kind === "model") return "models";
   if (item.kind === "image" || item.kind === "video" || item.kind === "audio")
     return "media";
   if (SLIDES_RE.test(item.path ?? "")) return "slides";
@@ -198,6 +226,7 @@ export function ArtifactsPage({
               ← All artifacts
             </button>
             <span className="flex-1" />
+            <ArtifactManage item={opened} onDeleted={() => setOpenId(null)} />
             {opened.kind === "image" && opened.path ? (
               <Button
                 data-testid="artifact-edit"
@@ -225,7 +254,12 @@ export function ArtifactsPage({
         </div>
       ) : (
         <>
-          {embedded ? <StudioMake artifacts={items} /> : null}
+          {embedded ? (
+            <>
+              <StudioMake artifacts={items} onOpenArtifact={setOpenId} />
+              <Codebases />
+            </>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1" role="tablist">
               {FILTERS.map(({ key, label }) => (
@@ -346,6 +380,13 @@ function ArtifactThumb({ item }: { item: Artifact }) {
         draggable={false}
         src={src}
       />
+    );
+  }
+  if (item.kind === "model" && src && item.path) {
+    return (
+      <React.Suspense fallback={null}>
+        <ModelThumb path={item.path} src={src} />
+      </React.Suspense>
     );
   }
   if (item.kind === "video" && src) {
@@ -534,6 +575,12 @@ export function ArtifactViewer({
         src={src}
       />
     );
+  } else if (item.kind === "model" && src && item.path) {
+    body = (
+      <React.Suspense fallback={null}>
+        <ModelViewer path={item.path} src={src} />
+      </React.Suspense>
+    );
   } else if (item.kind === "video" && src) {
     // biome-ignore lint/a11y/useMediaCaption: agent-made video, no captions
     body = <video className="h-full w-full" controls src={src} />;
@@ -581,6 +628,7 @@ export function ArtifactViewer({
         className={cn(
           "group relative overflow-hidden rounded-xl border border-border/60 bg-background/40",
           framed && !page && "h-[36rem]",
+          item.kind === "model" && "h-[28rem]",
           item.kind === "image" && "[&_img]:max-h-[40rem]",
         )}
         data-testid="artifact-viewer"
@@ -663,5 +711,106 @@ export function ArtifactViewer({
         {body}
       </div>
     </section>
+  );
+}
+
+/** An opened artifact's title, renamed in place, and removing it. */
+function ArtifactManage({
+  item,
+  onDeleted,
+}: {
+  item: Artifact;
+  onDeleted: () => void;
+}) {
+  const client = useQueryClient();
+  const [title, setTitle] = React.useState<string | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
+  const refresh = () =>
+    void client.invalidateQueries({ queryKey: ARTIFACTS_KEY });
+  const rename = useMutation({
+    mutationFn: (next: string) =>
+      invoke("office_artifact_rename", { id: item.id, title: next }),
+    onSuccess: () => {
+      refresh();
+      setTitle(null);
+    },
+    onError: (error) => toast.error(String(error)),
+  });
+  const remove = useMutation({
+    mutationFn: () => invoke("office_artifact_delete", { id: item.id }),
+    onSuccess: () => {
+      refresh();
+      onDeleted();
+      toast(`Removed ${item.title}.`, {
+        description: "Its files are in the Recycle Bin.",
+      });
+    },
+    onError: (error) => toast.error(String(error)),
+  });
+  return (
+    <>
+      {title === null ? (
+        <Button
+          data-testid="artifact-rename"
+          onClick={() => setTitle(item.title)}
+          size="sm"
+          variant="ghost"
+        >
+          <Pencil />
+          Rename
+        </Button>
+      ) : (
+        <form
+          className="flex items-center gap-1"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (title.trim()) rename.mutate(title.trim());
+          }}
+        >
+          <Input
+            aria-label="Title"
+            autoFocus
+            className="h-8 w-64"
+            onChange={(event) => setTitle(event.target.value)}
+            onKeyDown={(event) => event.key === "Escape" && setTitle(null)}
+            value={title}
+          />
+          <Button
+            aria-label="Save the title"
+            className="h-8 w-8"
+            size="icon"
+            type="submit"
+          >
+            <Check className="h-4 w-4" />
+          </Button>
+        </form>
+      )}
+      <Button
+        aria-label="Remove"
+        data-testid="artifact-delete"
+        onClick={() => setDeleting(true)}
+        size="sm"
+        variant="ghost"
+      >
+        <Trash2 />
+      </Button>
+      <AlertDialog onOpenChange={setDeleting} open={deleting}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {item.title}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              It leaves Artifacts and its files go to the Recycle Bin, where you
+              can get them back. Links to it in chat stop opening it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => remove.mutate()}>
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

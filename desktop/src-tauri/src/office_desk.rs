@@ -276,13 +276,35 @@ pub async fn browser_state(app: AppHandle) -> Result<Value, String> {
 
 // ─── The Artifacts page ─────────────────────────────────────────────────────
 
-/// The active Office's artifacts folder (`<hive>/shared/artifacts`).
-fn artifacts_dir(app: &AppHandle) -> Option<PathBuf> {
+/// The active Office's shared folder (`<hive>/shared`), where its agents
+/// work and what they make is kept.
+pub(crate) fn hive_shared_dir(app: &AppHandle) -> Option<PathBuf> {
     let user_data = crate::office::active_office_dir(app)?;
     let config: Value =
         serde_json::from_slice(&std::fs::read(user_data.join("config.json")).ok()?).ok()?;
     let home = config["harnessHome"].as_str()?;
-    Some(PathBuf::from(home).join("hive").join("shared").join("artifacts"))
+    Some(PathBuf::from(home).join("hive").join("shared"))
+}
+
+/// The active Office's artifacts folder (`<hive>/shared/artifacts`).
+fn artifacts_dir(app: &AppHandle) -> Option<PathBuf> {
+    Some(hive_shared_dir(app)?.join("artifacts"))
+}
+
+/// Write a JSON list atomically (a temp file, then a rename).
+pub(crate) fn write_list(path: &std::path::Path, list: &[Value]) -> Result<(), String> {
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, serde_json::to_vec_pretty(list).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+
+/// The artifacts index as stored (oldest first, relative paths).
+fn stored_artifacts(dir: &std::path::Path) -> Vec<Value> {
+    std::fs::read(dir.join("index.json"))
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
 }
 
 /// Let the page load the artifacts' files (the asset protocol), and nothing else.
@@ -374,18 +396,48 @@ pub async fn office_artifact_save_edit(
         "file": format!("{id}/{name}"),
         "kind": "image",
     });
-    let index = dir.join("index.json");
-    let mut list: Vec<Value> = std::fs::read(&index)
-        .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default();
+    let mut list = stored_artifacts(&dir);
     list.push(entry.clone());
-    let tmp = dir.join("index.json.tmp");
-    std::fs::write(&tmp, serde_json::to_vec_pretty(&list).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp, &index).map_err(|e| e.to_string())?;
+    write_list(&dir.join("index.json"), &list)?;
     let _ = app.emit(ARTIFACT_EVENT, &entry);
     Ok(entry)
+}
+
+/// Give an artifact a new title.
+#[tauri::command]
+pub async fn office_artifact_rename(app: AppHandle, id: String, title: String) -> Result<(), String> {
+    let title = title.trim();
+    if title.is_empty() {
+        return Err("the title is empty".into());
+    }
+    let dir = artifacts_dir(&app).ok_or("the Office is not set up")?;
+    let mut list = stored_artifacts(&dir);
+    let item = list
+        .iter_mut()
+        .find(|i| i["id"].as_str() == Some(id.as_str()))
+        .ok_or("no such artifact")?;
+    item["title"] = Value::String(title.to_string());
+    write_list(&dir.join("index.json"), &list)?;
+    let _ = app.emit(ARTIFACT_EVENT, json!({ "id": id }));
+    Ok(())
+}
+
+/// Remove an artifact: out of the gallery, its files to the Recycle Bin.
+#[tauri::command]
+pub async fn office_artifact_delete(app: AppHandle, id: String) -> Result<(), String> {
+    let dir = artifacts_dir(&app).ok_or("the Office is not set up")?;
+    let mut list = stored_artifacts(&dir);
+    let before = list.len();
+    list.retain(|i| i["id"].as_str() != Some(id.as_str()));
+    if list.len() == before {
+        return Err("no such artifact".into());
+    }
+    write_list(&dir.join("index.json"), &list)?;
+    if let Some(folder) = inside(&dir, &id).filter(|p| p.is_dir()) {
+        trash::delete(&folder).map_err(|e| format!("couldn't move its files to the Recycle Bin: {e}"))?;
+    }
+    let _ = app.emit(ARTIFACT_EVENT, json!({ "id": id }));
+    Ok(())
 }
 
 /// Open an artifact's file in its own app (PowerPoint, Word, a video player).

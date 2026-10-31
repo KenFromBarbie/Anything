@@ -44,6 +44,7 @@ mod local_servers;
 mod updater;
 mod office;
 mod office_desk;
+mod studio_store;
 mod components;
 mod persona_catalog;
 mod prevent_sleep;
@@ -616,6 +617,16 @@ pub fn run() {
             office_desk::office_artifacts,
             office_desk::office_artifact_open,
             office_desk::office_artifact_save_edit,
+            office_desk::office_artifact_rename,
+            office_desk::office_artifact_delete,
+            studio_store::studio_workflows,
+            studio_store::studio_workflow_save,
+            studio_store::studio_workflow_delete,
+            studio_store::codebases,
+            studio_store::codebase_add,
+            studio_store::codebase_pull,
+            studio_store::codebase_open,
+            studio_store::codebase_remove,
             components::component_status,
             components::component_install,
             office_desk::office_vault,

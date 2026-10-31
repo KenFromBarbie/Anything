@@ -91,7 +91,8 @@ const ARTIFACT_KINDS = {
   pdf: 'pdf', png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', svg: 'image',
   mp4: 'video', webm: 'video', mov: 'video', m4v: 'video', mp3: 'audio', wav: 'audio', m4a: 'audio', ogg: 'audio',
   html: 'html', htm: 'html', md: 'text', txt: 'text', csv: 'text', json: 'text',
-  pptx: 'office', ppt: 'office', docx: 'office', doc: 'office', xlsx: 'office', xls: 'office', odp: 'office', odt: 'office'
+  pptx: 'office', ppt: 'office', docx: 'office', doc: 'office', xlsx: 'office', xls: 'office', odp: 'office', odt: 'office',
+  glb: 'model', gltf: 'model', obj: 'model', stl: 'model'
 };
 
 // ─── secp256k1 public key, in plain BigInt ───────────────────────────────────
@@ -464,6 +465,7 @@ ${global}
       `    ${this.showCommand()} --dir "<site folder>" --title "<what it is>"   (a site: the whole folder, opened at its index.html)`,
       `    ${this.showCommand()} --url <https address> --title "<what it is>"   (only a site that is really online)`,
       'Never publish a localhost address: the server behind it stops when you do (or the app restarts), and the owner is left with a dead link. Publish the site’s folder with --dir; the app serves it itself.',
+      'A 3D model: publish one binary .glb (materials and colours inside it, centred at the origin, Y up, under about 20 MB); the app shows it in a 3D viewer the owner can turn and zoom. .obj and .stl work too, without materials.',
       '',
       '## The app’s Browser',
       'Open a page in the app for the owner to look at (a site you built, a reference), and read back its text and links to check it:',
