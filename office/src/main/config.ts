@@ -213,6 +213,12 @@ export interface HarnessConfig {
   /** The model GOD runs on. Unset falls back to the provider preset's
    *  `recommendedOrchestratorModel`, then MODEL_GOD. Default 'claude-opus-5-5'. */
   godModel?: string;
+  /** The model permanent staff run on (they plan, hand out and review). Unset =
+   *  MODEL_STAFF. Set with the rest of the chain by an orchestration preset. */
+  staffModel?: string;
+  /** The model floor workers run on (the staff hire them to do the work). Unset =
+   *  MODEL_FLOOR. */
+  floorModel?: string;
   /** Per-server consent state for the default MCP bundle, keyed by catalog id.
    *  Seeded from MCP_CATALOG (safe-readonly ON, write/secret OFF); the user flips
    *  these in Settings. A server is wired into an agent only when enabled here. */
@@ -760,7 +766,7 @@ export interface RoleHint {
  *  explicit per-agent model selection always wins. */
 export function modelForRole(
   meta: RoleHint,
-  config?: Pick<HarnessConfig, 'godProvider' | 'godModel'>
+  config?: Pick<HarnessConfig, 'godProvider' | 'godModel' | 'staffModel' | 'floorModel'>
 ): string | undefined {
   if (meta.isGod) {
     // GOD engine is selectable: an explicit godModel wins, else the chosen
@@ -769,8 +775,8 @@ export function modelForRole(
     return config?.godModel ?? preset.recommendedOrchestratorModel ?? MODEL_GOD;
   }
   // The office's chain: staff plan and review, the floor does the work.
-  if (meta.isStaff) return MODEL_STAFF;
-  if (meta.role === 'worker') return MODEL_FLOOR;
+  if (meta.isStaff) return config?.staffModel ?? MODEL_STAFF;
+  if (meta.role === 'worker') return config?.floorModel ?? MODEL_FLOOR;
   const hay = `${meta.role ?? ''} ${(meta.capabilities ?? []).join(' ')}`.toLowerCase();
   if (/\b(triage|rout|verif|lint|format|summar|classif|label)/.test(hay)) return MODEL_HELPER;
   return MODEL_WORKER;

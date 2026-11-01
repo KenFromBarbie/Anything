@@ -189,7 +189,7 @@ function Tile({
         <span className="flex items-center gap-1.5 text-sm">
           <span className="truncate">{label}</span>
           {badge ? (
-            <span className="shrink-0 rounded bg-muted px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <span className="shrink-0 rounded bg-muted px-1 text-2xs uppercase tracking-wide text-muted-foreground">
               {badge}
             </span>
           ) : null}

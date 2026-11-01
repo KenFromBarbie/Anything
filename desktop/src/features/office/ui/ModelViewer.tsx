@@ -310,7 +310,7 @@ export function ModelViewer({
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </Button>
-          <span className="rounded-md bg-background/80 px-2 py-0.5 text-[11px] text-muted-foreground">
+          <span className="rounded-md bg-background/80 px-2 py-0.5 text-2xs text-muted-foreground">
             {state.triangles.toLocaleString()} triangles
           </span>
         </div>

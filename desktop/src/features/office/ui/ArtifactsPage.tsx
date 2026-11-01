@@ -374,7 +374,7 @@ function ArtifactCard({
         {/* Clicks go to the card, not into the preview. */}
         <span className="absolute inset-0" />
         {versions > 1 ? (
-          <span className="absolute right-2 top-2 rounded-md bg-background/90 px-1.5 py-0.5 text-[11px] font-medium shadow-sm">
+          <span className="absolute right-2 top-2 rounded-md bg-background/90 px-1.5 py-0.5 text-2xs font-medium shadow-sm">
             {versions} versions
           </span>
         ) : null}

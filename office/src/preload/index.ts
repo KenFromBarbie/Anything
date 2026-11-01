@@ -277,6 +277,10 @@ export interface HarnessConfig {
    *  'claude' / 'claude-opus-4-8'. Mirrors src/main/config.ts. */
   godProvider?: AgentProvider;
   godModel?: string;
+  /** Staff and floor-worker models, set by an orchestration preset. Mirrors
+   *  src/main/config.ts. */
+  staffModel?: string;
+  floorModel?: string;
   /** Let god (and permanent staff) start ephemeral workers from spawn-requests. */
   orchestratorMaySpawn?: boolean;
   /** Per-server consent for the default MCP bundle, keyed by catalog id. Mirrors

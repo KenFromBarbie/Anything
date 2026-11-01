@@ -11,9 +11,11 @@
 import { useStore, type Agent } from '@/store/store';
 import {
   AGENT_PROVIDER_PRESETS,
+  inferAgentProvider,
   modelsForProvider,
   type AgentProvider
 } from '@/store/config';
+import { matchingPreset, ORCHESTRATION_PRESETS } from '@shared/orchestrationPresets';
 import { restartAgent } from '@/components/agentRestart';
 import { buildGraph, type MessageLogEntry } from '@/components/memoryGraph/buildGraph';
 import type { OrgTriggerConfig, WebhookTrigger } from '@shared/triggers';
@@ -36,6 +38,13 @@ const CTH_ALLOWED = new Set([
   'listWebhooks', 'webhooksStatus', 'generateWebhookSecret', 'getOrgTrigger',
   'listTriggerHistory', 'decideTriggerHistory', 'clearTriggerHistory'
 ]);
+
+const claudeLabel = (id: string) => modelsForProvider('claude').find((m) => m.id === id)?.label ?? id;
+
+/** Which link of the chain an agent is, and so which preset model it runs on. */
+type ChainLink = 'michael' | 'staff' | 'floor' | 'others';
+const linkOf = (agent: Agent, roles: Record<string, { role?: string } | undefined>): ChainLink =>
+  agent.isGod ? 'michael' : agent.staff ? 'staff' : roles[agent.id]?.role === 'worker' ? 'floor' : 'others';
 
 function liveAgent(id: unknown): Agent {
   const agent = useStore.getState().agents.find((x) => x.id === id);
@@ -166,6 +175,69 @@ export const sectionOps: Record<string, Op> = {
     await window.cth.updateConfig({ godProvider: preset.id, godModel: model });
     await restartAgent(god, model, { provider: preset.id, resume: false });
     return true;
+  },
+
+  /** The orchestration presets, the one the office runs on now (null when the
+   *  models were set by hand), and the agents a switch would restart. */
+  'floor.presets': async () => {
+    const c = await window.cth.getConfig();
+    const current = {
+      michael: (c.godProvider ?? 'claude') === 'claude' ? c.godModel : undefined,
+      staff: c.staffModel ?? 'claude-sonnet-5-5',
+      floor: c.floorModel ?? 'claude-haiku-5-5',
+      others: c.defaultModel
+    };
+    const roles = (await window.cth.hiveRegistry()).agents;
+    const live = useStore.getState().agents.filter((x) => x.ptyId && !x.isAssistant);
+    return {
+      current: matchingPreset(current)?.id ?? null,
+      presets: ORCHESTRATION_PRESETS.map((p) => ({
+        ...p,
+        labels: {
+          michael: claudeLabel(p.michael),
+          staff: claudeLabel(p.staff),
+          floor: claudeLabel(p.floor),
+          others: claudeLabel(p.others)
+        }
+      })),
+      live: live.map((x) => ({ id: x.id, name: x.name, link: linkOf(x, roles), model: x.model ?? null }))
+    };
+  },
+  /** Switch the whole office to a preset: save it for every future launch and
+   *  hire, and with `restart`, restart the agents on the floor now onto their
+   *  new models, picking each conversation back up where the engine allows.
+   *  Agents on another engine than Claude keep theirs. The restarts run one at
+   *  a time after this returns (several can outlast a call); it answers with
+   *  who is restarting. */
+  'floor.applyPreset': async (a) => {
+    const preset = ORCHESTRATION_PRESETS.find((p) => p.id === a.id);
+    if (!preset) throw new Error('no such preset');
+    await window.cth.updateConfig({
+      godProvider: 'claude',
+      godModel: preset.michael,
+      staffModel: preset.staff,
+      floorModel: preset.floor,
+      defaultModel: preset.others
+    });
+    if (a.restart !== true) return { restarting: [] };
+    const roles = (await window.cth.hiveRegistry()).agents;
+    const moves = useStore.getState().agents.flatMap((agent) => {
+      if (!agent.ptyId || agent.isAssistant) return [];
+      const provider = inferAgentProvider(agent.command, agent.provider);
+      if (provider !== 'claude' && !agent.isGod) return [];
+      const model = preset[linkOf(agent, roles)];
+      return provider === 'claude' && agent.model === model ? [] : [{ agent, model }];
+    });
+    void (async () => {
+      for (const { agent, model } of moves) {
+        try {
+          await restartAgent(agent, model, { provider: 'claude', resume: true, resumeOptional: true });
+        } catch (e) {
+          console.error(`[presets] restarting ${agent.name}:`, e);
+        }
+      }
+    })();
+    return { restarting: moves.map((m) => m.agent.name) };
   },
 
   /** Agents whose terminals were closed. */

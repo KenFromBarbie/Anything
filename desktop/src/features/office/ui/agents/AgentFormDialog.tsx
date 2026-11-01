@@ -289,7 +289,7 @@ export function AgentFormDialog({
                         "What they're for"}
                     </span>
                   </div>
-                  <span className="max-w-full truncate rounded-full bg-background/80 px-2.5 py-1 text-[11px] text-muted-foreground">
+                  <span className="max-w-full truncate rounded-full bg-background/80 px-2.5 py-1 text-2xs text-muted-foreground">
                     {provider?.label ?? form.provider} · {modelLabel}
                   </span>
                 </div>
@@ -436,7 +436,7 @@ export function AgentFormDialog({
                                 : "Pick a folder"}
                             </span>
                             {form.cwd ? (
-                              <span className="truncate text-[11px] text-muted-foreground">
+                              <span className="truncate text-2xs text-muted-foreground">
                                 {form.cwd}
                               </span>
                             ) : null}

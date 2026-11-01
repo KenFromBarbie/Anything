@@ -34,6 +34,7 @@ import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 
 import { AgentAvatar, AgentStatusPill } from "../agents/AgentBits";
+import { OrchestrationPresets, PRESETS_KEY } from "./OrchestrationPresets";
 import { ErrorLine, Muted, SECTION_SELECT, SectionCard } from "./SectionBits";
 
 const DEFAULT_TOKEN_CAP = 1_000_000;
@@ -250,6 +251,7 @@ function AgentRow({
     onSuccess: () => {
       toast(`${agent.name} is restarting on the new engine.`);
       void client.invalidateQueries({ queryKey: SETTINGS_KEY });
+      void client.invalidateQueries({ queryKey: PRESETS_KEY });
     },
     onError: (error) => toast.error(error.message),
   });
@@ -564,6 +566,7 @@ export function ModelsBudgetsSection() {
 
   return (
     <div className="grid gap-4" data-testid="section-models">
+      <OrchestrationPresets michaelName={michaelName} />
       <SectionCard
         description={`Spend, context and engine for each agent. Bars measure against the agent's own limit, else the floor budget (${fmtTokens(floorCap)}${settings.data?.tokenCap ? "" : ", the default; set yours in the Office's Settings"}).`}
         title="Agents"

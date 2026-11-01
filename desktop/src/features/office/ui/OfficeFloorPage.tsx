@@ -518,7 +518,7 @@ function TasksWindow({
                 <span className="text-lg font-semibold leading-none tabular-nums">
                   {count}
                 </span>
-                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1 text-2xs text-muted-foreground">
                   <span
                     className={cn("h-1.5 w-1.5 rounded-full", column.dot)}
                   />
@@ -540,7 +540,7 @@ function TasksWindow({
             value={title}
           />
           {title.trim() ? (
-            <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-foreground/15 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-foreground/15 px-1.5 py-0.5 text-2xs text-muted-foreground">
               Enter
             </kbd>
           ) : null}
@@ -581,7 +581,7 @@ function TasksWindow({
                         <span className="inline-flex items-center gap-1.5">
                           <span
                             className={cn(
-                              "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold",
+                              "flex h-4 w-4 items-center justify-center rounded-full text-3xs font-semibold",
                               accentClasses(assignee?.accent).solid,
                             )}
                           >
@@ -595,7 +595,7 @@ function TasksWindow({
                         <span>Unassigned</span>
                       )}
                       {question ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-2xs text-amber-600 dark:text-amber-400">
                           <MessageCircleQuestion className="h-3 w-3" />
                           Asks you
                         </span>
