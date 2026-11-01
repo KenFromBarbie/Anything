@@ -15,7 +15,8 @@ import { restartAgent } from '@/components/agentRestart';
 import { openQuestion, parseTasks, type HiveTask, type HumanQA } from '@/components/TasksKanban';
 import { disposeTerminal } from '@/components/terminalPool';
 import { sectionOps } from '@/host/buzzSectionsApi';
-import { OFFICE_CAST, DEFAULT_CHARACTER, type OfficeCharacterName } from '@/scene/office/cast';
+import { OFFICE_CAST, DEFAULT_CHARACTER, paintCastPortrait, type OfficeCharacterName } from '@/scene/office/cast';
+import { PORTRAIT_H, PORTRAIT_W } from '@/scene/office/portraitArt';
 import type { AccentColorName } from '@/design/tokens';
 import {
   AGENT_PROVIDER_PRESETS,
@@ -27,6 +28,23 @@ import {
   type AgentProvider,
   type HarnessConfig
 } from '@/store/config';
+
+/** A cast member's portrait as a PNG data URL, drawn as on their floor card. */
+const portraits = new Map<string, string>();
+async function castPortrait(name: OfficeCharacterName): Promise<string> {
+  const cached = portraits.get(name);
+  if (cached) return cached;
+  const canvas = document.createElement('canvas');
+  canvas.width = PORTRAIT_W * 4;
+  canvas.height = PORTRAIT_H * 4;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  ctx.imageSmoothingEnabled = false;
+  await paintCastPortrait(ctx, name, 4);
+  const url = canvas.toDataURL('image/png');
+  portraits.set(name, url);
+  return url;
+}
 
 /** The AI-account engine an agent signs in through (claude, codex, gemini). */
 function accountEngineOf(a: Agent): string {
@@ -401,7 +419,9 @@ const ops: Record<string, Op> = {
       })),
       defaultProvider: initial === 'custom' ? 'claude' : initial,
       repos: config.registeredRepos ?? [],
-      characters: OFFICE_CAST.map((c) => ({ name: c.name, displayName: c.displayName })),
+      characters: await Promise.all(OFFICE_CAST.map(async (c) => ({
+        name: c.name, displayName: c.displayName, blurb: c.blurb, portrait: await castPortrait(c.name)
+      }))),
       accents: HIRE_ACCENTS
     };
   },

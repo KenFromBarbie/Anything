@@ -1,6 +1,12 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FolderOpen, Loader2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  FolderOpen,
+  GitBranch,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { accentClasses } from "@/features/office/lib/agentAccent";
@@ -15,6 +21,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/shared/ui/dropdown-menu";
 import { Input } from "@/shared/ui/input";
 import { Switch } from "@/shared/ui/switch";
 import { Textarea } from "@/shared/ui/textarea";
@@ -28,7 +41,13 @@ type HireOptions = {
   }[];
   defaultProvider: string;
   repos: string[];
-  characters: { name: string; displayName: string }[];
+  characters: {
+    name: string;
+    displayName: string;
+    blurb?: string;
+    /** Their floor portrait (a PNG data URL); older Offices send none. */
+    portrait?: string;
+  }[];
   accents: string[];
 };
 
@@ -44,9 +63,6 @@ type Details = {
 
 type Form = Details & { cwd: string; isolate: boolean };
 
-const SELECT_CLASS =
-  "flex h-9 w-full rounded-lg border border-input/40 bg-background px-3 text-sm focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50";
-
 function Field({
   label,
   hint,
@@ -60,7 +76,10 @@ function Field({
 }) {
   return (
     <div className="grid gap-1.5">
-      <label className="text-sm font-medium" htmlFor={htmlFor}>
+      <label
+        className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+        htmlFor={htmlFor}
+      >
         {label}
       </label>
       {children}
@@ -139,6 +158,27 @@ export function AgentFormDialog({
   const folders =
     form?.cwd && !repos.includes(form.cwd) ? [form.cwd, ...repos] : repos;
 
+  const cast = options.data?.characters ?? [];
+  const look = cast.find((c) => c.name === form?.character);
+  const modelLabel =
+    provider?.models.find((m) => m.id === form?.model)?.label ??
+    form?.model ??
+    "Engine default";
+
+  /** Picking a look names them after it, unless they have a name of their own. */
+  const pickLook = (next: string) => {
+    if (!form) return;
+    const previous = cast.find((c) => c.name === form.character);
+    const picked = cast.find((c) => c.name === next);
+    if (
+      picked &&
+      (!form.name.trim() || form.name.trim() === previous?.displayName)
+    ) {
+      set("name", picked.displayName);
+    }
+    set("character", next);
+  };
+
   const chooseFolder = async () => {
     try {
       const path = await callOffice<string | null>("hire.chooseFolder");
@@ -181,9 +221,12 @@ export function AgentFormDialog({
   const loading = !form;
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="max-w-xl" data-testid="agent-form-dialog">
-        <form className="grid gap-4" onSubmit={submit}>
-          <DialogHeader>
+      <DialogContent
+        className="max-w-3xl gap-0 overflow-hidden p-0"
+        data-testid="agent-form-dialog"
+      >
+        <form className="flex max-h-[85vh] flex-col" onSubmit={submit}>
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>
               {mode === "add"
                 ? "Add an agent"
@@ -197,221 +240,284 @@ export function AgentFormDialog({
           </DialogHeader>
 
           {loading ? (
-            <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 px-6 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading…
             </div>
           ) : (
-            <div className="grid max-h-[60vh] gap-4 overflow-y-auto pr-1">
-              <Field htmlFor="agent-name" label="Name">
-                <Input
-                  autoFocus={mode === "add"}
-                  data-testid="agent-form-name"
-                  id="agent-name"
-                  onChange={(event) => {
-                    const name = event.target.value;
-                    set("name", name);
-                    // Naming them after a cast member picks that look
-                    // ("Pam", "pam", "Pam Beesly").
-                    const first = name.trim().split(/\s+/)[0]?.toLowerCase();
-                    const cast = options.data?.characters.find(
-                      (c) =>
-                        c.displayName.toLowerCase() === first ||
-                        c.name.toLowerCase() === first,
-                    );
-                    if (cast) set("character", cast.name);
-                  }}
-                  placeholder="e.g. Pam"
-                  value={form.name}
-                />
-              </Field>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field htmlFor="agent-character" label="Look on the floor">
-                  <select
-                    className={SELECT_CLASS}
-                    id="agent-character"
-                    onChange={(event) => {
-                      const next = event.target.value;
-                      // Picking a look names them after it, unless they
-                      // already have a name of their own.
-                      const previous = options.data?.characters.find(
-                        (c) => c.name === form.character,
-                      );
-                      const picked = options.data?.characters.find(
-                        (c) => c.name === next,
-                      );
-                      if (
-                        picked &&
-                        (!form.name.trim() ||
-                          form.name.trim() === previous?.displayName)
-                      ) {
-                        set("name", picked.displayName);
-                      }
-                      set("character", next);
-                    }}
-                    value={form.character}
-                  >
-                    {options.data?.characters.map((c) => (
-                      <option key={c.name} value={c.name}>
-                        {c.displayName}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <div className="grid gap-1.5">
-                  <span className="text-sm font-medium">Color</span>
-                  <div className="flex h-9 items-center gap-2">
-                    {options.data?.accents.map((accent) => (
-                      <button
-                        aria-label={accent}
-                        aria-pressed={form.accent === accent}
-                        className={cn(
-                          "h-6 w-6 rounded-full ring-offset-2 ring-offset-background transition",
-                          accentClasses(accent).solid,
-                          form.accent === accent
-                            ? "ring-2 ring-ring"
-                            : "opacity-80 hover:opacity-100",
-                        )}
-                        key={accent}
-                        onClick={() => set("accent", accent)}
-                        type="button"
+            <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto px-6 pb-6 sm:grid-cols-[13rem_1fr]">
+              {/* How they'll look on the floor, as you build them. */}
+              <aside className="flex flex-col gap-3 sm:sticky sm:top-0 sm:self-start">
+                <div
+                  className={cn(
+                    "flex flex-col items-center gap-3 rounded-2xl border border-border/60 px-4 pt-6 pb-4",
+                    accentClasses(form.accent).soft,
+                  )}
+                  data-testid="agent-form-preview"
+                >
+                  <div className="flex h-28 w-28 items-end justify-center rounded-2xl bg-background/70 shadow-inner">
+                    {look?.portrait ? (
+                      <img
+                        alt=""
+                        className="h-24 [image-rendering:pixelated]"
+                        src={look.portrait}
                       />
-                    ))}
+                    ) : (
+                      <span
+                        className={cn(
+                          "mb-6 flex h-14 w-14 items-center justify-center rounded-full text-2xl font-semibold",
+                          accentClasses(form.accent).solid,
+                        )}
+                      >
+                        {form.name.trim().charAt(0).toUpperCase() || "?"}
+                      </span>
+                    )}
                   </div>
+                  <div className="grid w-full gap-0.5 text-center">
+                    <span className="truncate text-base font-semibold">
+                      {form.name.trim() || look?.displayName || "New agent"}
+                    </span>
+                    <span className="line-clamp-2 text-xs text-muted-foreground">
+                      {form.description.trim() ||
+                        look?.blurb ||
+                        "What they're for"}
+                    </span>
+                  </div>
+                  <span className="max-w-full truncate rounded-full bg-background/80 px-2.5 py-1 text-[11px] text-muted-foreground">
+                    {provider?.label ?? form.provider} · {modelLabel}
+                  </span>
                 </div>
-              </div>
+                <div className="flex justify-center gap-2">
+                  {options.data?.accents.map((accent) => (
+                    <button
+                      aria-label={accent}
+                      aria-pressed={form.accent === accent}
+                      className={cn(
+                        "h-6 w-6 rounded-full ring-offset-2 ring-offset-background transition",
+                        accentClasses(accent).solid,
+                        form.accent === accent
+                          ? "ring-2 ring-foreground/70"
+                          : "opacity-70 hover:opacity-100",
+                      )}
+                      key={accent}
+                      onClick={() => set("accent", accent)}
+                      type="button"
+                    />
+                  ))}
+                </div>
+              </aside>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field htmlFor="agent-engine" label="Engine">
-                  <select
-                    className={SELECT_CLASS}
-                    data-testid="agent-form-engine"
-                    id="agent-engine"
+              <div className="grid content-start gap-5">
+                <Field htmlFor="agent-name" label="Name">
+                  <Input
+                    autoFocus={mode === "add"}
+                    className="h-10 text-base"
+                    data-testid="agent-form-name"
+                    id="agent-name"
                     onChange={(event) => {
-                      const next = options.data?.providers.find(
-                        (p) => p.id === event.target.value,
+                      const name = event.target.value;
+                      set("name", name);
+                      // Naming them after a cast member picks that look
+                      // ("Pam", "pam", "Pam Beesly").
+                      const first = name.trim().split(/\s+/)[0]?.toLowerCase();
+                      const match = cast.find(
+                        (c) =>
+                          c.displayName.toLowerCase() === first ||
+                          c.name.toLowerCase() === first,
                       );
-                      set("provider", event.target.value);
+                      if (match) set("character", match.name);
+                    }}
+                    placeholder="e.g. Pam"
+                    value={form.name}
+                  />
+                </Field>
+
+                <Field label="Look on the floor">
+                  <div
+                    className="grid grid-cols-5 gap-1.5 sm:grid-cols-8"
+                    data-testid="agent-form-look"
+                  >
+                    {cast.map((c) => {
+                      const on = form.character === c.name;
+                      return (
+                        <button
+                          aria-label={c.displayName}
+                          aria-pressed={on}
+                          className={cn(
+                            "flex aspect-square items-end justify-center overflow-hidden rounded-xl border transition-colors",
+                            on
+                              ? cn(
+                                  "border-foreground/60",
+                                  accentClasses(form.accent).soft,
+                                )
+                              : "border-border/60 bg-muted/30 hover:border-foreground/30",
+                          )}
+                          key={c.name}
+                          onClick={() => pickLook(c.name)}
+                          title={
+                            c.blurb
+                              ? `${c.displayName}: ${c.blurb}`
+                              : c.displayName
+                          }
+                          type="button"
+                        >
+                          {c.portrait ? (
+                            <img
+                              alt=""
+                              className="h-[85%] [image-rendering:pixelated]"
+                              src={c.portrait}
+                            />
+                          ) : (
+                            <span className="my-auto text-xs">
+                              {c.displayName}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Field>
+
+                <Field label="Engine">
+                  <Choices
+                    onPick={(id) => {
+                      const next = options.data?.providers.find(
+                        (p) => p.id === id,
+                      );
+                      set("provider", id);
                       set("model", next?.defaultModel ?? null);
                     }}
+                    options={(options.data?.providers ?? []).map((p) => ({
+                      id: p.id,
+                      label: p.label,
+                    }))}
+                    testId="agent-form-engine"
                     value={form.provider}
-                  >
-                    {options.data?.providers.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </Field>
-                <Field htmlFor="agent-model" label="Model">
-                  <select
-                    className={SELECT_CLASS}
-                    disabled={!provider || provider.models.length === 0}
-                    id="agent-model"
-                    onChange={(event) =>
-                      set("model", event.target.value || null)
-                    }
-                    value={form.model ?? ""}
-                  >
-                    <option value="">Engine default</option>
-                    {provider?.models.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.label}
-                      </option>
-                    ))}
-                    {form.model &&
-                    !provider?.models.some((m) => m.id === form.model) ? (
-                      <option value={form.model}>{form.model}</option>
-                    ) : null}
-                  </select>
+
+                {provider && provider.models.length > 0 ? (
+                  <Field label="Model">
+                    <Choices
+                      onPick={(id) => set("model", id || null)}
+                      options={[
+                        { id: "", label: "Engine default" },
+                        ...provider.models,
+                        ...(form.model &&
+                        !provider.models.some((m) => m.id === form.model)
+                          ? [{ id: form.model, label: form.model }]
+                          : []),
+                      ]}
+                      value={form.model ?? ""}
+                    />
+                  </Field>
+                ) : null}
+
+                {mode === "add" ? (
+                  <Field label="Works in">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="flex h-11 w-full items-center gap-3 rounded-xl border border-border/60 bg-background/50 px-3 text-left transition-colors hover:border-foreground/30"
+                          data-testid="agent-form-folder"
+                          type="button"
+                        >
+                          <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="grid min-w-0 flex-1">
+                            <span className="truncate text-sm font-medium">
+                              {form.cwd
+                                ? form.cwd.split(/[\\/]/).filter(Boolean).pop()
+                                : "Pick a folder"}
+                            </span>
+                            {form.cwd ? (
+                              <span className="truncate text-[11px] text-muted-foreground">
+                                {form.cwd}
+                              </span>
+                            ) : null}
+                          </span>
+                          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="start"
+                        className="w-[var(--radix-dropdown-menu-trigger-width)]"
+                      >
+                        {folders.map((folder) => (
+                          <DropdownMenuItem
+                            key={folder}
+                            onSelect={() => set("cwd", folder)}
+                          >
+                            {folder === form.cwd ? (
+                              <Check />
+                            ) : (
+                              <span className="w-4" />
+                            )}
+                            <span className="truncate">{folder}</span>
+                          </DropdownMenuItem>
+                        ))}
+                        {folders.length ? <DropdownMenuSeparator /> : null}
+                        <DropdownMenuItem onSelect={() => void chooseFolder()}>
+                          <FolderOpen />
+                          Choose another folder…
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <label
+                      className="mt-1 flex items-center gap-3 rounded-xl border border-border/60 bg-background/50 px-3 py-2.5 text-sm"
+                      htmlFor="agent-isolate"
+                    >
+                      <GitBranch className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="grid flex-1">
+                        <span className="font-medium">Own git worktree</span>
+                        <span className="text-xs text-muted-foreground">
+                          A separate checkout, so its changes don't collide with
+                          other agents'.
+                        </span>
+                      </span>
+                      <Switch
+                        checked={form.isolate}
+                        id="agent-isolate"
+                        onCheckedChange={(on) => set("isolate", on)}
+                      />
+                    </label>
+                  </Field>
+                ) : null}
+
+                <Field
+                  hint="One line: what this agent is for."
+                  htmlFor="agent-role"
+                  label="Role"
+                >
+                  <Input
+                    id="agent-role"
+                    onChange={(event) => set("description", event.target.value)}
+                    placeholder="keeps the docs in sync with the code"
+                    value={form.description}
+                  />
+                </Field>
+                <Field
+                  hint="A standing instruction the agent works toward on every turn."
+                  htmlFor="agent-goal"
+                  label="Goal"
+                >
+                  <Textarea
+                    className="min-h-20"
+                    id="agent-goal"
+                    onChange={(event) => set("goal", event.target.value)}
+                    value={form.goal}
+                  />
                 </Field>
               </div>
-
-              {mode === "add" ? (
-                <>
-                  <Field htmlFor="agent-folder" label="Works in">
-                    <div className="flex gap-2">
-                      <select
-                        className={SELECT_CLASS}
-                        data-testid="agent-form-folder"
-                        id="agent-folder"
-                        onChange={(event) => set("cwd", event.target.value)}
-                        value={form.cwd}
-                      >
-                        {folders.length === 0 ? (
-                          <option value="">No folder yet</option>
-                        ) : null}
-                        {folders.map((folder) => (
-                          <option key={folder} value={folder}>
-                            {folder}
-                          </option>
-                        ))}
-                      </select>
-                      <Button
-                        onClick={chooseFolder}
-                        type="button"
-                        variant="outline"
-                      >
-                        <FolderOpen />
-                        Choose…
-                      </Button>
-                    </div>
-                  </Field>
-                  <label
-                    className="flex items-start gap-3 text-sm"
-                    htmlFor="agent-isolate"
-                  >
-                    <Switch
-                      checked={form.isolate}
-                      id="agent-isolate"
-                      onCheckedChange={(on) => set("isolate", on)}
-                    />
-                    <span>
-                      <span className="font-medium">Own git worktree</span>
-                      <span className="block text-xs text-muted-foreground">
-                        Works on a separate checkout of the folder, so its
-                        changes don't collide with other agents'.
-                      </span>
-                    </span>
-                  </label>
-                </>
-              ) : null}
-
-              <Field
-                hint="One line: what this agent is for."
-                htmlFor="agent-role"
-                label="Role"
-              >
-                <Input
-                  id="agent-role"
-                  onChange={(event) => set("description", event.target.value)}
-                  placeholder="keeps the docs in sync with the code"
-                  value={form.description}
-                />
-              </Field>
-              <Field
-                hint="A standing instruction the agent works toward on every turn."
-                htmlFor="agent-goal"
-                label="Goal"
-              >
-                <Textarea
-                  className="min-h-20"
-                  id="agent-goal"
-                  onChange={(event) => set("goal", event.target.value)}
-                  value={form.goal}
-                />
-              </Field>
             </div>
           )}
 
           {error ? (
-            <p className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <p className="mx-6 mb-3 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {error}
             </p>
           ) : null}
 
-          <DialogFooter className="flex-row items-center justify-between gap-2 sm:justify-between">
+          <DialogFooter className="flex-row items-center justify-between gap-2 border-t border-border/60 bg-muted/20 px-6 py-3 sm:justify-between">
             {mode === "add" ? (
               <button
                 className="text-left text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
@@ -448,5 +554,39 @@ export function AgentFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One of a few, as pills (engines, models). */
+function Choices({
+  options,
+  value,
+  onPick,
+  testId,
+}: {
+  options: { id: string; label: string }[];
+  value: string;
+  onPick: (id: string) => void;
+  testId?: string;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5" data-testid={testId}>
+      {options.map((option) => (
+        <button
+          aria-pressed={value === option.id}
+          className={cn(
+            "h-8 rounded-full border px-3 text-sm transition-colors",
+            value === option.id
+              ? "border-foreground/70 bg-foreground text-background"
+              : "border-border/60 bg-background/50 text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+          )}
+          key={option.id || "default"}
+          onClick={() => onPick(option.id)}
+          type="button"
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }
