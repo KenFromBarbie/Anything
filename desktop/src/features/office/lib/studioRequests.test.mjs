@@ -43,7 +43,7 @@ test("a change names the artifact and asks for a new version", () => {
   );
   assert.match(text, /"Funnel deck" \(artifact a1, C:\/hive/);
   assert.match(text, /make slide 3 shorter/);
-  assert.match(text, /new version with the same title/);
+  assert.match(text, /new version: the same title and --version-of a1/);
 });
 
 test("a 3D model is made as one .glb", () => {
@@ -80,4 +80,16 @@ test("work in a codebase goes on a branch; learning it writes the notes", () => 
   assert.match(codebaseRequest({ ...codebase, git: false }, "x"), /isn't a git checkout/);
   assert.match(codebaseLearnRequest(codebase), /acme-site\.design\.md/);
   assert.match(codebaseLearnRequest(codebase), /Don't change the codebase/);
+});
+
+test("all Studio work goes down the office and is reviewed on the way back", () => {
+  for (const text of [
+    makeRequest("model", "a lamp"),
+    changeRequest({ id: "a1", title: "Lamp" }, "taller"),
+    codebaseRequest(codebase, "add dark mode"),
+  ]) {
+    assert.match(text, /Michael gives it to the staff member/);
+    assert.match(text, /floor workers/);
+  }
+  assert.match(changeRequest({ id: "a1", title: "Lamp" }, "x"), /--version-of a1/);
 });

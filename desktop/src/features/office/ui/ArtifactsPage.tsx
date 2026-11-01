@@ -6,6 +6,8 @@ import { useMutation } from "@tanstack/react-query";
 import {
   Box,
   Check,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   FileText,
   Film,
@@ -42,6 +44,8 @@ import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Markdown } from "@/shared/ui/markdown";
 
+import { groupVersions } from "@/features/office/lib/artifactVersions";
+
 import { Codebases } from "./Codebases";
 import { ImageQuickEdit } from "./ImageQuickEdit";
 import { AskForChanges, StudioMake } from "./StudioMake";
@@ -70,6 +74,8 @@ export type Artifact = {
   path?: string;
   previewPath?: string;
   url?: string;
+  /** The first version's id, when this is a later version of it. */
+  series?: string;
 };
 
 export const ARTIFACT_EVENT = "office-artifact";
@@ -183,12 +189,18 @@ export function ArtifactsPage({
   const [editing, setEditing] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const opened = items.find((item) => item.id === openId) ?? null;
+  // Each iteration an agent publishes is a version of one thing, not a new
+  // card: the gallery shows the latest, the viewer steps through them.
+  const groups = React.useMemo(() => groupVersions(items), [items]);
+  const versions =
+    groups.find((group) => group.versions.some((v) => v.id === openId))
+      ?.versions ?? [];
   // A site (or a page an agent opened) shows in the live browser here.
   const browsing = useBrowsing() && embedded;
 
   const q = query.trim().toLowerCase();
-  const shown = items.filter(
-    (item) =>
+  const shown = groups.filter(
+    ({ latest: item }) =>
       (filter === "all" || filterOf(item) === filter) &&
       (!q ||
         item.title.toLowerCase().includes(q) ||
@@ -226,7 +238,16 @@ export function ArtifactsPage({
               ← All artifacts
             </button>
             <span className="flex-1" />
-            <ArtifactManage item={opened} onDeleted={() => setOpenId(null)} />
+            <VersionPicker
+              current={opened}
+              onPick={setOpenId}
+              versions={versions}
+            />
+            <ArtifactManage
+              item={opened}
+              onDeleted={() => setOpenId(null)}
+              versions={versions}
+            />
             {opened.kind === "image" && opened.path ? (
               <Button
                 data-testid="artifact-edit"
@@ -304,10 +325,11 @@ export function ArtifactsPage({
               className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3"
               data-testid="artifacts-grid"
             >
-              {shown.map((item) => (
+              {shown.map(({ latest: item, versions }) => (
                 <ArtifactCard
                   item={item}
                   key={item.id}
+                  versions={versions.length}
                   onOpen={() => {
                     if (item.kind === "site" && item.url) {
                       // A site opens in the live browser, here.
@@ -332,9 +354,11 @@ export function ArtifactsPage({
 /** A gallery card: a live look at the artifact, then what it is. */
 function ArtifactCard({
   item,
+  versions,
   onOpen,
 }: {
   item: Artifact;
+  versions: number;
   onOpen: () => void;
 }) {
   const Icon = KIND_ICONS[item.kind] ?? Package;
@@ -349,6 +373,11 @@ function ArtifactCard({
         <ArtifactThumb item={item} />
         {/* Clicks go to the card, not into the preview. */}
         <span className="absolute inset-0" />
+        {versions > 1 ? (
+          <span className="absolute right-2 top-2 rounded-md bg-background/90 px-1.5 py-0.5 text-[11px] font-medium shadow-sm">
+            {versions} versions
+          </span>
+        ) : null}
       </div>
       <div className="flex items-center gap-3 p-3">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background/60">
@@ -717,9 +746,11 @@ export function ArtifactViewer({
 /** An opened artifact's title, renamed in place, and removing it. */
 function ArtifactManage({
   item,
+  versions,
   onDeleted,
 }: {
   item: Artifact;
+  versions: Artifact[];
   onDeleted: () => void;
 }) {
   const client = useQueryClient();
@@ -728,8 +759,12 @@ function ArtifactManage({
   const refresh = () =>
     void client.invalidateQueries({ queryKey: ARTIFACTS_KEY });
   const rename = useMutation({
-    mutationFn: (next: string) =>
-      invoke("office_artifact_rename", { id: item.id, title: next }),
+    // A new title is the whole thing's, every version of it.
+    mutationFn: async (next: string) => {
+      for (const version of versions.length ? versions : [item]) {
+        await invoke("office_artifact_rename", { id: version.id, title: next });
+      }
+    },
     onSuccess: () => {
       refresh();
       setTitle(null);
@@ -797,10 +832,14 @@ function ArtifactManage({
       <AlertDialog onOpenChange={setDeleting} open={deleting}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove {item.title}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Remove {versions.length > 1 ? "this version of " : ""}
+              {item.title}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              It leaves Artifacts and its files go to the Recycle Bin, where you
-              can get them back. Links to it in chat stop opening it.
+              {versions.length > 1 ? "The other versions stay. " : ""}It leaves
+              Artifacts and its files go to the Recycle Bin, where you can get
+              them back. Links to it in chat stop opening it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -812,5 +851,51 @@ function ArtifactManage({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/** Step between the versions of one thing; the latest is where it opens. */
+function VersionPicker({
+  versions,
+  current,
+  onPick,
+}: {
+  versions: Artifact[];
+  current: Artifact;
+  onPick: (id: string) => void;
+}) {
+  if (versions.length < 2) return null;
+  const index = versions.findIndex((v) => v.id === current.id);
+  const go = (to: number) => {
+    const next = versions[to];
+    if (next) onPick(next.id);
+  };
+  return (
+    <div className="flex items-center gap-1" data-testid="artifact-versions">
+      <Button
+        aria-label="Older version"
+        className="h-8 w-8"
+        disabled={index <= 0}
+        onClick={() => go(index - 1)}
+        size="icon"
+        variant="ghost"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <span className="min-w-28 text-center text-xs text-muted-foreground">
+        Version {index + 1} of {versions.length}
+        {index === versions.length - 1 ? " (latest)" : ""}
+      </span>
+      <Button
+        aria-label="Newer version"
+        className="h-8 w-8"
+        disabled={index >= versions.length - 1}
+        onClick={() => go(index + 1)}
+        size="icon"
+        variant="ghost"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }

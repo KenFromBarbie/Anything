@@ -211,7 +211,7 @@ export interface HarnessConfig {
    *  are those that can receive inbox (claude/codex/antigravity/qwen). */
   godProvider?: AgentProvider;
   /** The model GOD runs on. Unset falls back to the provider preset's
-   *  `recommendedOrchestratorModel`, then MODEL_GOD. Default 'claude-opus-4-8'. */
+   *  `recommendedOrchestratorModel`, then MODEL_GOD. Default 'claude-opus-5-5'. */
   godModel?: string;
   /** Per-server consent state for the default MCP bundle, keyed by catalog id.
    *  Seeded from MCP_CATALOG (safe-readonly ON, write/secret OFF); the user flips
@@ -430,7 +430,7 @@ const DEFAULTS: HarnessConfig = {
   orchestratorMaySpawn: false,
   defaultCommand: 'claude',
   godProvider: 'claude',
-  godModel: 'claude-opus-4-8',
+  godModel: 'claude-opus-5-5',
   // Global default model for every agent that hasn't picked one explicitly — wins
   // over the role-based tiers (modelForRole) in the spawn handler, so all agents
   // (incl. god) default to Fable 5. A per-agent model choice still overrides it.
@@ -738,14 +738,17 @@ export function resetConfig(): HarnessConfig {
 /** Model ids by tier (Lane A #6.4). Kept in sync with the claude list in
  *  src/shared/modelCatalog.json, which `agentModels()` in
  *  src/renderer/src/store/config.ts reads. */
-const MODEL_GOD = 'claude-opus-4-8';                  // orchestration — highest capability
+const MODEL_GOD = 'claude-opus-5-5';                  // Michael: reads every request, assigns, signs off
+const MODEL_STAFF = 'claude-sonnet-5-5';              // permanent staff: plan, hand out, review
 const MODEL_WORKER = 'claude-sonnet-4-6';             // general execution
+const MODEL_FLOOR = 'claude-haiku-5-5';               // floor workers the staff hire
 const MODEL_HELPER = 'claude-haiku-4-5-20251001';     // narrow, cheap helpers
 
 /** Minimal structural shape for tiering — a subset of AgentMeta so config.ts
  *  stays free of a hive.ts import. */
 export interface RoleHint {
   isGod?: boolean;
+  isStaff?: boolean;
   role?: string;
   capabilities?: string[];
 }
@@ -765,6 +768,9 @@ export function modelForRole(
     const preset = providerPreset(config?.godProvider ?? 'claude');
     return config?.godModel ?? preset.recommendedOrchestratorModel ?? MODEL_GOD;
   }
+  // The office's chain: staff plan and review, the floor does the work.
+  if (meta.isStaff) return MODEL_STAFF;
+  if (meta.role === 'worker') return MODEL_FLOOR;
   const hay = `${meta.role ?? ''} ${(meta.capabilities ?? []).join(' ')}`.toLowerCase();
   if (/\b(triage|rout|verif|lint|format|summar|classif|label)/.test(hay)) return MODEL_HELPER;
   return MODEL_WORKER;

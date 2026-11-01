@@ -87,6 +87,16 @@ const ARTIFACT_DESIGN = [
 /** How often the vault's mirrors (agents' memory, meetings) are refreshed. */
 const VAULT_SYNC_MS = 3 * 60_000;
 /** What the app's viewer does with a file, by extension. */
+/** A title without its version marks: "Site (v2, sourced)" -> "site". */
+function artifactBaseTitle(title) {
+  return String(title ?? '')
+    .toLowerCase()
+    .replace(/\s*[([][^)\]]*\b(v\d+|version|edited|updated|revised|final|draft)\b[^)\]]*[)\]]/g, '')
+    .replace(/\s*[-–—:,]?\s*\b(v\d+|version \d+|edited|updated|revised)\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 const ARTIFACT_KINDS = {
   pdf: 'pdf', png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', svg: 'image',
   mp4: 'video', webm: 'video', mov: 'video', m4v: 'video', mp3: 'audio', wav: 'audio', m4a: 'audio', ogg: 'audio',
@@ -464,6 +474,7 @@ ${global}
       `    ${this.showCommand()} --file "<path>" --title "<what it is>" [--preview "<pdf>"] [--note "<one line>"]`,
       `    ${this.showCommand()} --dir "<site folder>" --title "<what it is>"   (a site: the whole folder, opened at its index.html)`,
       `    ${this.showCommand()} --url <https address> --title "<what it is>"   (only a site that is really online)`,
+      'A new iteration of something already published is a VERSION of it, not a new thing: publish it with the same --title (add --version-of <its artifact id> when the title changes). The owner sees one card with its versions, the latest on top. Publish only what is finished and reviewed, not every draft.',
       'Never publish a localhost address: the server behind it stops when you do (or the app restarts), and the owner is left with a dead link. Publish the site’s folder with --dir; the app serves it itself.',
       'A 3D model: publish one binary .glb (materials and colours inside it, centred at the origin, Y up, under about 20 MB); the app shows it in a 3D viewer the owner can turn and zoom. .obj and .stl work too, without materials.',
       '',
@@ -839,7 +850,9 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
           ? `This is for ${route.forOthers.join(', ')} (tagged): they do it. Read it so you know; step in only if they need you or it is going wrong.`
           : route.why === 'channel'
             ? 'You were not tagged. Act only if it is meant for you or the office (a request, a question to the team, work you run); otherwise do nothing, and do not reply just to acknowledge it.'
-            : 'Handle it as you would any request from the human: do it yourself or route it to the right agent.',
+            : who === this.michael
+              ? 'Handle it through the office chain: assign it to the staff member who owns the area (they split it for the floor workers and review their work), review what comes back yourself, then answer here. A quick question you can answer straight away, you answer yourself.'
+              : 'Handle it as you would any request from the human: do it yourself or route it to the right agent.',
       ...(sentBefore
         ? [`The owner already sent you this same message at ${new Date(sentBefore).toISOString().slice(11, 16)} UTC: it is the same request, not a second one. Do not do the work twice; make sure the first one gets done and answered.`]
         : []),
@@ -1452,6 +1465,14 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
     let list = [];
     try { list = JSON.parse(fs.readFileSync(indexPath, 'utf8')); } catch { /* first one */ }
     if (!Array.isArray(list)) list = [];
+    // A new iteration of something already shown is a version of it: the app
+    // shows one card per thing, the latest on top (same rule as the app's
+    // artifactVersions.ts).
+    const family = (kind) => (kind === 'site' || kind === 'html' ? 'site' : kind);
+    const same = [...list].reverse().find((e) =>
+      e.id === String(msg.versionOf ?? '') ||
+      (family(e.kind) === family(entry.kind) && artifactBaseTitle(e.title) === artifactBaseTitle(entry.title)));
+    if (same) entry.series = same.series ?? same.id;
     list.push(entry);
     fs.mkdirSync(root, { recursive: true });
     fs.writeFileSync(indexPath + '.tmp', JSON.stringify(list.slice(-ARTIFACTS_KEPT), null, 2));

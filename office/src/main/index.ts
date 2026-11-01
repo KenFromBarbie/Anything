@@ -2832,8 +2832,10 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     // else the user's global defaultModel; else the role-based default tier. The
     // GOD is special-cased: it has its own engine config (godProvider/godModel), so
     // modelForRole resolves it and that wins over the worker-oriented defaultModel.
+    // Staff and floor workers are tiered too (Sonnet plans and reviews, Haiku
+    // does the work); the global default is for agents outside that chain.
     if (!args.includes('--model')) {
-      const m = opts.hive.isGod
+      const m = opts.hive.isGod || opts.hive.isStaff || opts.hive.role === 'worker'
         ? modelForRole(opts.hive, cfg)
         : cfg.defaultModel ?? modelForRole(opts.hive, cfg);
       if (m) args.push('--model', m);

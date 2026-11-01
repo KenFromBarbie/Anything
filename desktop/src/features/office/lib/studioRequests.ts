@@ -74,6 +74,10 @@ const HOW: Record<MakeKind, string> = {
 const FIT_THE_APP =
   "Design it for the app, where it's shown across a chat message (about 500 to 1200px wide) and full size in Artifacts: a fluid layout that fills the width (no fixed page width or outer margins), the app's light and dark themes (prefers-color-scheme), no scrolling inside it. For HTML, add the height snippet from BUZZ.md so it shows at its full height.";
 
+/** Every piece of work runs down the office and is checked on the way back. */
+export const THROUGH_THE_OFFICE =
+  "Run it through the office: Michael gives it to the staff member who owns the area, they split it into tasks for floor workers, check each worker's result, and send Michael one reviewed result; Michael reviews that before it is published or answered. Publish only the reviewed result, once.";
+
 const PUBLISH = (showCommand: string) =>
   `Publish what you made with ${showCommand} --file "<path>" --title "<what it is>" so the owner sees it in the app's Artifacts. When it's published you're done: no channel reply is needed.`;
 
@@ -114,7 +118,7 @@ export function makeRequest(
     `How: ${HOW[kind]} Work in a folder of your own under the shared workspace.`,
     ...codebaseLines(codebase),
     FIT_THE_APP,
-    "Do it yourself or hand it to the agent best placed for it (pass these instructions on).",
+    THROUGH_THE_OFFICE,
     PUBLISH(showCommand),
   ].join("\n");
 }
@@ -130,7 +134,8 @@ export function changeRequest(
     `[STUDIO CHANGE from the owner] Change "${artifact.title}" (artifact ${artifact.id}${where ? `, ${where}` : ""}): ${ask.trim()}`,
     "Work from your source for it (not the published copy) if you still have it, and keep what wasn't asked to change.",
     FIT_THE_APP,
-    `${PUBLISH(showCommand)} Publish it as a new version with the same title.`,
+    THROUGH_THE_OFFICE,
+    `${PUBLISH(showCommand)} Publish it as a new version: the same title and --version-of ${artifact.id}.`,
   ].join("\n");
 }
 
@@ -160,7 +165,7 @@ export function workflowRequest(
     ...codebaseLines(codebase),
     "Work in a folder of your own under the shared workspace.",
     FIT_THE_APP,
-    "Do it yourself or hand it to the agent best placed for it (pass these instructions on).",
+    THROUGH_THE_OFFICE,
     `${PUBLISH(showCommand)} If it makes nothing to show, post a short summary with buzz-post instead.`,
   ].join("\n");
 }
@@ -176,6 +181,7 @@ export function appRequest(
     "Make it a working single-page web app (HTML/CSS/JS in a folder of its own, with an index.html; libraries from a CDN are fine). It runs inside the app, sandboxed: keep its data in the page (localStorage), no server of its own.",
     ...codebaseLines(codebase),
     FIT_THE_APP,
+    THROUGH_THE_OFFICE,
     `Publish the folder with ${showCommand} --dir "<folder>" --title "${workflow.name}" (exactly that title: the owner's tile opens the newest artifact with it). When it's published you're done: no channel reply is needed.`,
   ].join("\n");
 }
@@ -187,6 +193,7 @@ export function codebaseRequest(codebase: Codebase, ask: string): string {
     codebase.git
       ? "Work on a new git branch (anything/<short-name>) and commit there; don't push or merge unless the owner asks."
       : "It isn't a git checkout: keep a copy of anything you change.",
+    THROUGH_THE_OFFICE,
     "When you're done, post a short summary of what you changed (and the branch) with buzz-post, and publish anything to look at with buzz-show.",
   ].join("\n");
 }
