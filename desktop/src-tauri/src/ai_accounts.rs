@@ -742,10 +742,100 @@ fn claude_usage(home: &Path) -> Usage {
             );
         }
     }
-    usage.note = Some(
-        "Claude doesn't share plan limits with other apps; run /usage in Claude Code for the exact percentages.".into(),
-    );
+    match claude_plan_limits(home) {
+        Some(limits) if !limits.is_empty() => {
+            usage.limits = limits;
+            usage.limits_at = Some(now_ms());
+        }
+        _ => {
+            usage.note = Some(
+                "No plan limits right now: they come from Anthropic while this account is signed in. Run /usage in Claude Code to see them there.".into(),
+            );
+        }
+    }
     usage
+}
+
+/// The account's plan limits, as Claude Code's /usage shows them: asked of
+/// Anthropic with the account's own sign-in, which never leaves this
+/// function. Read at most once a minute per account; None when the account
+/// isn't signed in with a subscription or Anthropic doesn't answer.
+fn claude_plan_limits(home: &Path) -> Option<Vec<Limit>> {
+    use std::sync::{Mutex, OnceLock};
+    use std::time::Instant;
+    static CACHE: OnceLock<Mutex<HashMap<PathBuf, (Instant, Option<Vec<Limit>>)>>> =
+        OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some((at, limits)) = cache.lock().ok()?.get(home) {
+        if at.elapsed() < Duration::from_secs(60) {
+            return limits.clone();
+        }
+    }
+    let creds = read_json(&home.join(".credentials.json"))?;
+    let oauth = creds.get("claudeAiOauth")?;
+    let token = oauth.get("accessToken").and_then(Value::as_str)?.to_string();
+    let expired = oauth
+        .get("expiresAt")
+        .and_then(Value::as_i64)
+        .is_some_and(|at| at <= now_ms());
+    let limits = if token.is_empty() || expired {
+        None
+    } else {
+        // Its own thread: the blocking client must not run on an async runtime.
+        std::thread::spawn(move || fetch_claude_limits(&token))
+            .join()
+            .ok()
+            .flatten()
+    };
+    cache
+        .lock()
+        .ok()?
+        .insert(home.to_path_buf(), (Instant::now(), limits.clone()));
+    limits
+}
+
+fn fetch_claude_limits(token: &str) -> Option<Vec<Limit>> {
+    let body: Value = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .build()
+        .ok()?
+        .get("https://api.anthropic.com/api/oauth/usage")
+        .bearer_auth(token)
+        .header("anthropic-beta", "oauth-2025-04-20")
+        .send()
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json()
+        .ok()?;
+    Some(claude_limits_from(&body))
+}
+
+/// Anthropic's usage answer as limits: utilization is a percent, resets_at a
+/// timestamp.
+fn claude_limits_from(body: &Value) -> Vec<Limit> {
+    [
+        ("five_hour", "5-hour limit", Some(300)),
+        ("seven_day", "Weekly limit", Some(10_080)),
+        ("seven_day_opus", "Weekly · Opus", Some(10_080)),
+        ("seven_day_sonnet", "Weekly · Sonnet", Some(10_080)),
+    ]
+    .into_iter()
+    .filter_map(|(key, label, window)| {
+        let entry = body.get(key)?;
+        let used = entry.get("utilization").and_then(Value::as_f64)?;
+        Some(Limit {
+            label: label.to_string(),
+            used_percent: used,
+            window_minutes: window,
+            resets_at: entry
+                .get("resets_at")
+                .and_then(Value::as_str)
+                .and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok())
+                .map(|t| t.timestamp()),
+        })
+    })
+    .collect()
 }
 
 fn account_at(history: &[Switch], at: i64) -> Option<String> {
@@ -1358,6 +1448,22 @@ mod tests {
             jwt_claims(&format!("x.{payload}.y")).and_then(|c| str_at(&c, &["email"])),
             Some("a@b.c".into())
         );
+    }
+
+    #[test]
+    fn reads_claude_plan_limits() {
+        let body = serde_json::json!({
+            "five_hour": { "utilization": 42.0, "resets_at": "2026-11-01T23:00:00+00:00" },
+            "seven_day": { "utilization": 7.5, "resets_at": null },
+            "seven_day_opus": null
+        });
+        let limits = claude_limits_from(&body);
+        assert_eq!(limits.len(), 2);
+        assert_eq!(limits[0].label, "5-hour limit");
+        assert_eq!(limits[0].used_percent, 42.0);
+        assert!(limits[0].resets_at.is_some());
+        assert_eq!(limits[1].label, "Weekly limit");
+        assert_eq!(limits[1].resets_at, None);
     }
 
     #[test]

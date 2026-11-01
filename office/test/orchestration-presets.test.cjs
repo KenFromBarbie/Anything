@@ -30,3 +30,9 @@ test('staff and floor workers run on the models a preset saved', () => {
   assert.equal(modelForRole({ isStaff: true }), 'claude-sonnet-5-5');
   assert.equal(modelForRole({ role: 'worker' }), 'claude-haiku-5-5');
 });
+
+test("an owner's preset is recognised once its models are set", () => {
+  const mine = { id: 'custom-x', label: 'Night shift', blurb: '', michael: 'claude-opus-5-5', staff: 'claude-haiku-5-5', floor: 'claude-haiku-5-5', others: 'claude-haiku-5-5' };
+  assert.equal(matchingPreset(mine), null);
+  assert.equal(matchingPreset(mine, [...ORCHESTRATION_PRESETS, mine])?.id, 'custom-x');
+});

@@ -15,6 +15,7 @@ import { MAX_AGENT_TOKEN_CAP } from '../shared/tokenCaps';
 import { expandTilde, normalizeHiveHome } from './fs';
 import { activeAccountHome } from './aiAccounts';
 import type { IntegrationRecord } from '../shared/integrations';
+import type { OrchestrationPreset } from '../shared/orchestrationPresets';
 import {
   DEFAULT_CONTEXT_TRIGGER,
   DEFAULT_ORG_TRIGGER,
@@ -219,6 +220,8 @@ export interface HarnessConfig {
   /** The model floor workers run on (the staff hire them to do the work). Unset =
    *  MODEL_FLOOR. */
   floorModel?: string;
+  /** Orchestration presets the owner made, beside the built-in ones. */
+  customPresets?: OrchestrationPreset[];
   /** Per-server consent state for the default MCP bundle, keyed by catalog id.
    *  Seeded from MCP_CATALOG (safe-readonly ON, write/secret OFF); the user flips
    *  these in Settings. A server is wired into an agent only when enabled here. */

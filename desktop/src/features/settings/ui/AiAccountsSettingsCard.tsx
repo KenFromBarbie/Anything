@@ -25,12 +25,15 @@ import {
   ENGINE_CLI_NAME,
   type Engine,
   type EngineAccounts,
+  getUsageGuard,
   listAiAccounts,
   removeAiAccount,
   renameAiAccount,
   setActiveAiAccount,
   setAiAccountApiKey,
   signInAiAccount,
+  ruleKey,
+  type UsageRule,
   type UsageWindow,
   windowTotal,
 } from "@/features/settings/lib/aiAccounts";
@@ -63,6 +66,7 @@ import {
 import { SettingsSectionHeader } from "./SettingsSectionHeader";
 import {
   FreezeButton,
+  GUARD_KEY,
   FrozenBanner,
   UsageActivity,
   UsageRulesPanel,
@@ -86,6 +90,131 @@ function resetsIn(unixSeconds: number | null): string | null {
   const hours = Math.round(minutes / 60);
   if (hours < 48) return `resets in ${hours}h`;
   return `resets in ${Math.round(hours / 24)}d`;
+}
+
+type Bar = { label: string; percent: number; detail: string | null };
+
+/** How full the account is: the plan's own limits where the CLI or Anthropic
+ *  report them, else the owner's caps on the usage this app counts. */
+function usageBars(data: AccountUsage, rule: UsageRule | undefined): Bar[] {
+  if (data.limits.length > 0) {
+    return data.limits.map((limit) => ({
+      label: limit.label,
+      percent: limit.usedPercent,
+      detail: resetsIn(limit.resetsAt),
+    }));
+  }
+  const caps: [string, number | null | undefined, UsageWindow][] = [
+    ["5-hour cap", rule?.cap5h, data.last5h],
+    ["Today's cap", rule?.capDay, data.today],
+    ["Weekly cap", rule?.capWeek, data.week],
+  ];
+  return caps.flatMap(([label, cap, window]) =>
+    cap
+      ? [
+          {
+            label,
+            percent: (windowTotal(window) / cap) * 100,
+            detail: `${fmtTokens(windowTotal(window))} of ${fmtTokens(cap)}`,
+          },
+        ]
+      : [],
+  );
+}
+
+const barColor = (percent: number) =>
+  percent >= 90
+    ? "bg-destructive"
+    : percent >= 70
+      ? "bg-amber-500"
+      : "bg-emerald-500";
+
+function UsageBar({ bar, plan }: { bar: Bar; plan?: string | null }) {
+  return (
+    <div className="grid gap-1">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-medium">
+          {bar.label}
+          {plan ? (
+            <span className="ml-1 font-normal text-muted-foreground">
+              · {plan}
+            </span>
+          ) : null}
+        </span>
+        <span className="tabular-nums text-muted-foreground">
+          <strong className="font-semibold text-foreground">
+            {Math.round(bar.percent)}%
+          </strong>{" "}
+          used{bar.detail ? ` · ${bar.detail}` : ""}
+        </span>
+      </div>
+      <div
+        aria-label={`${bar.label}: ${Math.round(bar.percent)}% used`}
+        aria-valuemax={100}
+        aria-valuemin={0}
+        aria-valuenow={Math.round(Math.min(100, bar.percent))}
+        className="h-2 overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+      >
+        <div
+          className={cn(
+            "h-full rounded-full transition-[width]",
+            barColor(bar.percent),
+          )}
+          style={{ width: `${Math.min(100, bar.percent)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** The fullest of an account's bars, small, for its collapsed row. */
+function UsageChip({
+  engine,
+  account,
+}: {
+  engine: Engine;
+  account: AiAccount;
+}) {
+  const usage = useQuery({
+    queryKey: ["ai-accounts", "usage", engine, account.id],
+    queryFn: () => aiAccountUsage(engine, account.id),
+    refetchInterval: 60_000,
+    enabled: account.signedIn,
+  });
+  const guard = useQuery({
+    queryKey: GUARD_KEY,
+    queryFn: getUsageGuard,
+    refetchInterval: 30_000,
+  });
+  if (!usage.data) return null;
+  const bars = usageBars(
+    usage.data,
+    guard.data?.rules[ruleKey(engine, account.id)],
+  );
+  if (bars.length === 0) return null;
+  const top = bars.reduce((a, b) => (b.percent > a.percent ? b : a));
+  return (
+    <span
+      className="flex shrink-0 items-center gap-2 text-xs tabular-nums text-muted-foreground"
+      title={bars
+        .map((b) => `${b.label}: ${Math.round(b.percent)}% used`)
+        .join("\n")}
+    >
+      <span className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
+        <span
+          className={cn("block h-full rounded-full", barColor(top.percent))}
+          style={{ width: `${Math.min(100, top.percent)}%` }}
+        />
+      </span>
+      <span>
+        <strong className="font-semibold text-foreground">
+          {Math.round(top.percent)}%
+        </strong>{" "}
+        {top.label.replace(/ (limit|cap)$/, "").toLowerCase()}
+      </span>
+    </span>
+  );
 }
 
 function WindowStat({ label, window }: { label: string; window: UsageWindow }) {
@@ -121,6 +250,11 @@ function UsagePanel({
     queryFn: () => aiAccountUsage(engine, account.id),
     refetchInterval: 60_000,
   });
+  const guard = useQuery({
+    queryKey: GUARD_KEY,
+    queryFn: getUsageGuard,
+    refetchInterval: 30_000,
+  });
   const data: AccountUsage | undefined = usage.data;
   if (usage.isLoading) {
     return (
@@ -139,42 +273,17 @@ function UsagePanel({
       </p>
     );
   }
+  const bars = usageBars(data, guard.data?.rules[ruleKey(engine, account.id)]);
   return (
     <div className="grid gap-3">
-      {data.limits.length > 0 ? (
+      {bars.length > 0 ? (
         <div className="grid gap-2">
-          {data.limits.map((limit) => (
-            <div className="grid gap-1" key={limit.label}>
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-medium">
-                  {limit.label}
-                  {data.plan ? (
-                    <span className="ml-1 font-normal text-muted-foreground">
-                      · {data.plan}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="tabular-nums text-muted-foreground">
-                  {Math.round(limit.usedPercent)}% used
-                  {resetsIn(limit.resetsAt)
-                    ? ` · ${resetsIn(limit.resetsAt)}`
-                    : ""}
-                </span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div
-                  className={cn(
-                    "h-full rounded-full",
-                    limit.usedPercent >= 90
-                      ? "bg-destructive"
-                      : limit.usedPercent >= 70
-                        ? "bg-amber-500"
-                        : "bg-emerald-500",
-                  )}
-                  style={{ width: `${Math.min(100, limit.usedPercent)}%` }}
-                />
-              </div>
-            </div>
+          {bars.map((bar) => (
+            <UsageBar
+              bar={bar}
+              key={bar.label}
+              plan={data.limits.length > 0 ? data.plan : null}
+            />
           ))}
         </div>
       ) : null}
@@ -271,6 +380,9 @@ function AccountRow({
             </span>
           </span>
         </button>
+        {!open && account.signedIn ? (
+          <UsageChip account={account} engine={engine.engine} />
+        ) : null}
         {!account.signedIn ? (
           <Button onClick={signIn} size="sm" variant="outline">
             <LogIn />

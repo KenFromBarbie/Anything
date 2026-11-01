@@ -14,6 +14,8 @@ export interface OrchestrationPreset {
   staff: string;
   floor: string;
   others: string;
+  /** Made by the owner (kept in config.customPresets), not built in. */
+  custom?: boolean;
 }
 
 export const ORCHESTRATION_PRESETS: OrchestrationPreset[] = [
@@ -63,10 +65,14 @@ export interface ChainModels {
   others?: string;
 }
 
-/** The preset these models match, or null when they were set by hand. */
-export function matchingPreset(models: ChainModels): OrchestrationPreset | null {
+/** The preset these models match, or null when they were set by hand. The
+ *  built-in presets win a tie with one the owner made. */
+export function matchingPreset(
+  models: ChainModels,
+  presets: OrchestrationPreset[] = ORCHESTRATION_PRESETS
+): OrchestrationPreset | null {
   return (
-    ORCHESTRATION_PRESETS.find(
+    presets.find(
       (p) =>
         p.michael === models.michael &&
         p.staff === models.staff &&

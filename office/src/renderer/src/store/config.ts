@@ -16,6 +16,7 @@ import type {
 import { isNewer } from '@shared/updateState';
 import modelCatalog from '@shared/modelCatalog.json';
 import type { CatalogModel, ModelCatalog } from '@shared/modelCatalogPayload';
+import type { OrchestrationPreset } from '@shared/orchestrationPresets';
 
 export {
   AGENT_PROVIDER_PRESETS,
@@ -80,6 +81,7 @@ export interface HarnessConfig {
    *  src/main/config.ts. */
   staffModel?: string;
   floorModel?: string;
+  customPresets?: OrchestrationPreset[];
   /** Per-server consent for the default MCP bundle, keyed by catalog id (mirrors
    *  src/main/config.ts; seeded from MCP_CATALOG). */
   mcpDefaults?: { [id: string]: { enabled: boolean } };

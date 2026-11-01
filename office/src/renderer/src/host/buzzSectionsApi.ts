@@ -15,7 +15,7 @@ import {
   modelsForProvider,
   type AgentProvider
 } from '@/store/config';
-import { matchingPreset, ORCHESTRATION_PRESETS } from '@shared/orchestrationPresets';
+import { matchingPreset, ORCHESTRATION_PRESETS, type OrchestrationPreset } from '@shared/orchestrationPresets';
 import { restartAgent } from '@/components/agentRestart';
 import { buildGraph, type MessageLogEntry } from '@/components/memoryGraph/buildGraph';
 import type { OrgTriggerConfig, WebhookTrigger } from '@shared/triggers';
@@ -43,6 +43,14 @@ const claudeLabel = (id: string) => modelsForProvider('claude').find((m) => m.id
 
 /** Which link of the chain an agent is, and so which preset model it runs on. */
 type ChainLink = 'michael' | 'staff' | 'floor' | 'others';
+const CHAIN_LINKS = ['michael', 'staff', 'floor', 'others'] as const;
+
+/** The built-in presets, then the owner's own. */
+const allPresets = (custom: OrchestrationPreset[] | undefined): OrchestrationPreset[] => [
+  ...ORCHESTRATION_PRESETS,
+  ...(custom ?? []).map((p) => ({ ...p, custom: true }))
+];
+
 const linkOf = (agent: Agent, roles: Record<string, { role?: string } | undefined>): ChainLink =>
   agent.isGod ? 'michael' : agent.staff ? 'staff' : roles[agent.id]?.role === 'worker' ? 'floor' : 'others';
 
@@ -181,6 +189,7 @@ export const sectionOps: Record<string, Op> = {
    *  models were set by hand), and the agents a switch would restart. */
   'floor.presets': async () => {
     const c = await window.cth.getConfig();
+    const presets = allPresets(c.customPresets);
     const current = {
       michael: (c.godProvider ?? 'claude') === 'claude' ? c.godModel : undefined,
       staff: c.staffModel ?? 'claude-sonnet-5-5',
@@ -190,8 +199,10 @@ export const sectionOps: Record<string, Op> = {
     const roles = (await window.cth.hiveRegistry()).agents;
     const live = useStore.getState().agents.filter((x) => x.ptyId && !x.isAssistant);
     return {
-      current: matchingPreset(current)?.id ?? null,
-      presets: ORCHESTRATION_PRESETS.map((p) => ({
+      current: matchingPreset(current, presets)?.id ?? null,
+      now: current,
+      models: modelsForProvider('claude').flatMap((m) => (m.id ? [{ id: m.id, label: m.label }] : [])),
+      presets: presets.map((p) => ({
         ...p,
         labels: {
           michael: claudeLabel(p.michael),
@@ -203,6 +214,38 @@ export const sectionOps: Record<string, Op> = {
       live: live.map((x) => ({ id: x.id, name: x.name, link: linkOf(x, roles), model: x.model ?? null }))
     };
   },
+  /** Make or change one of the owner's presets; returns its id. */
+  'floor.savePreset': async (a) => {
+    const raw = (a.preset ?? {}) as Partial<OrchestrationPreset>;
+    const label = typeof raw.label === 'string' ? raw.label.trim().slice(0, 40) : '';
+    if (!label) throw new Error('give the preset a name');
+    const known = new Set(modelsForProvider('claude').map((m) => m.id));
+    for (const link of CHAIN_LINKS) {
+      if (typeof raw[link] !== 'string' || !known.has(raw[link])) throw new Error(`pick a model for ${link}`);
+    }
+    const c = await window.cth.getConfig();
+    const mine = c.customPresets ?? [];
+    const id =
+      typeof raw.id === 'string' && mine.some((p) => p.id === raw.id) ? raw.id : `custom-${Date.now().toString(36)}`;
+    const preset: OrchestrationPreset = {
+      id,
+      label,
+      blurb: typeof raw.blurb === 'string' ? raw.blurb.trim().slice(0, 160) : '',
+      michael: raw.michael as string,
+      staff: raw.staff as string,
+      floor: raw.floor as string,
+      others: raw.others as string
+    };
+    const next = mine.some((p) => p.id === id) ? mine.map((p) => (p.id === id ? preset : p)) : [...mine, preset];
+    await window.cth.updateConfig({ customPresets: next });
+    return id;
+  },
+  /** Remove one of the owner's presets. The models it set stay as they are. */
+  'floor.deletePreset': async (a) => {
+    const c = await window.cth.getConfig();
+    await window.cth.updateConfig({ customPresets: (c.customPresets ?? []).filter((p) => p.id !== a.id) });
+    return true;
+  },
   /** Switch the whole office to a preset: save it for every future launch and
    *  hire, and with `restart`, restart the agents on the floor now onto their
    *  new models, picking each conversation back up where the engine allows.
@@ -210,7 +253,7 @@ export const sectionOps: Record<string, Op> = {
    *  a time after this returns (several can outlast a call); it answers with
    *  who is restarting. */
   'floor.applyPreset': async (a) => {
-    const preset = ORCHESTRATION_PRESETS.find((p) => p.id === a.id);
+    const preset = allPresets((await window.cth.getConfig()).customPresets).find((p) => p.id === a.id);
     if (!preset) throw new Error('no such preset');
     await window.cth.updateConfig({
       godProvider: 'claude',
