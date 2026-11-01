@@ -3,6 +3,7 @@ import type { OfficeAgent } from "@/features/office/lib/officeLink";
 import { cn } from "@/shared/lib/cn";
 import { SectionHeader } from "@/shared/ui/PageHeader";
 
+import { OrchestrationPresets } from "../sections/OrchestrationPresets";
 import { AgentAvatar, AgentStatusPill, ContextMeter } from "./AgentBits";
 
 /** Every agent on the floor at a glance, under Michael's terminal. */
@@ -22,8 +23,11 @@ export function FloorMonitor({
       data-testid="agents-monitor"
     >
       <SectionHeader
-        description="Every agent on the floor, live."
+        description="Every agent on the floor, live, and the models they run on."
         title="Monitor"
+      />
+      <OrchestrationPresets
+        michaelName={agents.find((agent) => agent.isGod)?.name ?? "Michael"}
       />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[40rem] text-sm">

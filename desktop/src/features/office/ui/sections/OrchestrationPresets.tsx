@@ -41,7 +41,7 @@ import {
 } from "@/shared/ui/dropdown-menu";
 import { Input } from "@/shared/ui/input";
 
-import { ErrorLine, SectionCard } from "./SectionBits";
+import { ErrorLine } from "./SectionBits";
 
 type Link = "michael" | "staff" | "floor" | "others";
 type Models = Record<Link, string>;
@@ -132,22 +132,17 @@ export function OrchestrationPresets({ michaelName }: { michaelName: string }) {
   };
 
   return (
-    <SectionCard
-      action={
-        <Button
-          disabled={!data}
-          onClick={newPreset}
-          size="sm"
-          variant="outline"
-        >
-          <Plus />
-          New preset
-        </Button>
-      }
-      description="Switch every agent's model at once. Michael reads and assigns, staff plan and review, the floor does the work."
-      testId="orchestration-presets"
-      title="Orchestration preset"
-    >
+    <div className="grid gap-2" data-testid="orchestration-presets">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Preset
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {data && !data.current
+            ? "Models set by hand. Pick one to switch every agent at once."
+            : "Switches every agent's model at once."}
+        </span>
+      </div>
       {presets.isError ? (
         <div className="flex flex-wrap items-center gap-2">
           <div className="min-w-0 flex-1">
@@ -167,7 +162,7 @@ export function OrchestrationPresets({ michaelName }: { michaelName: string }) {
       ) : null}
 
       {data ? (
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
           {data.presets.map((preset) => {
             const on = data.current === preset.id;
             return (
@@ -182,49 +177,49 @@ export function OrchestrationPresets({ michaelName }: { michaelName: string }) {
               >
                 <button
                   aria-pressed={on}
-                  className="grid h-full w-full gap-3 rounded-xl p-3 text-left disabled:opacity-60"
+                  className="grid h-full w-full gap-0.5 rounded-xl px-3 py-2 text-left disabled:opacity-60"
                   data-testid={`preset-${preset.id}`}
                   disabled={apply.isPending}
                   onClick={() => setPicked(preset)}
+                  title={[
+                    preset.blurb,
+                    ...LINKS.map(
+                      ({ link, label }) =>
+                        `${linkName(link, label)}: ${preset.labels[link]}`,
+                    ),
+                  ]
+                    .filter(Boolean)
+                    .join("\n")}
                   type="button"
                 >
-                  <span className="grid gap-1 pr-7">
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <span className="truncate">{preset.label}</span>
-                      {on ? (
-                        <Check className="h-4 w-4 shrink-0 text-primary" />
-                      ) : null}
-                      {preset.custom ? (
-                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-2xs font-normal text-muted-foreground">
-                          Yours
-                        </span>
-                      ) : null}
-                    </span>
-                    {preset.blurb ? (
-                      <span className="text-xs leading-snug text-muted-foreground">
-                        {preset.blurb}
+                  <span
+                    className={cn(
+                      "flex items-center gap-1.5 text-sm font-medium",
+                      preset.custom && "pr-6",
+                    )}
+                  >
+                    <span className="truncate">{preset.label}</span>
+                    {on ? (
+                      <Check className="h-4 w-4 shrink-0 text-primary" />
+                    ) : null}
+                    {preset.custom ? (
+                      <span className="rounded-full bg-muted px-1.5 text-2xs font-normal text-muted-foreground">
+                        Yours
                       </span>
                     ) : null}
                   </span>
-                  <dl className="mt-auto grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    {LINKS.map(({ link, label }) => (
-                      <React.Fragment key={link}>
-                        <dt className="text-muted-foreground">
-                          {linkName(link, label)}
-                        </dt>
-                        <dd className="truncate text-right font-medium">
-                          {preset.labels[link]}
-                        </dd>
-                      </React.Fragment>
-                    ))}
-                  </dl>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {LINKS.slice(0, 3)
+                      .map(({ link }) => preset.labels[link])
+                      .join(" · ")}
+                  </span>
                 </button>
                 {preset.custom ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
                         aria-label={`${preset.label} options`}
-                        className="absolute right-1.5 top-1.5"
+                        className="absolute right-1 top-1"
                         size="icon-xs"
                         variant="ghost"
                       >
@@ -262,21 +257,15 @@ export function OrchestrationPresets({ michaelName }: { michaelName: string }) {
             );
           })}
           <button
-            className="flex min-h-32 flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border/70 p-3 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-border/70 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
             data-testid="preset-new"
             onClick={newPreset}
             type="button"
           >
-            <Plus className="h-5 w-5" />
-            Make your own
+            <Plus className="h-4 w-4" />
+            New preset
           </button>
         </div>
-      ) : null}
-      {data && !data.current ? (
-        <p className="text-xs text-muted-foreground">
-          The models were set by hand, so no preset is selected. Save them as
-          one with New preset.
-        </p>
       ) : null}
 
       <AlertDialog
@@ -355,7 +344,7 @@ export function OrchestrationPresets({ michaelName }: { michaelName: string }) {
         onClose={() => setDraft(null)}
         onSaved={refresh}
       />
-    </SectionCard>
+    </div>
   );
 }
 
