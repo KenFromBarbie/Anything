@@ -1,6 +1,9 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import {
+  Circle,
+  CircleAlert,
+  CircleCheck,
   ExternalLink,
   ListChecks,
   MessageCircleQuestion,
@@ -13,7 +16,11 @@ import {
 import { openMeetingDialog } from "@/features/office/lib/meetingRoom";
 import { toast } from "sonner";
 
-import { accentDotClass } from "@/features/office/lib/agentAccent";
+import {
+  accentClasses,
+  accentDotClass,
+} from "@/features/office/lib/agentAccent";
+import { OFFICE_GLASS } from "@/features/office/lib/glass";
 import {
   setOfficeAnchor,
   setOfficeFullWindow,
@@ -226,6 +233,7 @@ function FloatingWindow({
   className,
   onClose,
   style,
+  subtitle,
   testId,
   title,
 }: {
@@ -233,20 +241,27 @@ function FloatingWindow({
   className?: string;
   onClose: () => void;
   style?: React.CSSProperties;
+  subtitle?: string;
   testId: string;
   title: React.ReactNode;
 }) {
   return (
     <section
       className={cn(
-        "fixed z-40 flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-background/95 shadow-2xl backdrop-blur animate-in fade-in zoom-in-95 duration-150",
+        "fixed z-40 flex flex-col overflow-hidden rounded-2xl animate-in fade-in zoom-in-95 duration-150",
+        OFFICE_GLASS,
         className,
       )}
       data-testid={testId}
       style={style}
     >
-      <header className="flex items-center justify-between gap-2 border-b border-border/60 py-1.5 pl-3 pr-1.5">
-        <h2 className="min-w-0 truncate text-sm font-semibold">{title}</h2>
+      <header className="flex items-center justify-between gap-2 py-2.5 pl-4 pr-2">
+        <div className="grid min-w-0">
+          <h2 className="min-w-0 truncate text-sm font-semibold">{title}</h2>
+          {subtitle ? (
+            <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+          ) : null}
+        </div>
         <Button
           aria-label="Close"
           onClick={onClose}
@@ -256,7 +271,7 @@ function FloatingWindow({
           <X />
         </Button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">{children}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">{children}</div>
     </section>
   );
 }
@@ -356,7 +371,7 @@ function ChatBubble({
         </FloatingWindow>
         <span
           aria-hidden
-          className="absolute h-3 w-3 rotate-45 border-border/70 bg-background/95 data-[side=above]:-bottom-1.5 data-[side=above]:border-b data-[side=above]:border-r data-[side=below]:-top-1.5 data-[side=below]:border-l data-[side=below]:border-t"
+          className="absolute h-3 w-3 rotate-45 border-white/40 bg-background/80 backdrop-blur-2xl dark:border-white/10 data-[side=above]:-bottom-1.5 data-[side=above]:border-b data-[side=above]:border-r data-[side=below]:-top-1.5 data-[side=below]:border-l data-[side=below]:border-t"
           ref={caretRef}
         />
       </div>
@@ -378,7 +393,10 @@ function AgentStrip({
   return (
     <nav
       aria-label="Chat with an agent"
-      className="fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-full border border-border/70 bg-background/90 p-1 shadow-lg backdrop-blur"
+      className={cn(
+        "fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-full p-1",
+        OFFICE_GLASS,
+      )}
       data-testid="office-agent-strip"
     >
       <MessageSquare className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -429,11 +447,18 @@ function TasksWindow({
   const [title, setTitle] = React.useState("");
   const shown = tasks
     .filter((task) => task.status === status)
-    .sort((a, b) => a.priority - b.priority);
+    .sort((a, b) =>
+      status === "done"
+        ? b.createdAt.localeCompare(a.createdAt)
+        : a.priority - b.priority,
+    );
   const agentById = React.useMemo(
     () => new Map(agents.map((agent) => [agent.id, agent])),
     [agents],
   );
+  const asks = tasks.filter(
+    (task) => task.status !== "done" && openQuestion(task),
+  ).length;
 
   const addTask = (event: React.FormEvent) => {
     event.preventDefault();
@@ -453,9 +478,14 @@ function TasksWindow({
 
   return (
     <FloatingWindow
-      className="right-4 top-24 max-h-[min(560px,calc(100vh-11rem))]"
+      className="right-4 top-24 max-h-[min(600px,calc(100vh-11rem))]"
       onClose={onClose}
       style={{ width: Math.min(TASKS_WIDTH, window.innerWidth - 2 * GAP) }}
+      subtitle={
+        asks
+          ? `${asks} ${asks === 1 ? "task asks" : "tasks ask"} you something`
+          : `${tasks.filter((t) => t.status !== "done").length} open`
+      }
       testId="office-tasks"
       title={
         <span className="flex items-center gap-2">
@@ -464,106 +494,159 @@ function TasksWindow({
         </span>
       }
     >
-      <div className="grid gap-2">
-        <div className="flex flex-wrap gap-1" role="tablist">
+      <div className="grid gap-3">
+        <div className="grid grid-cols-4 gap-1.5" role="tablist">
           {BOARD_COLUMNS.map((column) => {
             const count = tasks.filter(
               (t) => t.status === column.status,
             ).length;
+            const on = status === column.status;
             return (
               <button
-                aria-selected={status === column.status}
+                aria-selected={on}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors",
-                  status === column.status
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted/60 hover:bg-muted",
+                  "flex flex-col items-start gap-0.5 rounded-xl px-2.5 py-2 text-left transition-colors",
+                  on
+                    ? "bg-foreground/10 ring-1 ring-foreground/20"
+                    : "bg-foreground/[0.03] hover:bg-foreground/[0.07]",
                 )}
                 key={column.status}
                 onClick={() => setStatus(column.status)}
                 role="tab"
                 type="button"
               >
-                <span className={cn("h-1.5 w-1.5 rounded-full", column.dot)} />
-                {column.label}
-                <span className="tabular-nums opacity-70">{count}</span>
+                <span className="text-lg font-semibold leading-none tabular-nums">
+                  {count}
+                </span>
+                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <span
+                    className={cn("h-1.5 w-1.5 rounded-full", column.dot)}
+                  />
+                  {column.label}
+                </span>
               </button>
             );
           })}
         </div>
-        <form className="flex gap-1.5" onSubmit={addTask}>
+
+        <form className="relative" onSubmit={addTask}>
+          <Plus className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-8"
+            aria-label="New task"
+            className="h-9 rounded-xl border-foreground/10 bg-foreground/[0.04] pl-9 pr-16"
             disabled={add.isPending}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="New task, then Enter"
+            placeholder="Add a task"
             value={title}
           />
-          <Button
-            aria-label="Add the task"
-            disabled={!title.trim() || add.isPending}
-            size="icon"
-            type="submit"
-            variant="outline"
-          >
-            <Plus />
-          </Button>
+          {title.trim() ? (
+            <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-foreground/15 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              Enter
+            </kbd>
+          ) : null}
         </form>
-        <ul className="grid gap-1">
+
+        <ul className="-mx-1 grid gap-0.5">
           {shown.map((task) => {
             const assignee = task.assignee
               ? agentById.get(task.assignee)
               : undefined;
+            const question = openQuestion(task);
+            const open = openTaskId === task.id;
             return (
               <li key={task.id}>
                 <button
                   className={cn(
-                    "flex w-full flex-col gap-0.5 rounded-lg border border-transparent px-2.5 py-2 text-left transition-colors hover:bg-muted/60",
-                    openTaskId === task.id && "border-border bg-muted/60",
+                    "flex w-full items-start gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors",
+                    open ? "bg-foreground/10" : "hover:bg-foreground/[0.06]",
                   )}
                   data-testid="office-task-row"
-                  onClick={() =>
-                    onOpenTask(openTaskId === task.id ? null : task.id)
-                  }
+                  onClick={() => onOpenTask(open ? null : task.id)}
                   type="button"
                 >
-                  <span className="line-clamp-2 text-sm font-medium leading-snug">
-                    {task.title}
-                  </span>
-                  <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                    {task.assignee ? (
-                      <span className="inline-flex items-center gap-1">
-                        <span
-                          className={cn(
-                            "h-1.5 w-1.5 rounded-full",
-                            accentDotClass(assignee?.accent),
-                          )}
-                        />
-                        {agentLabel(task.assignee, agents)}
-                      </span>
-                    ) : (
-                      "Unassigned"
-                    )}
-                    {openQuestion(task) ? (
-                      <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                        <MessageCircleQuestion className="h-3 w-3" />
-                        Asks you
-                      </span>
-                    ) : null}
+                  <StatusMark status={task.status} />
+                  <span className="grid min-w-0 flex-1 gap-1">
+                    <span
+                      className={cn(
+                        "line-clamp-2 text-sm leading-snug",
+                        task.status === "done"
+                          ? "text-muted-foreground"
+                          : "font-medium",
+                      )}
+                    >
+                      {task.title}
+                    </span>
+                    <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      {task.assignee ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold",
+                              accentClasses(assignee?.accent).solid,
+                            )}
+                          >
+                            {agentLabel(task.assignee, agents)
+                              .charAt(0)
+                              .toUpperCase()}
+                          </span>
+                          {agentLabel(task.assignee, agents)}
+                        </span>
+                      ) : (
+                        <span>Unassigned</span>
+                      )}
+                      {question ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+                          <MessageCircleQuestion className="h-3 w-3" />
+                          Asks you
+                        </span>
+                      ) : null}
+                    </span>
                   </span>
                 </button>
               </li>
             );
           })}
           {shown.length === 0 ? (
-            <li className="px-2 py-6 text-center text-xs text-muted-foreground">
-              {isLoading ? "Loading…" : "Nothing here"}
+            <li className="flex flex-col items-center gap-1 px-2 py-8 text-center text-xs text-muted-foreground">
+              {isLoading ? (
+                "Loading…"
+              ) : (
+                <>
+                  <ListChecks className="h-5 w-5 opacity-50" />
+                  {status === "blocked"
+                    ? "Nothing is stuck."
+                    : status === "doing"
+                      ? "No one is working on anything right now."
+                      : status === "done"
+                        ? "Nothing finished yet."
+                        : "Nothing waiting. Add a task above."}
+                </>
+              )}
             </li>
           ) : null}
         </ul>
       </div>
     </FloatingWindow>
   );
+}
+
+/** Where a task is, at a glance: open, being worked on, stuck or done. */
+function StatusMark({ status }: { status: OfficeTask["status"] }) {
+  if (status === "doing") {
+    return (
+      <span className="relative mt-1 flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+        <span className="absolute h-3.5 w-3.5 rounded-full bg-blue-500/30 motion-safe:animate-ping" />
+        <span className="h-2 w-2 rounded-full bg-blue-500" />
+      </span>
+    );
+  }
+  if (status === "done") {
+    return <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />;
+  }
+  if (status === "blocked") {
+    return <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />;
+  }
+  return <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />;
 }
 
 /** One task, small, beside the tasks window. */

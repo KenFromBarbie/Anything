@@ -10,6 +10,10 @@ import {
 import { toast } from "sonner";
 
 import { accentClasses } from "@/features/office/lib/agentAccent";
+import {
+  OFFICE_GLASS,
+  OFFICE_GLASS_OVERLAY,
+} from "@/features/office/lib/glass";
 import { callOffice, sendToOffice } from "@/features/office/lib/officeLink";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
@@ -222,8 +226,10 @@ export function AgentFormDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="max-w-3xl gap-0 overflow-hidden p-0"
+        className={cn("max-w-3xl gap-0 overflow-hidden p-0", OFFICE_GLASS)}
         data-testid="agent-form-dialog"
+        overlayClassName={OFFICE_GLASS_OVERLAY}
+        overlayVariant="transparent"
       >
         <form className="flex max-h-[85vh] flex-col" onSubmit={submit}>
           <DialogHeader className="px-6 pt-6 pb-4">
@@ -311,7 +317,7 @@ export function AgentFormDialog({
                 <Field htmlFor="agent-name" label="Name">
                   <Input
                     autoFocus={mode === "add"}
-                    className="h-10 text-base"
+                    className="h-10 border-foreground/10 bg-foreground/[0.04] text-base"
                     data-testid="agent-form-name"
                     id="agent-name"
                     onChange={(event) => {
@@ -350,7 +356,7 @@ export function AgentFormDialog({
                                   "border-foreground/60",
                                   accentClasses(form.accent).soft,
                                 )
-                              : "border-border/60 bg-muted/30 hover:border-foreground/30",
+                              : "border-foreground/10 bg-foreground/[0.04] hover:border-foreground/30",
                           )}
                           key={c.name}
                           onClick={() => pickLook(c.name)}
@@ -418,7 +424,7 @@ export function AgentFormDialog({
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
-                          className="flex h-11 w-full items-center gap-3 rounded-xl border border-border/60 bg-background/50 px-3 text-left transition-colors hover:border-foreground/30"
+                          className="flex h-11 w-full items-center gap-3 rounded-xl border border-border/60 bg-foreground/[0.04] px-3 text-left transition-colors hover:border-foreground/30"
                           data-testid="agent-form-folder"
                           type="button"
                         >
@@ -463,7 +469,7 @@ export function AgentFormDialog({
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <label
-                      className="mt-1 flex items-center gap-3 rounded-xl border border-border/60 bg-background/50 px-3 py-2.5 text-sm"
+                      className="mt-1 flex items-center gap-3 rounded-xl border border-border/60 bg-foreground/[0.04] px-3 py-2.5 text-sm"
                       htmlFor="agent-isolate"
                     >
                       <GitBranch className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -489,6 +495,7 @@ export function AgentFormDialog({
                   label="Role"
                 >
                   <Input
+                    className="border-foreground/10 bg-foreground/[0.04]"
                     id="agent-role"
                     onChange={(event) => set("description", event.target.value)}
                     placeholder="keeps the docs in sync with the code"
@@ -501,7 +508,7 @@ export function AgentFormDialog({
                   label="Goal"
                 >
                   <Textarea
-                    className="min-h-20"
+                    className="min-h-20 border-foreground/10 bg-foreground/[0.04]"
                     id="agent-goal"
                     onChange={(event) => set("goal", event.target.value)}
                     value={form.goal}
@@ -517,7 +524,7 @@ export function AgentFormDialog({
             </p>
           ) : null}
 
-          <DialogFooter className="flex-row items-center justify-between gap-2 border-t border-border/60 bg-muted/20 px-6 py-3 sm:justify-between">
+          <DialogFooter className="flex-row items-center justify-between gap-2 border-t border-foreground/10 px-6 py-3 sm:justify-between">
             {mode === "add" ? (
               <button
                 className="text-left text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
@@ -578,7 +585,7 @@ function Choices({
             "h-8 rounded-full border px-3 text-sm transition-colors",
             value === option.id
               ? "border-foreground/70 bg-foreground text-background"
-              : "border-border/60 bg-background/50 text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+              : "border-foreground/10 bg-foreground/[0.04] text-muted-foreground hover:border-foreground/30 hover:text-foreground",
           )}
           key={option.id || "default"}
           onClick={() => onPick(option.id)}
