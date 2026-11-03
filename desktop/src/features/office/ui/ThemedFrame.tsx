@@ -85,9 +85,16 @@ async function offerVoice(lang: string) {
 export function withScheme(html: string, src: string, dark: boolean): string {
   const base = src.slice(0, src.lastIndexOf("/") + 1);
   const head = `<base href="${base}"><meta name="color-scheme" content="${dark ? "dark" : "light"}"><style>html,body{background:transparent}</style>${SPEECH_SHIM}`;
-  return /<head[^>]*>/i.test(html)
-    ? html.replace(/<head[^>]*>/i, (tag) => `${tag}${head}`)
-    : `${head}${html}`;
+  // After <head>, else after <html> or the doctype: anything before the
+  // doctype puts the page in quirks mode.
+  for (const tag of [
+    /<head(\s[^>]*)?>/i,
+    /<html(\s[^>]*)?>/i,
+    /<!doctype[^>]*>/i,
+  ]) {
+    if (tag.test(html)) return html.replace(tag, (t) => `${t}${head}`);
+  }
+  return `${head}${html}`;
 }
 
 /**
