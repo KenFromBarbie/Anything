@@ -100,9 +100,9 @@ export const ThemedFrame = React.forwardRef<
   HTMLIFrameElement,
   { src: string; title: string; className?: string } & Pick<
     React.IframeHTMLAttributes<HTMLIFrameElement>,
-    "loading" | "tabIndex"
+    "loading" | "tabIndex" | "style"
   >
->(function ThemedFrame({ src, title, className, ...rest }, ref) {
+>(function ThemedFrame({ src, title, className, style, ...rest }, ref) {
   const { isDark } = useTheme();
   const own = React.useRef<HTMLIFrameElement | null>(null);
   const setRef = (node: HTMLIFrameElement | null) => {
@@ -164,7 +164,7 @@ export const ThemedFrame = React.forwardRef<
       srcDoc={
         page.data === undefined ? undefined : withScheme(page.data, src, isDark)
       }
-      style={{ colorScheme: isDark ? "dark" : "light" }}
+      style={{ ...style, colorScheme: isDark ? "dark" : "light" }}
       title={title}
     />
   );

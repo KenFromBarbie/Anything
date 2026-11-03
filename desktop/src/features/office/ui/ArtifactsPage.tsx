@@ -514,10 +514,9 @@ function SizedPage({ src, title }: { src: string; title: string }) {
     return () => window.removeEventListener("message", onMessage);
   }, []);
   return (
-    <iframe
-      className="block w-full border-0"
+    <ThemedFrame
+      className="block w-full"
       ref={frame}
-      sandbox="allow-scripts"
       src={src}
       style={{ height }}
       title={title}
