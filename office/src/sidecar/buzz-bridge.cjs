@@ -79,7 +79,7 @@ const SITE_MAX_BYTES = 200 * 1024 * 1024;
 const ARTIFACT_DESIGN = [
   'Artifacts are shown inside the app: in the chat, across the message (about 500 to 1200px wide), and full size in Artifacts. Design them for that:',
   '- Fill the width: a fluid layout, no fixed page width or outer margins; it must work from 380px to 1400px wide.',
-  '- Match the app: follow prefers-color-scheme (dark and light), a transparent or near-black background in dark, the system UI font.',
+  '- Match the app: a transparent background (the app draws its own surface behind the page), follow prefers-color-scheme (the app sets it to its own theme), the system UI font. The app also posts its look when the page loads: window.addEventListener("message", e => { if (e.data?.type === "buzz-theme") { /* e.data.dark, e.data.accent, e.data.foreground, e.data.muted, e.data.border, e.data.font: CSS colours and font */ } }). Use its accent for buttons, highlights and progress, its border for cards; never a white page.',
   '- No scrolling inside it: let it show at its natural height. In HTML, add this before </body> so the chat shows it at its full height:',
   '  <script>new ResizeObserver(()=>parent.postMessage({anythingHeight:document.documentElement.scrollHeight},"*")).observe(document.documentElement)</script>',
   '- Charts and dashboards use the width: wide charts, grids that reflow, compact headers. Decks and documents: a PDF preview that reads well at that width.'

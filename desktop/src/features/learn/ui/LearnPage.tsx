@@ -53,6 +53,7 @@ import {
   dropOutline,
   useAttachments,
 } from "@/features/research/ui/Attachments";
+import { ThemedFrame } from "@/features/office/ui/ThemedFrame";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
@@ -625,10 +626,9 @@ function LessonPlayer({
         )}
       </div>
       {src && lesson.kind === "html" ? (
-        <iframe
-          className="min-h-0 flex-1 bg-white"
+        <ThemedFrame
+          className="min-h-0 w-full flex-1"
           ref={frame}
-          sandbox="allow-scripts"
           src={src}
           title={lesson.title}
         />

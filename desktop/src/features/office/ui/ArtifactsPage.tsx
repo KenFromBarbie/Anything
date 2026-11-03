@@ -49,6 +49,7 @@ import { groupVersions } from "@/features/office/lib/artifactVersions";
 import { Codebases } from "./Codebases";
 import { ImageQuickEdit } from "./ImageQuickEdit";
 import { AskForChanges, StudioMake } from "./StudioMake";
+import { ThemedFrame } from "./ThemedFrame";
 import { PageHeader } from "@/shared/ui/PageHeader";
 
 /** Something an Office agent made and showed (`buzz-show`). */
@@ -446,6 +447,19 @@ function ArtifactThumb({ item }: { item: Artifact }) {
         : preview
           ? `${preview}#toolbar=0&navpanes=0&view=FitH`
           : null;
+  if (page && item.kind === "html") {
+    // Drawn at 1024×640 and scaled to the card, like a screenshot, on the
+    // card itself in the app's theme.
+    return (
+      <ThemedFrame
+        className="pointer-events-none absolute left-0 top-0 h-[640px] w-[1024px] origin-top-left scale-[0.27]"
+        loading="lazy"
+        src={page}
+        tabIndex={-1}
+        title={`Preview of ${item.title}`}
+      />
+    );
+  }
   if (page) {
     // Drawn at 1024×640 and scaled to the card, like a screenshot.
     return (
@@ -620,14 +634,13 @@ export function ArtifactViewer({
     body = <audio className="m-6 w-[calc(100%-3rem)]" controls src={src} />;
   } else if (item.kind === "text" && src) {
     body = <TextArtifact markdown={/\.md$/i.test(item.path ?? "")} src={src} />;
-  } else if ((item.kind === "pdf" || item.kind === "html") && src) {
+  } else if (item.kind === "html" && src) {
     body = (
-      <iframe
-        className="h-full w-full bg-white"
-        sandbox={item.kind === "html" ? "allow-scripts" : undefined}
-        src={src}
-        title={item.title}
-      />
+      <ThemedFrame className="h-full w-full" src={src} title={item.title} />
+    );
+  } else if (item.kind === "pdf" && src) {
+    body = (
+      <iframe className="h-full w-full bg-white" src={src} title={item.title} />
     );
   } else if (preview) {
     body = (
