@@ -487,6 +487,7 @@ ${global}
       'Every lesson reports how the learner is doing; call this as they answer, and once with done=true when they finish:',
       '    <script>function reportProgress(score, total, done, note) { parent.postMessage({ type: "buzz-learn", score, total, done, note }, "*"); }</script>',
       '(score: right answers so far; total: questions in the lesson; note: one line on what they found hard.)',
+      'To read words aloud use the browser’s speechSynthesis with the utterance’s lang set (e.g. "nl-NL"): the app reads it with its own voice for that language, so never warn that the computer lacks a voice. Offer a slower reading with rate 0.7.',
       'Progress is in progress.json in the course folder, and the app posts in the course channel when a lesson is finished. Shape the next lesson around it: go over what they got wrong first, go faster where they do well. Answer the owner’s questions there as their tutor.',
       '',
       '## The app’s Browser',

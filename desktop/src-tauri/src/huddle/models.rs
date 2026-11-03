@@ -219,7 +219,7 @@ pub struct VoiceModelStatus {
 ///
 /// The `tar` crate rejects path traversal (absolute paths, `..` components)
 /// by default in `unpack()`. We add an explicit pre-check as defense-in-depth.
-fn extract_archive(archive_path: &Path, dest_dir: &Path) -> Result<(), String> {
+pub(crate) fn extract_archive(archive_path: &Path, dest_dir: &Path) -> Result<(), String> {
     use bzip2::read::BzDecoder;
     use std::fs::File;
     use tar::Archive;
@@ -320,7 +320,7 @@ async fn fresh_temp_dir(path: &Path) -> Result<(), String> {
 ///
 /// Calls `progress_fn(bytes_downloaded, content_length)` after each chunk.
 /// Returns the total number of bytes written.
-async fn download_file<F>(
+pub(crate) async fn download_file<F>(
     response: reqwest::Response,
     dest: &Path,
     max_bytes: u64,

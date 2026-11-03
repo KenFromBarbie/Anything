@@ -1,6 +1,14 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 
+import {
+  installLessonVoice,
+  lessonVoices,
+  SPEECH_SHIM,
+  speak,
+  stopSpeaking,
+} from "@/features/learn/lib/lessonVoice";
 import { cn } from "@/shared/lib/cn";
 import { useTheme } from "@/shared/theme/ThemeProvider";
 
@@ -24,13 +32,52 @@ function themeMessage(dark: boolean) {
   };
 }
 
+/** Offer the voice a lesson needs, once per language per session. */
+const offered = new Set<string>();
+async function offerVoice(lang: string) {
+  const base = lang.split(/[-_]/)[0]?.toLowerCase() ?? "";
+  if (offered.has(base)) return;
+  offered.add(base);
+  const voice = (await lessonVoices()).find((v) => v.lang === base);
+  if (!voice) {
+    toast(`The app has no voice for "${lang}" yet.`);
+    return;
+  }
+  toast(`Get the app's ${voice.label} voice?`, {
+    description:
+      "Lessons are read aloud with it. About 65 MB, downloaded once.",
+    duration: 15_000,
+    action: {
+      label: "Download",
+      onClick: () => {
+        const id = toast.loading(`Downloading the ${voice.label} voice…`);
+        void installLessonVoice(base, (share) =>
+          toast.loading(
+            `Downloading the ${voice.label} voice… ${Math.round(share * 100)}%`,
+            { id },
+          ),
+        )
+          .then(() =>
+            toast.success(`${voice.label} voice ready. Press Listen again.`, {
+              id,
+            }),
+          )
+          .catch((e: unknown) => {
+            offered.delete(base);
+            toast.error(e instanceof Error ? e.message : String(e), { id });
+          });
+      },
+    },
+  });
+}
+
 /** The page with the app's scheme declared, so the browser draws it on the
  *  app's surface instead of a white canvas (a frame whose page doesn't say it
  *  supports the frame's scheme is painted opaque), and a base so its own
  *  files still load. */
 export function withScheme(html: string, src: string, dark: boolean): string {
   const base = src.slice(0, src.lastIndexOf("/") + 1);
-  const head = `<base href="${base}"><meta name="color-scheme" content="${dark ? "dark" : "light"}"><style>html,body{background:transparent}</style>`;
+  const head = `<base href="${base}"><meta name="color-scheme" content="${dark ? "dark" : "light"}"><style>html,body{background:transparent}</style>${SPEECH_SHIM}`;
   return /<head[^>]*>/i.test(html)
     ? html.replace(/<head[^>]*>/i, (tag) => `${tag}${head}`)
     : `${head}${html}`;
@@ -70,6 +117,33 @@ export const ThemedFrame = React.forwardRef<
     own.current?.contentWindow?.postMessage(themeMessage(isDark), "*");
   }, [isDark]);
   React.useEffect(post, [post]);
+  // The page asks the app to read aloud (its speechSynthesis is the app's).
+  React.useEffect(() => {
+    const reply = (message: Record<string, unknown>) =>
+      own.current?.contentWindow?.postMessage(message, "*");
+    // Only this page's speech is stopped when it goes.
+    let spoke = false;
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== own.current?.contentWindow) return;
+      const d = event.data as Record<string, unknown> | null;
+      if (d?.type === "buzz-speak-stop") stopSpeaking();
+      if (d?.type !== "buzz-speak") return;
+      const lang = String(d.lang ?? "en");
+      spoke = true;
+      speak(String(d.text ?? ""), lang, Number(d.rate) || 1)
+        .then(() => reply({ type: "buzz-spoken", id: d.id }))
+        .catch((e: unknown) => {
+          const error = e instanceof Error ? e.message : String(e);
+          if (/not-installed|no-voice/.test(error)) void offerVoice(lang);
+          reply({ type: "buzz-spoken", id: d.id, error });
+        });
+    };
+    window.addEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      if (spoke) stopSpeaking();
+    };
+  }, []);
   if (page.isPending) return null;
   return (
     <iframe

@@ -17,6 +17,7 @@ mod huddle;
 mod identity_storage;
 mod initial_window;
 mod key_backup;
+mod lesson_voice;
 mod link_preview_tags;
 mod linux_media;
 #[cfg(target_os = "macos")]
@@ -611,6 +612,9 @@ pub fn run() {
             research::research_save_file,
             research::learn_progress_read,
             research::learn_progress_write,
+            lesson_voice::lesson_voices,
+            lesson_voice::lesson_voice_install,
+            lesson_voice::lesson_speak,
             office::office_connect,
             office_desk::browser_place,
             office_desk::browser_navigate,
