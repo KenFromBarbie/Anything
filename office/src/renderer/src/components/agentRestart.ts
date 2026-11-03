@@ -89,6 +89,7 @@ export async function restartAgent(a: Agent, model: string | undefined, opts: Re
       provider,
       isGod: a.isGod,
       isAssistant: a.isAssistant,
+      ...(a.staff ? { isStaff: true } : {}),
       role: roleForHiveSpawn(a)
     },
     resume,
