@@ -8,10 +8,11 @@
       { "id": "claude-fable-5-1", "label": "Fable 5.1", "minAppVersion": null, "maxAppVersion": null },
       { "id": "claude-fable-5", "label": "Fable 5", "minAppVersion": null, "maxAppVersion": null },
       { "id": "claude-opus-5-5", "label": "Opus 5.5", "minAppVersion": null, "maxAppVersion": null },
+      { "id": "claude-sonnet-5-5", "label": "Sonnet 5.5", "minAppVersion": null, "maxAppVersion": null },
+      { "id": "claude-haiku-5-5", "label": "Haiku 5.5", "minAppVersion": null, "maxAppVersion": null },
       { "id": "claude-opus-5", "label": "Opus 5 · 1M", "minAppVersion": null, "maxAppVersion": null },
       { "id": "claude-opus-4-8", "label": "Opus 4.8", "minAppVersion": null, "maxAppVersion": null },
       { "id": "claude-opus-4-8[1m]", "label": "Opus 4.8 · 1M", "minAppVersion": null, "maxAppVersion": null },
-      { "id": "claude-sonnet-5-5", "label": "Sonnet 5.5", "minAppVersion": null, "maxAppVersion": null },
       { "id": "claude-sonnet-5", "label": "Sonnet 5", "minAppVersion": null, "maxAppVersion": null },
       { "id": "claude-sonnet-4-6", "label": "Sonnet 4.6", "minAppVersion": null, "maxAppVersion": null },
       { "id": "claude-sonnet-4-6[1m]", "label": "Sonnet 4.6 · 1M", "minAppVersion": null, "maxAppVersion": null },
@@ -98,7 +99,7 @@
       { "id": "local/llama3", "label": "Local · OpenAI-compatible (set base-URL)", "minAppVersion": null, "maxAppVersion": null }
     ],
     "copilot": [
-      { "label": "Copilot default", "minAppVersion": null, "maxAppVersion": null },
+      { "label": "default (Claude Sonnet 4.5)", "minAppVersion": null, "maxAppVersion": null },
       { "id": "auto", "label": "Auto (Copilot picks)", "minAppVersion": null, "maxAppVersion": null },
       { "id": "claude-sonnet-4.5", "label": "Claude Sonnet 4.5", "minAppVersion": null, "maxAppVersion": null },
       { "id": "claude-sonnet-4", "label": "Claude Sonnet 4", "minAppVersion": null, "maxAppVersion": null },
