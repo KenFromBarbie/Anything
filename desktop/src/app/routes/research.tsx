@@ -3,12 +3,13 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { ViewLoadingFallback } from "@/shared/ui/ViewLoadingFallback";
 
-export type ResearchTab = "projects" | "artifacts" | "browser";
+export type ResearchTab = "projects" | "artifacts" | "browser" | "learn";
 
 type ResearchRouteSearch = {
   project?: string;
   tab?: ResearchTab;
   artifact?: string;
+  course?: string;
 };
 
 function validateResearchSearch(
@@ -20,10 +21,14 @@ function validateResearchSearch(
   return {
     project: text(search.project),
     tab:
-      tab === "artifacts" || tab === "browser" || tab === "projects"
+      tab === "artifacts" ||
+      tab === "browser" ||
+      tab === "projects" ||
+      tab === "learn"
         ? tab
         : undefined,
     artifact: text(search.artifact),
+    course: text(search.course),
   };
 }
 
@@ -38,13 +43,14 @@ export const Route = createFileRoute("/research")({
 });
 
 function ResearchRouteComponent() {
-  const { project, tab, artifact } = Route.useSearch();
+  const { project, tab, artifact, course } = Route.useSearch();
   return (
     <React.Suspense
       fallback={<ViewLoadingFallback includeHeader kind="pulse" />}
     >
       <ResearchPage
         artifactId={artifact ?? null}
+        courseId={course ?? null}
         projectId={project ?? null}
         tab={tab ?? "projects"}
       />

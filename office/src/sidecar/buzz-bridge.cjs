@@ -475,6 +475,7 @@ ${global}
       `    ${this.showCommand()} --dir "<site folder>" --title "<what it is>"   (a site: the whole folder, opened at its index.html)`,
       `    ${this.showCommand()} --url <https address> --title "<what it is>"   (only a site that is really online)`,
       'A new iteration of something already published is a VERSION of it, not a new thing: publish it with the same --title (add --version-of <its artifact id> when the title changes). The owner sees one card with its versions, the latest on top. Publish only what is finished and reviewed, not every draft.',
+      'A lesson for one of the owner’s Learn courses: add --course <course id> (the course’s brief gives it, and how a lesson reports progress); it shows in that course in the Learn tab.',
       'Never publish a localhost address: the server behind it stops when you do (or the app restarts), and the owner is left with a dead link. Publish the site’s folder with --dir; the app serves it itself.',
       'A 3D model: publish one binary .glb (materials and colours inside it, centred at the origin, Y up, under about 20 MB); the app shows it in a 3D viewer the owner can turn and zoom. .obj and .stl work too, without materials.',
       '',
@@ -1435,6 +1436,9 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
       agent: this.agentName(String(msg.as ?? '')),
       createdAt: Date.now()
     };
+    // A lesson in one of the owner's Learn courses (the course brief names it).
+    const course = String(msg.course ?? '').trim();
+    if (/^[\w-]{1,64}$/.test(course)) entry.course = course;
     const copy = (from, label) => {
       const src = require('node:path').resolve(from);
       if (!fs.existsSync(src) || !fs.statSync(src).isFile()) throw new Error(`no file at ${src} (${label})`);

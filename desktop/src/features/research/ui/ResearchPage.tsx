@@ -5,6 +5,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  GraduationCap,
   ImageIcon,
   ImageOff,
   Loader2,
@@ -94,12 +95,17 @@ let draftBrief = "";
  * it, and Buzz makes its folder, opens a channel for it and hands the brief to
  * Michael, who researches and saves what he finds into the folder.
  */
-type ResearchTab = "projects" | "artifacts";
+type ResearchTab = "projects" | "artifacts" | "learn";
 
 const RESEARCH_TABS: { key: ResearchTab; label: string; icon: LucideIcon }[] = [
   { key: "projects", label: "Projects", icon: FolderOpen },
   { key: "artifacts", label: "Artifacts", icon: Package },
+  { key: "learn", label: "Learn", icon: GraduationCap },
 ];
+
+const LearnPage = React.lazy(async () => ({
+  default: (await import("@/features/learn/ui/LearnPage")).LearnPage,
+}));
 
 const ArtifactsPage = React.lazy(async () => ({
   default: (await import("@/features/office/ui/ArtifactsPage")).ArtifactsPage,
@@ -113,15 +119,34 @@ export function ResearchPage({
   projectId,
   tab = "projects",
   artifactId = null,
+  courseId = null,
 }: {
   projectId: string | null;
   /** "browser" (older links) is the Artifacts tab, showing the browser. */
-  tab?: "projects" | "artifacts" | "browser";
+  tab?: "projects" | "artifacts" | "browser" | "learn";
   artifactId?: string | null;
+  courseId?: string | null;
 }) {
-  const { goArtifacts, goResearch } = useAppNavigation();
+  const { goArtifacts, goLearn, goResearch } = useAppNavigation();
   const select = (key: ResearchTab) =>
-    key === "projects" ? void goResearch() : void goArtifacts();
+    key === "projects"
+      ? void goResearch()
+      : key === "learn"
+        ? void goLearn()
+        : void goArtifacts();
+  if (tab === "learn" && !projectId) {
+    return (
+      <div
+        className="flex min-h-0 flex-1 flex-col"
+        data-testid="research-tab-learn"
+      >
+        <ResearchTabs active="learn" onSelect={select} />
+        <React.Suspense fallback={null}>
+          <LearnPage courseId={courseId} />
+        </React.Suspense>
+      </div>
+    );
+  }
   if (projectId || tab === "projects") {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
@@ -194,7 +219,10 @@ function ResearchProjects({ projectId }: { projectId: string | null }) {
   const { data, isLoading } = useResearch();
   const actions = useResearchActions();
   const { goResearch } = useAppNavigation();
-  const projects = sortProjects(data?.projects ?? []);
+  // Courses live in Learn.
+  const projects = sortProjects(
+    (data?.projects ?? []).filter((p) => p.kind !== "course"),
+  );
   const opened = projectId
     ? (projects.find((p) => p.id === projectId) ?? null)
     : null;

@@ -23,6 +23,8 @@ export type ResearchProject = {
   pinned: boolean;
   image: string | null;
   channelId: string | null;
+  /** "course" for a Learn course; absent for a research project. */
+  kind?: "course";
   createdAt: number;
   updatedAt: number;
   /** False when the folder has been moved or deleted outside Buzz. */
@@ -49,8 +51,12 @@ const filesKey = (id: string) => ["research", "files", id] as const;
 
 export const researchApi = {
   list: () => invokeTauri<ResearchState>("research_list"),
-  create: (name: string, description: string) =>
-    invokeTauri<ResearchProject>("research_create", { name, description }),
+  create: (name: string, description: string, kind?: "course") =>
+    invokeTauri<ResearchProject>("research_create", {
+      name,
+      description,
+      kind: kind ?? null,
+    }),
   update: (id: string, patch: ProjectPatch) =>
     invokeTauri<ResearchProject>("research_update", { id, patch }),
   pickImage: (id: string) =>
@@ -99,7 +105,7 @@ function channelName(name: string): string {
 }
 
 /** Michael: the Office's own agent (not one of the floor's workers). */
-async function michaelPubkey(): Promise<string | null> {
+export async function michaelPubkey(): Promise<string | null> {
   const agents = await listManagedAgents();
   const michael = agents.find(
     (agent) => isOfficeAgent(agent) && !isOfficeWorker(agent),

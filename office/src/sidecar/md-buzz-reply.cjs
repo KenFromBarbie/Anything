@@ -14,6 +14,7 @@
  *   buzz-show --file deck.pptx --title "Deck" --preview deck.pdf  (the app's Artifacts page)
  *   buzz-show --dir ./site --title "Landing page"   (a site's folder; opens at index.html)
  *   buzz-show --file v2.glb --title "Lamp" --version-of <artifact id>  (a new version of one)
+ *   buzz-show --dir ./lesson-1 --title "Lesson 1: …" --course <course id>  (a lesson in a Learn course)
  *   buzz-browse --open <url> | --read | --back | --reload   (the app's Browser)
  *
  * The agent is identified by the AGENT_ID the hive gives every agent terminal;
@@ -70,7 +71,7 @@ async function readText() {
   const inThread = process.argv.includes('--in-thread');
   const body = JSON.stringify(history
     ? { channel, thread, limit: arg('--limit'), before: arg('--before'), as }
-    : show ? { file: arg('--file'), dir: arg('--dir'), entry: arg('--entry'), url: arg('--url'), title: arg('--title'), preview: arg('--preview'), note: arg('--note'), versionOf: arg('--version-of'), as }
+    : show ? { file: arg('--file'), dir: arg('--dir'), entry: arg('--entry'), url: arg('--url'), title: arg('--title'), preview: arg('--preview'), note: arg('--note'), versionOf: arg('--version-of'), course: arg('--course'), as }
       : browse ? { op: browseOp, url: arg('--open'), as }
         : replyTo ? { replyTo, text, as, inChannel, inThread } : { channel, text, as });
   const req = http.request({

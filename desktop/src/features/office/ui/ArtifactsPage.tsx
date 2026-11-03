@@ -76,6 +76,8 @@ export type Artifact = {
   url?: string;
   /** The first version's id, when this is a later version of it. */
   series?: string;
+  /** The Learn course this is a lesson of. */
+  course?: string;
 };
 
 export const ARTIFACT_EVENT = "office-artifact";

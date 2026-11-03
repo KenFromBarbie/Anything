@@ -29,6 +29,9 @@ pub struct Project {
     image: Option<String>,
     #[serde(default)]
     channel_id: Option<String>,
+    /// "course" for a Learn course; none for a research project.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    kind: Option<String>,
     created_at: i64,
     updated_at: i64,
 }
@@ -179,9 +182,16 @@ pub fn research_create(
     app: AppHandle,
     name: String,
     description: String,
+    kind: Option<String>,
 ) -> Result<ProjectView, String> {
     let mut registry = load(&app);
-    let root = root_of(&registry);
+    let kind = kind.filter(|k| k == "course");
+    // Courses get a folder of their own beside the research projects.
+    let root = if kind.is_some() {
+        root_of(&registry).join("Learn")
+    } else {
+        root_of(&registry)
+    };
     std::fs::create_dir_all(&root).map_err(|e| format!("create {}: {e}", root.display()))?;
     let base = folder_name(&name);
     let mut dir = root.join(&base);
@@ -211,6 +221,7 @@ pub fn research_create(
         pinned: false,
         image: None,
         channel_id: None,
+        kind,
         created_at: now,
         updated_at: now,
     };
@@ -243,6 +254,7 @@ pub fn research_add_folder(app: AppHandle, path: String) -> Result<ProjectView, 
         pinned: false,
         image: None,
         channel_id: None,
+        kind: None,
         created_at: now,
         updated_at: now,
     };
@@ -651,4 +663,45 @@ mod tests {
         assert_eq!(folder_name("   "), "Untitled project");
         assert_eq!(folder_name("..\\..\\etc"), "etc");
     }
+}
+
+const PROGRESS_FILE: &str = "progress.json";
+const MAX_PROGRESS_BYTES: usize = 1024 * 1024;
+
+/// A course's progress (`progress.json` in its folder, where the Office's
+/// agents read it too), or null before any.
+#[tauri::command]
+pub fn learn_progress_read(app: AppHandle, id: String) -> Result<serde_json::Value, String> {
+    let mut registry = load(&app);
+    let project = find(&mut registry, &id)?;
+    let path = PathBuf::from(&project.path).join(PROGRESS_FILE);
+    Ok(std::fs::read_to_string(path)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or(serde_json::Value::Null))
+}
+
+/// Save a course's progress and mark the course touched.
+#[tauri::command]
+pub fn learn_progress_write(
+    app: AppHandle,
+    id: String,
+    progress: serde_json::Value,
+) -> Result<(), String> {
+    let text = serde_json::to_string_pretty(&progress).map_err(|e| e.to_string())?;
+    if text.len() > MAX_PROGRESS_BYTES {
+        return Err("That progress is too large to save.".into());
+    }
+    let mut registry = load(&app);
+    let project = find(&mut registry, &id)?;
+    let dir = PathBuf::from(&project.path);
+    if !dir.is_dir() {
+        return Err("The course's folder is gone.".into());
+    }
+    let path = dir.join(PROGRESS_FILE);
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, text).map_err(|e| format!("write {}: {e}", tmp.display()))?;
+    std::fs::rename(&tmp, &path).map_err(|e| format!("save {}: {e}", path.display()))?;
+    project.updated_at = now_ms();
+    save(&app, &registry)
 }

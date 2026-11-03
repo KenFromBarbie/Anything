@@ -159,6 +159,21 @@ export function useAppNavigation() {
     [commitNavigation],
   );
 
+  // Learn is a tab of Research; a course opens inside it.
+  const goLearn = React.useCallback(
+    (courseId?: string, behavior?: NavigationBehavior) =>
+      commitNavigation(
+        {
+          to: "/research",
+          search: courseId
+            ? { tab: "learn", course: courseId }
+            : { tab: "learn" },
+        },
+        behavior,
+      ),
+    [commitNavigation],
+  );
+
   const goFiles = React.useCallback(
     (behavior?: NavigationBehavior) =>
       commitNavigation(
@@ -551,6 +566,7 @@ export function useAppNavigation() {
     goTasks,
     goAutomations,
     goArtifacts,
+    goLearn,
     goBrowser,
     goResearch,
     goFiles,

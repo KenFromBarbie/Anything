@@ -609,6 +609,8 @@ pub fn run() {
             research::research_pick_folder,
             research::research_pick_root,
             research::research_save_file,
+            research::learn_progress_read,
+            research::learn_progress_write,
             office::office_connect,
             office_desk::browser_place,
             office_desk::browser_navigate,
