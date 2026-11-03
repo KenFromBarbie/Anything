@@ -10,7 +10,7 @@ use crate::app_state::AppState;
 use super::{
     tts_settings::{
         pocket_voice_reference, resolve_voice_for_backend_in_registry, voice_registry,
-        VoiceRegistryEntry, POCKET_BACKEND_ID,
+        VoiceRegistryEntry, PIPER_BACKEND_ID, POCKET_BACKEND_ID,
     },
     HuddlePhase, HuddleState,
 };
@@ -37,7 +37,7 @@ fn catalog(app: &AppHandle, state: &AppState) -> Result<AgentVoiceCatalog, Strin
     let voices: Vec<_> = registry
         .iter()
         .filter(|voice| {
-            voice.backend == POCKET_BACKEND_ID
+            (voice.backend == POCKET_BACKEND_ID || voice.backend == PIPER_BACKEND_ID)
                 && matches!(voice.availability.as_str(), "bundled" | "installed")
         })
         .cloned()
@@ -69,8 +69,14 @@ pub(crate) fn sync_agent_voice_assignments(
     voices: &[VoiceRegistryEntry],
 ) -> bool {
     let previous = huddle.agent_voice_settings.clone();
-    let available_keys: Vec<_> = voices.iter().map(|voice| voice.key.clone()).collect();
-    let available: HashSet<_> = available_keys.iter().cloned().collect();
+    // Any listed voice may be kept; new agents are given a Pocket one, so a
+    // language voice is only ever the owner's choice.
+    let available: HashSet<_> = voices.iter().map(|voice| voice.key.clone()).collect();
+    let available_keys: Vec<_> = voices
+        .iter()
+        .filter(|voice| voice.backend != PIPER_BACKEND_ID)
+        .map(|voice| voice.key.clone())
+        .collect();
     let agents: HashSet<_> = agent_pubkeys.iter().cloned().collect();
     huddle.agent_voice_settings.retain(|pubkey, settings| {
         agents.contains(pubkey) && available.contains(&settings.voice_key)
@@ -202,7 +208,7 @@ pub fn set_huddle_agent_voice(
 ) -> Result<AgentVoiceSettings, String> {
     let catalog = catalog(&app, &state)?;
     if !catalog.voices.iter().any(|voice| voice.key == voice_key) {
-        return Err("The selected Pocket voice is not available on this device".to_owned());
+        return Err("That voice is not available on this device".to_owned());
     }
     let settings = {
         let mut huddle = state.huddle()?;

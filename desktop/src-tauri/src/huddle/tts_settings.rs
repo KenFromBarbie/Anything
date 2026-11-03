@@ -28,6 +28,8 @@ const SETTINGS_FILE: &str = "tts-settings.json";
 const CURRENT_VERSION: u32 = 1;
 const VOICE_CHANGE_ACK_TIMEOUT: Duration = Duration::from_secs(5);
 pub const POCKET_BACKEND_ID: &str = "pocket";
+/// The app's lesson voices (Piper, many languages), installed from Learn.
+pub const PIPER_BACKEND_ID: &str = "piper";
 
 type VoiceChangeWait = (
     Arc<super::tts::TtsPipeline>,
@@ -128,6 +130,28 @@ pub fn voice_registry(app: &AppHandle) -> Vec<VoiceRegistryEntry> {
             );
         }
     }
+    registry.extend(
+        crate::lesson_voice::installed_voices()
+            .into_iter()
+            .map(|(lang, label)| VoiceRegistryEntry {
+                key: format!("{PIPER_BACKEND_ID}:{lang}"),
+                display_name: label.to_string(),
+                backend: PIPER_BACKEND_ID.to_string(),
+                backend_name: "Piper".to_string(),
+                availability: VOICE_AVAILABILITY_INSTALLED.to_string(),
+                fallback_key: Some(MARY_VOICE_KEY.to_string()),
+                reference_file: None,
+                provenance: VoiceProvenance {
+                    source: "sherpa-onnx tts-models".to_string(),
+                    content_hash: None,
+                    license: None,
+                    source_url: Some(
+                        "https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models"
+                            .to_string(),
+                    ),
+                },
+            }),
+    );
     registry
 }
 
@@ -205,6 +229,15 @@ pub fn bundled_pocket_voice_reference(preferences: &[String]) -> String {
 
 pub fn pocket_voice_reference(app: &AppHandle, preferences: &[String]) -> Result<String, String> {
     let registry = voice_registry(app);
+    // A Piper voice first in line: the speech worker reads it with Piper.
+    if let Some(piper) = preferences
+        .iter()
+        .filter_map(|key| registry.iter().find(|voice| voice.key == *key))
+        .find(|voice| is_locally_available(&voice.availability))
+        .filter(|voice| voice.backend == PIPER_BACKEND_ID)
+    {
+        return Ok(piper.key.clone());
+    }
     let voice = resolve_voice_for_backend_in_registry(preferences, POCKET_BACKEND_ID, &registry)?;
     if voice.key.starts_with("pocket:imported:") {
         let imported = super::tts_voice_import::load_registry(app)?
@@ -601,8 +634,8 @@ pub async fn preview_pocket_voice(
 ) -> Result<(), String> {
     let voice =
         voice_by_key(&app, &voice_key).ok_or_else(|| format!("Unknown voice: {voice_key}"))?;
-    if voice.backend != POCKET_BACKEND_ID {
-        return Err("Only Pocket voices can be previewed in this build".to_string());
+    if voice.backend != POCKET_BACKEND_ID && voice.backend != PIPER_BACKEND_ID {
+        return Err("That voice can't be previewed in this build".to_string());
     }
     if !models::is_tts_ready() {
         return Err("Voice files are still downloading. Try preview again shortly.".to_string());

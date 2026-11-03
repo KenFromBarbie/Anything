@@ -700,10 +700,17 @@ fn tts_worker(
         // Stop must remain able to invalidate the in-flight speaker generation.
         let _synthesis_flight = playback_probe.begin_synthesis();
 
+        // A Piper voice ("piper:<lang>", one of the app's language voices)
+        // is read with Piper; everything else with the warmed Pocket engine.
+        let piper = requested_voice
+            .strip_prefix(&format!("{}:", super::tts_settings::PIPER_BACKEND_ID))
+            .map(str::to_owned);
+
         // The selected per-agent voice travels with the queue item, preserving
         // message order while allowing one warmed Pocket engine to alternate
         // between cached reference styles.
-        if !reconcile_queued_voice(
+        if piper.is_none()
+            && !reconcile_queued_voice(
             &model_dir,
             &requested_voice,
             &selected_voice,
@@ -731,7 +738,10 @@ fn tts_worker(
         // largest natural units within the model's exact 50-token limit. Once
         // each unit is appended, generation of the next proceeds while rodio
         // plays the already-queued audio.
-        let chunks = match engine.split_text_for_playback(&text) {
+        let chunks = match piper.as_ref().map_or_else(
+            || engine.split_text_for_playback(&text),
+            |_| Ok(crate::lesson_voice::split_sentences(&text)),
+        ) {
             Ok(chunks) => chunks,
             Err(_) => {
                 eprintln!(
@@ -778,7 +788,7 @@ fn tts_worker(
 
             // EXPERIMENTAL (latency bench): streaming synthesis path — see
             // tts_streaming.rs for the mechanics and exactness constraints.
-            if let Some(emit_frames) = tts_streaming {
+            if let Some(emit_frames) = tts_streaming.filter(|_| piper.is_none()) {
                 let outcome = synthesize_streaming(
                     &engine,
                     text,
@@ -811,7 +821,10 @@ fn tts_worker(
                 continue;
             }
 
-            let model_chunks = match engine.split_text_into_chunks(text) {
+            let model_chunks = match piper.as_ref().map_or_else(
+                || engine.split_text_into_chunks(text),
+                |_| Ok(vec![text.to_string()]),
+            ) {
                 Ok(model_chunks) => model_chunks,
                 Err(_) => {
                     eprintln!(
@@ -851,7 +864,10 @@ fn tts_worker(
                     break 'playback_chunks;
                 }
 
-                let synthesis = engine.synth_chunk(model_chunk, "en", &style, SYNTH_STEPS);
+                let synthesis = match &piper {
+                    Some(lang) => crate::lesson_voice::synth_at(lang, model_chunk, SAMPLE_RATE),
+                    None => engine.synth_chunk(model_chunk, "en", &style, SYNTH_STEPS),
+                };
                 if cancel.load(Ordering::Acquire)
                     || voice_cancel.load(Ordering::Acquire)
                     || shutdown.load(Ordering::Acquire)

@@ -161,6 +161,66 @@ fn engine(voice: &'static str) -> Result<Arc<sherpa_onnx::OfflineTts>, String> {
     Ok(tts)
 }
 
+/// The installed voices, for meetings: (language, name).
+pub(crate) fn installed_voices() -> Vec<(&'static str, &'static str)> {
+    VOICES
+        .iter()
+        .filter(|(_, voice, _)| voice_files(voice).is_some())
+        .map(|(lang, _, label)| (*lang, *label))
+        .collect()
+}
+
+/// Sentences, for speaking a long reply a piece at a time (the first is
+/// heard while the next is made).
+pub(crate) fn split_sentences(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    for c in text.chars() {
+        current.push(c);
+        if matches!(c, '.' | '!' | '?' | '\n') && current.trim().len() > 1 {
+            out.push(current.trim().to_string());
+            current.clear();
+        }
+    }
+    if !current.trim().is_empty() {
+        out.push(current.trim().to_string());
+    }
+    out
+}
+
+/// `text` read in `lang`, as samples at `rate` Hz (meetings play at 24 kHz;
+/// Piper voices make 22.05 kHz).
+pub(crate) fn synth_at(lang: &str, text: &str, rate: u32) -> Result<Vec<f32>, String> {
+    let (_, voice, _) = voice_for(lang).ok_or("no-voice")?;
+    let tts = engine(voice)?;
+    let audio = tts
+        .generate_with_config(
+            text,
+            &sherpa_onnx::GenerationConfig::default(),
+            None::<fn(&[f32], f32) -> bool>,
+        )
+        .ok_or("The voice couldn't read that.")?;
+    Ok(resample(audio.samples(), audio.sample_rate().max(1) as u32, rate))
+}
+
+/// Linear resampling: plenty for speech between close rates.
+fn resample(samples: &[f32], from: u32, to: u32) -> Vec<f32> {
+    if from == to || samples.is_empty() {
+        return samples.to_vec();
+    }
+    let len = (samples.len() as u64 * to as u64 / from as u64) as usize;
+    let step = from as f64 / to as f64;
+    (0..len)
+        .map(|i| {
+            let x = i as f64 * step;
+            let j = x as usize;
+            let a = samples[j.min(samples.len() - 1)];
+            let b = samples[(j + 1).min(samples.len() - 1)];
+            a + (b - a) * (x - j as f64) as f32
+        })
+        .collect()
+}
+
 /// 16-bit mono WAV.
 fn wav(samples: &[f32], rate: u32) -> Vec<u8> {
     let data_len = (samples.len() * 2) as u32;
@@ -224,6 +284,16 @@ mod tests {
         assert_eq!(voice_for("nl_BE").map(|v| v.1), Some("nl_NL-ronnie-medium"));
         assert_eq!(voice_for("EN").map(|v| v.1), Some("en_US-amy-medium"));
         assert!(voice_for("xx").is_none());
+    }
+
+    #[test]
+    fn splits_sentences_and_resamples() {
+        assert_eq!(
+            split_sentences("Hallo! Ik heet Ken. Doei"),
+            vec!["Hallo!", "Ik heet Ken.", "Doei"]
+        );
+        assert_eq!(resample(&[0.0; 22_050], 22_050, 24_000).len(), 24_000);
+        assert_eq!(resample(&[0.5, 0.5], 24_000, 24_000), vec![0.5, 0.5]);
     }
 
     #[test]

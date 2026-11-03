@@ -12,6 +12,7 @@ import { Button } from "@/shared/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -54,7 +55,10 @@ export function AgentVoiceMenu({
 }: AgentVoiceMenuProps) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const voices = voicesForBackend(registry, "pocket");
+  // Pocket voices speak English; the app's language voices (installed from
+  // a lesson) speak their language.
+  const languageVoices = voicesForBackend(registry, "piper");
+  const voices = [...voicesForBackend(registry, "pocket"), ...languageVoices];
   const selectedVoice =
     voices.find((voice) => voice.key === settings?.voice_key) ?? voices[0];
 
@@ -156,9 +160,18 @@ export function AgentVoiceMenu({
                   value={selectedVoice?.key}
                 >
                   {voices.map((voice) => (
-                    <DropdownMenuRadioItem key={voice.key} value={voice.key}>
-                      {voiceOptionLabel(voice, voices)}
-                    </DropdownMenuRadioItem>
+                    <React.Fragment key={voice.key}>
+                      {voice === languageVoices[0] ? (
+                        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                          Speaks a language
+                        </DropdownMenuLabel>
+                      ) : null}
+                      <DropdownMenuRadioItem value={voice.key}>
+                        {voice.backend === "piper"
+                          ? voice.displayName
+                          : voiceOptionLabel(voice, voices)}
+                      </DropdownMenuRadioItem>
+                    </React.Fragment>
                   ))}
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
