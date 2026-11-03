@@ -51,11 +51,18 @@ async function offerVoice(lang: string) {
       label: "Download",
       onClick: () => {
         const id = toast.loading(`Downloading the ${voice.label} voice…`);
-        void installLessonVoice(base, (share) =>
-          toast.loading(
-            `Downloading the ${voice.label} voice… ${Math.round(share * 100)}%`,
-            { id },
-          ),
+        void installLessonVoice(
+          base,
+          (share) =>
+            toast.loading(
+              `Downloading the ${voice.label} voice… ${Math.round(share * 100)}%`,
+              { id },
+            ),
+          () =>
+            toast.loading(
+              `Unpacking the ${voice.label} voice… (a minute or two)`,
+              { id },
+            ),
         )
           .then(() =>
             toast.success(`${voice.label} voice ready. Press Listen again.`, {

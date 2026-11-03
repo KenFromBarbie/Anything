@@ -834,12 +834,28 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
       const chair = attendees.find((i) => i === this.michael) ?? attendees[0];
       const answering = named.length ? named : everyone ? attendees : [chair];
       if (!answering.includes(who)) return true; // not asked: stays quiet
-      const others = attendees.filter((i) => i !== who).map((i) => i.name).join(', ');
-      meetingNote = named.length
-        ? `You are in a meeting with ${others}, and you were asked by name: answer for yourself.`
-        : everyone
-          ? `You are in a meeting with ${others}; the owner asked everyone: give your part in one short sentence.`
-          : `You are chairing a meeting with ${others}: the owner did not name anyone, so you answer (or say who should, by name).`;
+      const noteFor = (w) => {
+        const others = attendees.filter((i) => i !== w).map((i) => i.name).join(', ');
+        return named.length
+          ? `You are in a meeting with ${others}, and you were asked by name: answer for yourself.`
+          : everyone
+            ? `You are in a meeting with ${others}; the owner asked everyone: give your part in one short sentence.`
+            : `You are chairing a meeting with ${others}: the owner did not name anyone, so you answer (or say who should, by name).`;
+      };
+      meetingNote = noteFor(who);
+      // Several asked at once: one speaks at a time, in the order they hand
+      // over (the chair first). The rest wait their turn instead of all
+      // queueing now, which put them in arrival order and left the hand-overs
+      // pointing at people who had already spoken or were still waiting.
+      if (answering.length > 1 && inCall && !opts.asWork && !opts.noFast) {
+        const order = [...answering].sort((a, b) => Number(b === chair) - Number(a === chair));
+        if (!this.meetingRounds) this.meetingRounds = new Map();
+        const round = this.meetingRounds.get(channel);
+        if (round?.evId !== ev.id) {
+          this.meetingRounds.set(channel, { evId: ev.id, ev, noteFor, waiting: order.slice(1) });
+        }
+        if (who !== order[0]) return true; // its turn comes when handed over
+      }
     }
     // In the meeting room the answer comes fast, from a quick model speaking
     // as the agent; real work it's asked for goes on to the agent itself.
@@ -1239,10 +1255,14 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
       const memory = this.workNotes(who);
       if (memory.trim()) notes = `Your own work notes (your memory.md, latest last), so you know what you have been doing:\n${memory}\n---`;
     }
+    const waiting = (this.meetingRounds?.get(channel)?.waiting ?? []).filter((i) => i !== who);
     const turn = [
       ...(notes ? [notes] : []),
       others.length ? `In the meeting: the owner, ${others.join(', ')} and you.` : 'In the meeting: the owner and you.',
       ...(note ? [note] : []),
+      ...(waiting.length
+        ? [`Still to answer the owner after you: ${waiting.map((i) => i.name).join(', ')}. Hand over to one of them by name.`]
+        : []),
       ...(fresh.length ? ['Said since your last turn:', ...fresh.slice(-12).map((l) => `${l.name}: ${l.text}`)] : []),
       `${from}, to you now: "${String(ev.content ?? '').slice(0, 1500)}"`,
     ].join('\n');
@@ -1251,11 +1271,13 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
       out = await voice.ask(turn);
     } catch (e) {
       this.log.warn(`[buzz-bridge] meeting answer for ${who.name} failed (${e.message}); passing it on`);
+      this.advanceRound(channel, who, [], attendees);
       await this.handleEvent(ev, who, { noFast: true }).catch(() => {});
       return;
     }
     const { spoken: said, task, next } = splitAnswer(out);
     const spoken = /^\W*pass\W*$/i.test(said) ? '' : said; // nothing to add
+    let handedTo = [];
     if (spoken) {
       const r = await this.run(['messages', 'send', '--channel', channel, '--content', '-'], spoken, who).catch((e) => {
         this.log.warn(`[buzz-bridge] ${who.name} could not speak in the meeting:`, e.message);
@@ -1271,6 +1293,7 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
         const named = attendees.filter((i) => i !== who
           && (silent.includes(i.name.toLowerCase())
             || new RegExp('(^|[^a-z0-9])' + escape(i.name.toLowerCase()) + '([^a-z0-9]|$)').test(lower)));
+        handedTo = named;
         if (named.length) {
           const handed = { id: r.event_id, created_at: Math.floor(Date.now() / 1000), pubkey: who.pubkey, content: spoken, tags: ev.tags };
           for (const next of named) {
@@ -1279,12 +1302,27 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
         }
       }
     }
+    this.advanceRound(channel, who, handedTo, attendees);
     this.log.log(`[buzz-bridge] ${who.name} answered in the meeting${task ? ' and took a task' : ''}`);
     if (task) {
       const content = `From the meeting (you already said you would do this): ${task}\n\nWhat the owner said: ${ev.content}`;
       await this.handleEvent({ ...ev, content }, who, { asWork: true })
         .catch((e) => this.log.warn('[buzz-bridge] meeting task not delivered:', e.message));
     }
+  }
+
+  /** After `who` spoke in a round (several asked at once): whoever it handed
+   *  over to goes next; when it handed over to no one, the next still
+   *  waiting does. */
+  advanceRound(channel, who, handedTo, attendees) {
+    const round = this.meetingRounds?.get(channel);
+    if (!round) return;
+    round.waiting = round.waiting.filter((i) => i !== who && !handedTo.includes(i));
+    if (!handedTo.length && round.waiting.length) {
+      const next = round.waiting.shift();
+      void this.answerInMeeting(round.ev, next, channel, attendees, round.noteFor(next));
+    }
+    if (!round.waiting.length) this.meetingRounds.delete(channel);
   }
 
   /** How an agent reaches the rest of the floor through Buzz channels. */

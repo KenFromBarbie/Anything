@@ -11,22 +11,32 @@ export type LessonVoice = {
 
 export const lessonVoices = () => invoke<LessonVoice[]>("lesson_voices");
 
-/** Download a language's voice (about 65 MB); `onProgress` gets 0..1. */
+/** Download a language's voice (about 65 MB); `onProgress` gets 0..1 while
+ *  it downloads, then `onUnpacking` while it is unpacked. */
 export async function installLessonVoice(
   lang: string,
   onProgress?: (share: number) => void,
+  onUnpacking?: () => void,
 ): Promise<void> {
+  // Progress events can land after the install returns; they must not
+  // overwrite what the caller shows next.
+  let finished = false;
+  let unpacking = false;
   const off = await listen<{
     lang: string;
     done: number;
     total: number | null;
   }>("lesson-voice-progress", ({ payload }) => {
-    if (payload.lang === lang && payload.total)
-      onProgress?.(payload.done / payload.total);
+    if (finished || payload.lang !== lang || !payload.total) return;
+    if (payload.done >= payload.total) {
+      if (!unpacking) onUnpacking?.();
+      unpacking = true;
+    } else onProgress?.(payload.done / payload.total);
   });
   try {
     await invoke("lesson_voice_install", { lang });
   } finally {
+    finished = true;
     off();
   }
 }
