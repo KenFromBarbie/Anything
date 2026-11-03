@@ -17,6 +17,7 @@ import {
   type ChannelSection,
 } from "@/features/sidebar/lib/useChannelSections";
 import { isMeetingRoomChannelName } from "@/features/office/lib/meetingRoom";
+import { useWorkChannelIds } from "@/features/research/lib/research";
 import { MeetingRoomVoiceChannel } from "@/features/sidebar/ui/MeetingRoomVoiceChannel";
 import { useActiveWorkingChannelsById } from "@/features/sidebar/lib/useActiveWorkingChannelsById";
 import { useDmSidebarMetadata } from "@/features/sidebar/useDmSidebarMetadata";
@@ -289,15 +290,19 @@ export function AppSidebar({
       if (channel.id === selectedChannelId) onSelectHome();
     });
 
-  // The meeting room's own channels show as its voice channel instead.
+  // The meeting room's own channels show as its voice channel instead, and a
+  // research project's or course's chat opens from Research.
+  const workChannelIds = useWorkChannelIds();
   const streamChannels = React.useMemo(
     () =>
       channels.filter(
         (channel) =>
           channel.channelType === "stream" &&
-          !isMeetingRoomChannelName(channel.name),
+          !isMeetingRoomChannelName(channel.name) &&
+          !workChannelIds.has(channel.id) &&
+          !/^(Research|Learn): /.test(channel.description ?? ""),
       ),
-    [channels],
+    [channels, workChannelIds],
   );
 
   const sectionBuckets = React.useMemo(() => {

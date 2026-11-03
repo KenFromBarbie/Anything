@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -42,7 +43,7 @@ export type ResearchFile = {
 
 type ProjectPatch = Partial<
   Pick<ResearchProject, "name" | "description" | "pinned">
-> & { channelId?: string };
+> & { channelId?: string; kind?: "course" };
 
 export const RESEARCH_KEY = ["research"] as const;
 const coverKey = (id: string, image: string | null) =>
@@ -200,6 +201,21 @@ export function useResearch() {
     queryFn: researchApi.list,
     refetchInterval: 15_000,
   });
+}
+
+/** The chats of research projects and courses: they open from Research, so
+ *  the sidebar leaves them out of its channels. */
+export function useWorkChannelIds(): Set<string> {
+  const { data } = useResearch();
+  return React.useMemo(
+    () =>
+      new Set(
+        (data?.projects ?? []).flatMap((p) =>
+          p.channelId ? [p.channelId] : [],
+        ),
+      ),
+    [data],
+  );
 }
 
 export function useProjectCover(project: ResearchProject) {

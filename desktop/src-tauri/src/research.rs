@@ -76,6 +76,8 @@ pub struct ProjectPatch {
     description: Option<String>,
     pinned: Option<bool>,
     channel_id: Option<String>,
+    /// "course" moves a project to Learn; "" moves it back to Projects.
+    kind: Option<String>,
 }
 
 fn now_ms() -> i64 {
@@ -290,6 +292,9 @@ pub fn research_update(
         } else {
             Some(channel)
         };
+    }
+    if let Some(kind) = patch.kind {
+        project.kind = (kind == "course").then_some(kind);
     }
     project.updated_at = now_ms();
     let updated = project.clone();
