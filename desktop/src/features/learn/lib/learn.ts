@@ -16,7 +16,6 @@ import {
 import {
   type CourseProgress,
   EMPTY_PROGRESS,
-  LEARN_MESSAGE,
   type LessonProgress,
 } from "./learnModel";
 
@@ -53,44 +52,19 @@ function channelName(name: string): string {
   return `learn-${slug || "course"}`;
 }
 
-/** How a lesson tells the app how it's going; the course brief hands it to
- *  the Office so every lesson speaks it. */
-const LESSON_SNIPPET = [
-  "```html",
-  "<script>",
-  "  // score: right answers so far; total: questions in the lesson;",
-  "  // done: true when they finish; note: what they found hard (one line).",
-  "  function reportProgress(score, total, done, note) {",
-  `    parent.postMessage({ type: "${LEARN_MESSAGE}", score, total, done, note }, "*");`,
-  "  }",
-  "</script>",
-  "```",
-].join("\n");
-
+/** The owner's words, and what the Office needs to find the course. How to
+ *  run a course (the chain, the lessons, how progress is reported) is in the
+ *  agents' own guide, not in the chat. */
 function courseBrief(course: Course, goal: string, attached: string[]): string {
   return [
-    `New course: **${course.name}** (course id \`${course.id}\`)`,
+    `New course: **${course.name}**`,
     "",
     goal.trim(),
     "",
-    `Course folder: \`${course.path}\``,
     ...(attached.length > 0
-      ? [
-          "",
-          "Teach from this material (it's in the course folder; it comes first, before anything else you know):",
-          ...attached.map((path) => `- \`${path}\``),
-        ]
+      ? ["My material:", ...attached.map((path) => `- \`${path}\``), ""]
       : []),
-    "",
-    "Run it through the office chain. Michael: give the course to the staff member who fits it. They:",
-    "1. Write the plan as `syllabus.md` in the course folder: the lessons in order, each with what the learner will be able to do after it.",
-    "2. Have floor workers build the lessons one or two at a time, each a self-contained interactive HTML page: a short explanation, worked examples, practice the learner does (quizzes, flashcards, drag-and-drop, fill-in, small simulations), feedback on every answer, and a recap. Use only the material and what it needs; say where a fact comes from.",
-    `3. Review each lesson, then publish it: \`buzz-show --dir "<lesson folder>" --title "Lesson <n>: <topic>" --course ${course.id}\`. A fixed lesson keeps its title so it becomes a new version.`,
-    "",
-    "Every lesson reports how the learner is doing with this snippet (call it as they answer and once when they finish):",
-    LESSON_SNIPPET,
-    "",
-    "Progress lands in `progress.json` in the course folder, and I'll post here when I finish a lesson. Build the next lesson from that: go over what I got wrong before moving on, and go faster where I'm doing well. Keep `syllabus.md` up to date. Ask me here if anything is unclear.",
+    `_Course \`${course.id}\` · folder \`${course.path}\`_`,
   ].join("\n");
 }
 
