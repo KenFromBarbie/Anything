@@ -118,7 +118,7 @@ export function SidebarOfficeButton({ active }: { active: boolean }) {
     <button
       aria-current={active ? "page" : undefined}
       className={cn(
-        "mx-2 flex h-11 items-center gap-3 rounded-lg border px-3 text-left text-sm font-semibold transition-colors",
+        "mx-2 flex h-16 items-center justify-center gap-3 rounded-lg border px-3 text-base font-semibold transition-colors",
         active
           ? "border-primary/40 bg-primary/15 text-primary"
           : "border-sidebar-border bg-sidebar-accent/60 text-sidebar-foreground hover:bg-sidebar-accent",
