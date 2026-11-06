@@ -43,6 +43,7 @@ import {
 import {
   AppSidebarPinnedHeader,
   AppSidebarPrimaryMenu,
+  SidebarOfficeButton,
 } from "@/features/sidebar/ui/AppSidebarPinnedHeader";
 import {
   canPreviewUnreadDm,
@@ -551,6 +552,7 @@ export function AppSidebar({
               data-sidebar-background
               data-testid="sidebar-scroll-content"
             >
+              <SidebarOfficeButton active={selectedView === "office"} />
               {activeCommunity ? (
                 <button
                   aria-expanded={!serverMenuCollapsed}

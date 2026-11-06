@@ -26,6 +26,7 @@ import {
 } from "@/shared/ui/sidebar";
 import { SidebarMenuLabel } from "@/shared/ui/sidebar-menu-label";
 import { ProtectedBestieSidebarEntry } from "@protected-feature-components";
+import { cn } from "@/shared/lib/cn";
 
 type SidebarSelectedView =
   | "home"
@@ -109,6 +110,29 @@ export function AppSidebarPinnedHeader({
   );
 }
 
+/** The Office, first in the sidebar and larger than the menu below it: it is
+ *  where the owner works with the agents. */
+export function SidebarOfficeButton({ active }: { active: boolean }) {
+  const { goOffice } = useAppNavigation();
+  return (
+    <button
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "mx-2 flex h-11 items-center gap-3 rounded-lg border px-3 text-left text-sm font-semibold transition-colors",
+        active
+          ? "border-primary/40 bg-primary/15 text-primary"
+          : "border-sidebar-border bg-sidebar-accent/60 text-sidebar-foreground hover:bg-sidebar-accent",
+      )}
+      data-testid="open-office-view"
+      onClick={() => void goOffice()}
+      type="button"
+    >
+      <Building2 className="h-5 w-5 shrink-0" />
+      Office
+    </button>
+  );
+}
+
 export function AppSidebarPrimaryMenu({
   homeBadgeCount,
   onSelectAgents,
@@ -119,7 +143,7 @@ export function AppSidebarPrimaryMenu({
   projectsOverviewActive,
   selectedView,
 }: AppSidebarPrimaryMenuProps) {
-  const { goAutomations, goOffice, goResearch, goTasks } = useAppNavigation();
+  const { goAutomations, goResearch, goTasks } = useAppNavigation();
   return (
     <>
       <SidebarHeader
@@ -213,19 +237,6 @@ export function AppSidebarPrimaryMenu({
             >
               <Workflow className="h-4 w-4" />
               <SidebarMenuLabel>Automations</SidebarMenuLabel>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="data-[active=true]:font-normal"
-              data-testid="open-office-view"
-              isActive={selectedView === "office"}
-              onClick={() => void goOffice()}
-              tooltip="Office"
-              type="button"
-            >
-              <Building2 className="h-4 w-4" />
-              <SidebarMenuLabel>Office</SidebarMenuLabel>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
