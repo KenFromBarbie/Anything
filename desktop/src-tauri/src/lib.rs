@@ -563,6 +563,8 @@ pub fn run() {
             updater::updater_settings_get,
             updater::updater_settings_set,
             local_servers::local_server_create,
+            local_servers::local_server_delete,
+            local_servers::local_server_info,
             local_servers::local_servers_available,
             local_servers::server_work_folder,
             server_planner::server_plan,

@@ -176,6 +176,10 @@ fn start_server(app: &AppHandle, server: &LocalServer) -> Result<(), String> {
     if port_in_use(server.port) {
         return Ok(());
     }
+    // Deleted since the supervisor read the list: stays stopped.
+    if !load_registry(app).iter().any(|s| s.port == server.port) {
+        return Ok(());
+    }
     let offset = server.port - 3000;
     let mut cmd = match relay_source(app)? {
         RelaySource::Checkout { bin, env_file } => {
@@ -354,6 +358,163 @@ pub fn local_servers_available(app: AppHandle) -> bool {
     true
 }
 
+/// The local server at `relay_url` ("ws://localhost:3003"), if this app runs it.
+fn server_at(app: &AppHandle, relay_url: &str) -> Option<LocalServer> {
+    let wanted = relay_url.trim().trim_end_matches('/');
+    load_registry(app)
+        .into_iter()
+        .find(|s| s.relay_url() == wanted)
+}
+
+/// The relay's own deletion tool (`buzz-admin`), beside the relay, and the
+/// settings the relay runs with (its database, cache and file store).
+fn admin_command(app: &AppHandle) -> Result<Command, String> {
+    let admin_name = if cfg!(target_os = "windows") {
+        "buzz-admin.exe"
+    } else {
+        "buzz-admin"
+    };
+    let (admin, env, dir) = match relay_source(app)? {
+        RelaySource::Checkout { bin, env_file } => (
+            bin.with_file_name(admin_name),
+            read_env_file(&env_file),
+            env_file.parent().map(Path::to_path_buf),
+        ),
+        RelaySource::Kit(kit) => (
+            kit.relay.with_file_name(admin_name),
+            crate::hosting_kit::ensure_running(app, &kit)?,
+            kit.relay.parent().map(Path::to_path_buf),
+        ),
+    };
+    if !admin.is_file() {
+        return Err(
+            "Erasing a server's data needs the relay's deletion tool (buzz-admin), which isn't on this computer."
+                .into(),
+        );
+    }
+    let mut cmd = Command::new(admin);
+    if let Some(dir) = dir {
+        cmd.current_dir(dir);
+    }
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
+    cmd.env("BUZZ_REDIS_POOL_SIZE", "2").stdin(Stdio::null());
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    Ok(cmd)
+}
+
+/// One `buzz-admin deletions …` step; its JSON output.
+fn admin_step(app: &AppHandle, server: &LocalServer, args: &[&str]) -> Result<String, String> {
+    let output = admin_command(app)?
+        .env("RELAY_URL", server.relay_url())
+        .arg("deletions")
+        .args(args)
+        .output()
+        .map_err(|e| format!("run the deletion tool: {e}"))?;
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        let last = err.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("");
+        return Err(format!("Erasing {} failed: {last}", server.name));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// The request id in `deletions submit`'s JSON.
+fn request_id(json: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(json)
+        .ok()?
+        .get("id")?
+        .as_str()
+        .map(str::to_owned)
+}
+
+/// Erase a stopped server's community everywhere the relay keeps it
+/// (database, cache, file store), through the relay's own deletion engine:
+/// submit (freezes what will go), approve, run.
+fn erase_server(app: &AppHandle, server: &LocalServer) -> Result<(), String> {
+    let owner = owner_pubkey(app).ok_or("No identity to sign the deletion with.")?;
+    let submitted = admin_step(
+        app,
+        server,
+        &["submit", "--requested-by", &owner, "--reason", "deleted in Anything"],
+    )?;
+    let id = request_id(&submitted).ok_or("The deletion tool gave no request id.")?;
+    admin_step(app, server, &["approve", &id, "--approved-by", &owner])?;
+    // A step that fails (the cache can time out) is retried by the engine
+    // after its retry delay; run it again until it finishes.
+    let mut last = String::new();
+    for attempt in 0..ERASE_ATTEMPTS {
+        if attempt > 0 {
+            std::thread::sleep(ERASE_RETRY_DELAY);
+        }
+        match admin_step(app, server, &["run", &id]) {
+            Ok(_) => return Ok(()),
+            Err(error) => last = error,
+        }
+    }
+    Err(last)
+}
+
+/// Runs of the deletion engine before erasing gives up, and the wait between
+/// them (just over the engine's own 30 s retry delay).
+const ERASE_ATTEMPTS: u32 = 4;
+const ERASE_RETRY_DELAY: Duration = Duration::from_secs(32);
+
+/// What the app can do to delete a server: `null` for one hosted elsewhere
+/// (it can only be left), else whether its data can also be erased here.
+#[tauri::command]
+pub fn local_server_info(app: AppHandle, relay_url: String) -> Option<LocalServerInfo> {
+    server_at(&app, &relay_url).map(|_| LocalServerInfo {
+        erasable: admin_command(&app).is_ok(),
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalServerInfo {
+    erasable: bool,
+}
+
+/// Delete a server this app runs: stop its relay and forget it, so it never
+/// starts again; with `erase`, also delete its messages, channels and members.
+#[tauri::command]
+pub async fn local_server_delete(
+    app: AppHandle,
+    relay_url: String,
+    erase: bool,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let server = server_at(&app, &relay_url).ok_or("That isn't a server on this computer.")?;
+        if erase {
+            // Fail before anything changes when erasing can't happen.
+            admin_command(&app)?;
+        }
+        let servers: Vec<_> = load_registry(&app)
+            .into_iter()
+            .filter(|s| s.port != server.port)
+            .collect();
+        save_registry(&app, &servers)?;
+        if let Ok(mut running) = app.state::<LocalServers>().running.lock() {
+            for (_, mut child) in running.extract_if(.., |(port, _)| *port == server.port) {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+        if erase {
+            erase_server(&app, &server)?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("delete task failed: {e}"))?
+}
+
 /// How often the local servers are checked and restarted if down.
 const SUPERVISE_EVERY: Duration = Duration::from_secs(15);
 /// Set at quit, so the supervisor doesn't restart what's being stopped.
@@ -441,6 +602,15 @@ mod tests {
         assert_eq!(clean_name("  Studio crew ").unwrap(), "Studio crew");
         assert!(clean_name("   ").is_err());
         assert!(clean_name(&"x".repeat(61)).is_err());
+    }
+
+    #[test]
+    fn reads_the_deletion_request_id() {
+        assert_eq!(
+            request_id(r#"{"id":"0b6c…","stage":"submitted"}"#).as_deref(),
+            Some("0b6c…")
+        );
+        assert_eq!(request_id("not json"), None);
     }
 
     #[test]

@@ -72,7 +72,9 @@ export function useCommunityNavigationTransitions({
   );
 
   const removeCommunity = React.useCallback(
-    async (id: string) => {
+    /** `leave: false` for a server this app ran and has already stopped:
+     *  there is no relay left to send the leave request to. */
+    async (id: string, options?: { leave?: boolean }) => {
       const target = communities.communities.find(
         (community) => community.id === id,
       );
@@ -85,10 +87,13 @@ export function useCommunityNavigationTransitions({
       // Do not touch local state until this relay has explicitly accepted the
       // signed NIP-43 leave request. Rejections and timeouts bubble back to the
       // dialog so the person can retry without losing their community config.
-      const leaveResult = await leaveCommunity(
-        target.relayUrl,
-        communities.activeCommunity?.relayUrl,
-      );
+      const leaveResult =
+        options?.leave === false
+          ? ({ status: "left" } as const)
+          : await leaveCommunity(
+              target.relayUrl,
+              communities.activeCommunity?.relayUrl,
+            );
 
       if (id !== communities.activeCommunity?.id) {
         communities.removeCommunity(id);

@@ -60,7 +60,10 @@ type CommunityRailProps = {
   ) => void;
   onReorderCommunities: (orderedIds: string[]) => void;
   /** Leave a server and remove it from the app; the menu offers Delete when given. */
-  onRemoveCommunity?: (id: string) => Promise<unknown>;
+  onRemoveCommunity?: (
+    id: string,
+    options?: { leave?: boolean },
+  ) => Promise<unknown>;
 };
 
 const MAX_BADGE = 99;
