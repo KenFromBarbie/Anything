@@ -136,8 +136,7 @@ enum ProductFeedbackCommand {
     },
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     // Install the ring CryptoProvider for rustls. The workspace redis TLS
     // feature compiles both aws-lc-rs and ring in transitively, so rustls can't
     // auto-select a provider and would panic on the first rediss:// (ElastiCache)
@@ -148,13 +147,28 @@ async fn main() {
 
     let cli = Cli::parse();
 
-    let code = match run(cli).await {
-        Ok(code) => code,
-        Err(e) => {
-            eprintln!("error: {e}");
-            5
-        }
-    };
+    // The work runs on a thread with a roomy stack, not on the main thread: a
+    // deletion run's futures are deep enough to overflow Windows' 1 MB
+    // main-thread stack in a debug build.
+    let code = std::thread::Builder::new()
+        .name("buzz-admin".into())
+        .stack_size(16 * 1024 * 1024)
+        .spawn(move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .expect("failed to build Tokio runtime");
+            match runtime.block_on(run(cli)) {
+                Ok(code) => code,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    5
+                }
+            }
+        })
+        .expect("failed to start buzz-admin")
+        .join()
+        .unwrap_or(5);
     std::process::exit(code);
 }
 
