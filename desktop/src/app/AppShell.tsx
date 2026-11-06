@@ -806,6 +806,7 @@ export function AppShell() {
                 onReorderCommunities={communitiesHook.reorderCommunities}
                 onSwitchCommunity={handleSwitchCommunity}
                 onUpdateCommunity={communitiesHook.updateCommunity}
+                onRemoveCommunity={handleRemoveCommunity}
                 communities={communitiesHook.communities}
               />
             ) : null}
@@ -823,6 +824,7 @@ export function AppShell() {
                   onReorderCommunities={communitiesHook.reorderCommunities}
                   onSwitchCommunity={handleSwitchCommunity}
                   onUpdateCommunity={communitiesHook.updateCommunity}
+                  onRemoveCommunity={handleRemoveCommunity}
                   communities={communitiesHook.communities}
                 />
               </HoverServerBar>
@@ -854,6 +856,7 @@ export function AppShell() {
                             }
                             onSwitchCommunity={handleSwitchCommunity}
                             onUpdateCommunity={communitiesHook.updateCommunity}
+                            onRemoveCommunity={handleRemoveCommunity}
                             communities={communitiesHook.communities}
                           />
                         ) : undefined

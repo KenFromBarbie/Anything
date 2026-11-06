@@ -16,10 +16,18 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CheckCheck, Link2, Plus, Settings2, Ticket } from "lucide-react";
+import {
+  CheckCheck,
+  Link2,
+  Plus,
+  Settings2,
+  Ticket,
+  Trash2,
+} from "lucide-react";
 import * as React from "react";
 
 import type { Community } from "@/features/communities/types";
+import { DeleteCommunityDialog } from "@/features/communities/ui/DeleteCommunityDialog";
 import { EditCommunityDialog } from "@/features/communities/ui/EditCommunityDialog";
 import { useCommunityIcons } from "@/features/communities/useCommunityIcons";
 import { useMyRelayMembershipLookupQuery } from "@/features/community-members/hooks";
@@ -51,6 +59,8 @@ type CommunityRailProps = {
     updates: Partial<Pick<Community, "name" | "relayUrl" | "token">>,
   ) => void;
   onReorderCommunities: (orderedIds: string[]) => void;
+  /** Leave a server and remove it from the app; the menu offers Delete when given. */
+  onRemoveCommunity?: (id: string) => Promise<unknown>;
 };
 
 const MAX_BADGE = 99;
@@ -234,6 +244,7 @@ function SortableCommunityButton({
   onSwitchCommunity,
   onMarkAllRead,
   onSetEditingCommunity,
+  onDelete,
 }: {
   community: Community;
   activeCommunityId: string | null;
@@ -244,6 +255,7 @@ function SortableCommunityButton({
   onSwitchCommunity: (id: string) => void;
   onMarkAllRead: (community: Community) => void;
   onSetEditingCommunity: (community: Community) => void;
+  onDelete?: (community: Community) => void;
 }) {
   const {
     attributes,
@@ -293,6 +305,19 @@ function SortableCommunityButton({
               <Settings2 className="h-4 w-4" />
               Community settings
             </ContextMenuItem>
+            {onDelete ? (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  className="text-destructive focus:text-destructive"
+                  data-testid={`community-rail-delete-${community.id}`}
+                  onClick={() => onDelete(community)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete server
+                </ContextMenuItem>
+              </>
+            ) : null}
           </>
         }
         onSwitch={() => onSwitchCommunity(community.id)}
@@ -322,6 +347,7 @@ export function CommunityRail({
   onAddCommunity,
   onUpdateCommunity,
   onReorderCommunities,
+  onRemoveCommunity,
   layout = "column",
   className,
 }: CommunityRailProps & {
@@ -344,6 +370,8 @@ export function CommunityRail({
   const [editingCommunity, setEditingCommunity] =
     React.useState<Community | null>(null);
   const [draggingId, setDraggingId] = React.useState<string | null>(null);
+  const [deletingCommunity, setDeletingCommunity] =
+    React.useState<Community | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -438,6 +466,7 @@ export function CommunityRail({
                 onInvite={() => onOpenSettings?.("community-members")}
                 onMarkAllRead={handleMarkAllRead}
                 onSetEditingCommunity={setEditingCommunity}
+                onDelete={onRemoveCommunity ? setDeletingCommunity : undefined}
                 onSwitchCommunity={onSwitchCommunity}
               />
             ))}
@@ -476,6 +505,15 @@ export function CommunityRail({
           community={editingCommunity}
           showIconEditor={editingCommunity?.id === activeCommunityId}
         />
+        {onRemoveCommunity ? (
+          <DeleteCommunityDialog
+            community={deletingCommunity}
+            onDelete={onRemoveCommunity}
+            onOpenChange={(open) => {
+              if (!open) setDeletingCommunity(null);
+            }}
+          />
+        ) : null}
       </nav>
     </RailRowContext.Provider>
   );
