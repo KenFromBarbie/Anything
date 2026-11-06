@@ -504,6 +504,14 @@ export function CommunityRail({
           open={editingCommunity !== null}
           community={editingCommunity}
           showIconEditor={editingCommunity?.id === activeCommunityId}
+          onDelete={
+            onRemoveCommunity
+              ? () => {
+                  setDeletingCommunity(editingCommunity);
+                  setEditingCommunity(null);
+                }
+              : undefined
+          }
         />
         {onRemoveCommunity ? (
           <DeleteCommunityDialog

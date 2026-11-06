@@ -29,6 +29,8 @@ type EditCommunityDialogProps = {
     >,
   ) => void;
   showIconEditor?: boolean;
+  /** Offers "Delete server" (which asks for the name before anything goes). */
+  onDelete?: () => void;
 };
 
 export function EditCommunityDialog({
@@ -37,6 +39,7 @@ export function EditCommunityDialog({
   onOpenChange,
   onSave,
   showIconEditor = false,
+  onDelete,
 }: EditCommunityDialogProps) {
   const [name, setName] = React.useState("");
   const [relayUrl, setRelayUrl] = React.useState("");
@@ -225,6 +228,17 @@ export function EditCommunityDialog({
             </p>
           </div>
           <div className="flex justify-end gap-2 pt-2">
+            {onDelete ? (
+              <Button
+                className="mr-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
+                data-testid="edit-community-delete"
+                onClick={onDelete}
+                type="button"
+                variant="ghost"
+              >
+                Delete server
+              </Button>
+            ) : null}
             <Button onClick={handleClose} type="button" variant="outline">
               Cancel
             </Button>
