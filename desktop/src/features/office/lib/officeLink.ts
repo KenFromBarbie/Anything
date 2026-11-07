@@ -171,6 +171,8 @@ export type OfficeAgentsState = {
   restorable: RestorableAgent[];
   /** A restore is running. */
   restoring: boolean;
+  /** How far it is: agents started of all. */
+  restoreProgress: { done: number; total: number } | null;
   /** False until the Office has reported once. */
   loaded: boolean;
 };
@@ -180,6 +182,7 @@ let agentsState: OfficeAgentsState = {
   selectedId: null,
   restorable: [],
   restoring: false,
+  restoreProgress: null,
   loaded: false,
 };
 const agentSubscribers = new Set<() => void>();
@@ -190,6 +193,7 @@ export function setOfficeAgentsState(snapshot: {
   selectedId?: unknown;
   restorable?: unknown;
   restoring?: unknown;
+  restoreProgress?: unknown;
 }): void {
   agentsState = {
     agents: Array.isArray(snapshot.agents)
@@ -201,9 +205,17 @@ export function setOfficeAgentsState(snapshot: {
       ? (snapshot.restorable as RestorableAgent[])
       : [],
     restoring: snapshot.restoring === true,
+    restoreProgress: readProgress(snapshot.restoreProgress),
     loaded: true,
   };
   for (const notify of agentSubscribers) notify();
+}
+
+function readProgress(value: unknown): { done: number; total: number } | null {
+  const v = value as { done?: unknown; total?: unknown } | null;
+  return v && typeof v.done === "number" && typeof v.total === "number"
+    ? { done: v.done, total: v.total }
+    : null;
 }
 
 export function useOfficeAgents(): OfficeAgentsState {
@@ -289,6 +301,7 @@ export function resetOfficeSession(): void {
     selectedId: null,
     restorable: [],
     restoring: false,
+    restoreProgress: null,
     loaded: false,
   };
   for (const notify of agentSubscribers) notify();

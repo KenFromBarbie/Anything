@@ -26,6 +26,15 @@ export interface Headcount {
   workers: number;
   /** Permanent staff among them (they sit in the private offices). */
   staff: number;
+  /** The view's width / height: the floor is made at least wide enough to
+   *  fill it (the extra width is amenities), so there are no bars beside it. */
+  viewAspect?: number;
+}
+
+/** The view's shape, rounded so a small resize doesn't rebuild the floor. */
+export function aspectBucket(width: number, height: number): number {
+  if (!(width > 0 && height > 0)) return 0;
+  return Math.round((width / height) * 10) / 10;
 }
 
 /** How well appointed the office is: plusher the smaller the team. */
@@ -153,7 +162,11 @@ export function planOffice(h: Headcount): { comfort: Comfort; strips: StripKind[
   // Filler for the rest of the width: alternating lounges and libraries for
   // a small team, office storage for a larger one.
   const plush = comfort === 'luxury' || comfort === 'comfort';
-  for (let i = 0; strips.length * POD_W < minWidth; i++) {
+  // Wide enough to fill the view: the map's visible part is its height less
+  // the outer wall's edge tile on each side (see Camera's `edge`).
+  const viewWidth = h.viewAspect && h.viewAspect > 0 ? Math.ceil((H - 2) * h.viewAspect) + 2 : 0;
+  const fillWidth = Math.max(minWidth, viewWidth - WING.w);
+  for (let i = 0; strips.length * POD_W < fillWidth; i++) {
     strips.push(plush ? (i % 2 ? 'lounge' : 'library') : 'utility');
   }
   const pad = strips.length * POD_W + WING.w - WING_TOP.w - LEFT_W - (staffRoom ? STAFF_ROOM.w : 0);
@@ -273,14 +286,17 @@ export function buildModularOffice(source: MapJson, headcount: Headcount): Modul
           set('collision', sx + c, y, 0);
         }
       }
-      furnishStrip(kind, sx, put, errands);
+      // Every other lounge or library gets its second look.
+      const seen = plan.strips.slice(0, i).filter((k) => k === kind).length;
+      furnishStrip(kind, sx, put, errands, seen % 2 === 1);
     }
   });
 
   const doorX = doorStrip * POD_W;
   copy(DOOR_SRC_X, 20, 1, 2, doorX, 20);
   spawn('entrance', { x: doorX, y: 20 });
-  copy(DOOR_SRC_X + 1, 20, 1, 1, doorX - 1, 20, ['furniture-below', 'furniture-above', 'collision']);
+  // The bin is two tiles tall: its lid (row 19) is drawn over people.
+  copy(DOOR_SRC_X + 1, 19, 1, 2, doorX - 1, 19, ['furniture-below', 'furniture-above', 'collision']);
   errands.push({ kind: 'bin', stand: { x: doorX - 2, y: 20 }, facing: 'right', fx: { x: doorX - 1, y: 20 } });
 
   // ── coordinates that move with their module ─────────────────────────────
@@ -340,9 +356,27 @@ type Put = (p: Piece, x: number, y: number) => void;
 
 /** An amenity strip: 4 tiles wide, rows 11–20. Column 0 and rows 11, 15–16
  *  stay clear as walkways. */
-function furnishStrip(kind: StripKind, sx: number, put: Put, errands: ExtraErrand[]) {
+function furnishStrip(kind: StripKind, sx: number, put: Put, errands: ExtraErrand[], alt = false) {
   const x = (c: number) => sx + c;
-  if (kind === 'lounge') {
+  if (kind === 'lounge' && alt) {
+    put(P.sofaWhite, x(1), 12);
+    put(P.rugRed, x(0) + 1, 14);
+    put(P.armchairSide, x(1), 17);
+    put(P.armchairSide, x(3), 17);
+    put(P.lampBlue, x(1), 18);
+    put(P.palm, x(2), 19);
+    put(P.plantWhite, x(1), 19);
+    errands.push({ kind: 'water', stand: { x: x(0), y: 20 }, facing: 'right', fx: { x: x(1), y: 20 } });
+  } else if (kind === 'library' && alt) {
+    put(P.books2, x(1), 12);
+    put(P.lamp, x(3), 12);
+    put(P.rugSmall, x(1), 14);
+    put(P.armchair, x(3), 14);
+    put(P.shelfBooks, x(1), 17);
+    put(P.books, x(2), 19);
+    put(P.bush, x(1), 20);
+    errands.push({ kind: 'water', stand: { x: x(0), y: 20 }, facing: 'right', fx: { x: x(1), y: 20 } });
+  } else if (kind === 'lounge') {
     put(P.sofa, x(1), 12);
     put(P.rugBlue, x(1), 14);
     put(P.armchair, x(1), 17);

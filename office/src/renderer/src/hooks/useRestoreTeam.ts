@@ -13,6 +13,8 @@ import { mapLimited } from './mapLimited';
  *  in the other and can't be double-started. */
 
 let restoring = false;
+/** How far the restore in flight is: agents started (or given up on) of all. */
+let progress: { done: number; total: number } | null = null;
 let note: string | null = null;
 /** True only while the AUTOMATIC boot restore is in flight, so the UI can say
  *  "this is happening on its own" rather than looking like a click you don't
@@ -71,6 +73,9 @@ export function restoreFromHost(ids?: readonly string[]): Promise<void> {
   return latestRestore(ids);
 }
 
+/** How far the restore in flight is, or null. */
+export const restoreProgress = (): { done: number; total: number } | null => progress;
+
 /** Whether a restore (manual or automatic) is running. */
 export const isRestoring = (): boolean => restoring || autoRestoring;
 
@@ -108,6 +113,22 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
     const prevSel = useStore.getState().selectedId;
     const restorableAgents = useStore.getState().restorableAgents
       .filter((a) => !ids || ids.includes(a.id));
+    progress = { done: 0, total: restorableAgents.length };
+    emit();
+    // Each agent joins the floor as soon as it and everyone before it in the
+    // roster have started: progress shows as it happens, the roster order is
+    // kept, and a reload mid-restore can't leave started agents off the floor.
+    const results: (Agent | null | undefined)[] = new Array(restorableAgents.length);
+    let added = 0;
+    const settle = (i: number, agent: Agent | null) => {
+      results[i] = agent;
+      progress = { done: (progress?.done ?? 0) + 1, total: restorableAgents.length };
+      while (added < results.length && results[added] !== undefined) {
+        const next = results[added++];
+        if (next) useStore.getState().addAgent(next);
+      }
+      emit();
+    };
     // Tally every agent's outcome so the run ALWAYS leaves a visible trace — the
     // original bug was that every failure path was console-only, so a click that
     // couldn't spawn anything looked like a dead button.
@@ -121,12 +142,31 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
       // synchronously between awaits, so concurrent handlers can't interleave
       // mid-update. Serially this cost the sum of every agent's git probe + spawn;
       // a 6-agent team took ~6× one agent for no reason.
-      // Spawns run concurrently but agents are ADDED in roster order afterwards.
-      // Calling addAgent from inside each spawn made completion timing decide
+      // Spawns run concurrently but agents are ADDED in roster order (settle).
+      // Calling addAgent straight from each spawn made completion timing decide
       // the roster order — and that order is persisted, so a slow provider or a
       // slow git probe silently overwrote the sequence the user had dragged the
       // cards into.
-      const restoredInOrder = await mapLimited(restorableAgents, RESTORE_CONCURRENCY, async (a): Promise<Agent | null> => {
+      const indexOf = new Map(restorableAgents.map((a, i) => [a.id, i]));
+      await mapLimited(restorableAgents, RESTORE_CONCURRENCY, async (a): Promise<void> => {
+        settle(indexOf.get(a.id)!, await restoreOne(a));
+      });
+    } finally {
+      // addAgent auto-selects each spawn; put the user back where they were.
+      const sel = useStore.getState();
+      if (prevSel && sel.agents.some((x) => x.id === prevSel)) sel.select(prevSel);
+      restoring = false;
+      progress = null;
+      // ALWAYS surface a result so the button can never look inert.
+      const parts: string[] = [];
+      if (restored) parts.push(`restored ${restored}`);
+      if (alreadyLive) parts.push(`${alreadyLive} already live`);
+      if (failures.length) parts.push(`${failures.length} failed — ${failures.join('; ')}`);
+      note = parts.length ? parts.join(' · ') : 'nothing to restore';
+      emit();
+    }
+
+    async function restoreOne(a: Agent): Promise<Agent | null> {
         // Per-agent guard: one agent's failure (or a rejected IPC call) must NEVER
         // abort the others — an unhandled rejection here used to make the
         // entire restore a silent no-op after the first bad agent.
@@ -227,23 +267,6 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
           console.error('[restore] error for', a.id, e);
         }
         return null;
-      });
-      // Add in the ORIGINAL roster order, not completion order.
-      for (const restoredAgent of restoredInOrder) {
-        if (restoredAgent) useStore.getState().addAgent(restoredAgent);
-      }
-    } finally {
-      // addAgent auto-selects each spawn; put the user back where they were.
-      const sel = useStore.getState();
-      if (prevSel && sel.agents.some((x) => x.id === prevSel)) sel.select(prevSel);
-      restoring = false;
-      // ALWAYS surface a result so the button can never look inert.
-      const parts: string[] = [];
-      if (restored) parts.push(`restored ${restored}`);
-      if (alreadyLive) parts.push(`${alreadyLive} already live`);
-      if (failures.length) parts.push(`${failures.length} failed — ${failures.join('; ')}`);
-      note = parts.length ? parts.join(' · ') : 'nothing to restore';
-      emit();
     }
   };
 

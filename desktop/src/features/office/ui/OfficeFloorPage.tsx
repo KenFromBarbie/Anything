@@ -7,7 +7,6 @@ import {
   ExternalLink,
   ListChecks,
   MessageCircleQuestion,
-  MessageSquare,
   Pencil,
   Plus,
   Users,
@@ -155,17 +154,6 @@ export function OfficeFloorPage() {
               Tasks
             </Button>
           </div>
-          <AgentStrip
-            activeId={chatId}
-            agents={agents}
-            onPick={(id) => {
-              if (chatId === id) {
-                setChat(null);
-                return;
-              }
-              setChat({ id, at: null });
-            }}
-          />
           {chatAgent ? (
             <ChatBubble
               agent={chatAgent}
@@ -378,49 +366,6 @@ function ChatBubble({
         />
       </div>
     </div>
-  );
-}
-
-/** The floor's agents, for opening a chat without finding them first. */
-function AgentStrip({
-  activeId,
-  agents,
-  onPick,
-}: {
-  activeId: string | null;
-  agents: OfficeAgent[];
-  onPick: (id: string) => void;
-}) {
-  if (agents.length === 0) return null;
-  return (
-    <nav
-      aria-label="Chat with an agent"
-      className={cn(
-        "fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-full p-1",
-        OFFICE_GLASS,
-      )}
-      data-testid="office-agent-strip"
-    >
-      <MessageSquare className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
-      {agents.map((agent) => (
-        <button
-          className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors",
-            activeId === agent.id
-              ? "bg-primary text-primary-foreground"
-              : "hover:bg-muted",
-          )}
-          key={agent.id}
-          onClick={() => onPick(agent.id)}
-          type="button"
-        >
-          <span
-            className={cn("h-2 w-2 rounded-full", accentDotClass(agent.accent))}
-          />
-          {agent.name}
-        </button>
-      ))}
-    </nav>
   );
 }
 

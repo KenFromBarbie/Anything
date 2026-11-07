@@ -90,3 +90,12 @@ test('the layout key changes only when the layout does', () => {
   assert.notEqual(officeLayoutKey({ workers: 2, staff: 0 }), officeLayoutKey({ workers: 12, staff: 0 }));
   assert.equal(officeLayoutKey({ workers: 7, staff: 2 }), buildModularOffice(source, { workers: 7, staff: 2 }).key);
 });
+
+test('the floor is made wide enough to fill the view, with amenities', () => {
+  const narrow = buildModularOffice(source, { workers: 2, staff: 0 });
+  const wide = buildModularOffice(source, { workers: 2, staff: 0, viewAspect: 1.8 });
+  // Visible part: height less the edge tile each side, as wide as the view.
+  assert.ok((wide.map.width - 2) / (wide.map.height - 2) >= 1.8, `${wide.map.width} wide`);
+  assert.ok(wide.map.width > narrow.map.width);
+  assert.equal(wide.primarySeatNames.length, narrow.primarySeatNames.length, 'the extra width is not desks');
+});

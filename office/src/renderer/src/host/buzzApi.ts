@@ -12,7 +12,7 @@
 import i18n from '@/i18n';
 import { useStore, type Agent } from '@/store/store';
 import { restartAgent } from '@/components/agentRestart';
-import { isRestoring, onRestoreChange, restoreFromHost } from '@/hooks/useRestoreTeam';
+import { isRestoring, onRestoreChange, restoreFromHost, restoreProgress } from '@/hooks/useRestoreTeam';
 import { openQuestion, parseTasks, type HiveTask, type HumanQA } from '@/components/TasksKanban';
 import { disposeTerminal } from '@/components/terminalPool';
 import { sectionOps } from '@/host/buzzSectionsApi';
@@ -148,7 +148,8 @@ function snapshotOf(s: ReturnType<typeof useStore.getState>) {
     selectedId: s.selectedId,
     // Last session's agents, waiting to be restored (one by one or all).
     restorable: s.restorableAgents.map((a) => ({ id: a.id, name: a.name, description: a.description ?? '' })),
-    restoring: isRestoring()
+    restoring: isRestoring(),
+    restoreProgress: restoreProgress()
   };
 }
 

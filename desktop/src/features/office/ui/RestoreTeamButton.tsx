@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
  * and the Office starts them two at a time.
  */
 export function RestoreTeamButton() {
-  const { restorable, restoring } = useOfficeAgents();
+  const { restorable, restoring, restoreProgress } = useOfficeAgents();
   const [open, setOpen] = React.useState(false);
 
   if (restorable.length === 0 && !restoring) return null;
@@ -35,7 +35,11 @@ export function RestoreTeamButton() {
           variant="outline"
         >
           <RotateCcw />
-          {restoring ? "Restoring…" : `Restore team (${restorable.length})`}
+          {restoring
+            ? restoreProgress && restoreProgress.total > 0
+              ? `Restoring ${restoreProgress.done}/${restoreProgress.total}…`
+              : "Restoring…"
+            : `Restore team (${restorable.length})`}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-2">

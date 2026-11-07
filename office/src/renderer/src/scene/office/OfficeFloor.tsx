@@ -18,7 +18,7 @@ import { pickSoloLine, pickExchange, type BreakSpot } from './cafeteriaLines';
 import { colors } from '@/design/tokens';
 import { loadTheme, resolveThemeMap, themeTilesetUrls } from './themeLoader';
 import { officeThemeFor } from './themeRegistry';
-import { officeLayoutKey, type Headcount } from './modularOffice';
+import { aspectBucket, officeLayoutKey, type Headcount } from './modularOffice';
 import {
   installContextLossRecovery, planInitFailure, DEFAULT_MAX_INIT_RETRIES
 } from './glRecovery';
@@ -195,7 +195,18 @@ export function OfficeFloor() {
   // The office is built to the team's size: the scene is rebuilt when the
   // layout changes (a desk pod more or less, a plusher or plainer floor), not
   // on every hire.
-  const layoutKey = useStore((s) => officeLayoutKey(headcountOf(s.agents)));
+  // …and to the view's shape, so the floor fills it with no bars beside it.
+  const [viewAspect, setViewAspect] = useState(0);
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const measure = () => setViewAspect(aspectBucket(host.clientWidth, host.clientHeight));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, []);
+  const layoutKey = useStore((s) => officeLayoutKey(headcountOf(s.agents, viewAspect)));
 
   // Is the floor actually on screen? A fullscreen terminal or file editor covers
   // it completely, and a hidden window shows nothing at all — but the Pixi ticker
@@ -273,7 +284,7 @@ export function OfficeFloor() {
     const init = async () => {
       // Load the active theme bundle (falls back to 'office' on a bad/absent bundle).
       const theme = officeTheme === 'office'
-        ? officeThemeFor(headcountOf(useStore.getState().agents))
+        ? officeThemeFor(headcountOf(useStore.getState().agents, aspectBucket(host.clientWidth, host.clientHeight)))
         : await loadTheme(officeTheme);
       await app.init({
         background: hexNum(theme.palette.background),
@@ -2030,7 +2041,7 @@ function safeDestroy(app: Application) {
 }
 
 /** Who works on the floor, for the office's size. */
-function headcountOf(agents: readonly Agent[]): Headcount {
+function headcountOf(agents: readonly Agent[], viewAspect: number): Headcount {
   const workers = agents.filter((a) => !a.isGod && !a.archived);
-  return { workers: workers.length, staff: workers.filter((a) => a.staff).length };
+  return { workers: workers.length, staff: workers.filter((a) => a.staff).length, viewAspect };
 }

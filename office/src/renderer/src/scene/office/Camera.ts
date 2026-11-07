@@ -6,6 +6,9 @@ import { Container } from 'pixi.js';
 // pan toward the selected agent.
 
 const LERP_SPEED = 0.08;
+/** Fill the view (cropping) only while the map's shape is within this ratio
+ *  of the view's; past it the whole map is shown. */
+const MAX_COVER_CROP = 1.25;
 
 export class Camera {
   private container: Container;
@@ -60,10 +63,15 @@ export class Camera {
 
   private getMinZoom(): number {
     if (this.viewWidth === 0 || this.viewHeight === 0) return 1;
-    const fit = this.cover ? Math.max : Math.min;
     const width = Math.max(1, this.mapWidth - 2 * this.edge);
     const height = Math.max(1, this.mapHeight - 2 * this.edge);
-    return fit(this.viewWidth / width, this.viewHeight / height);
+    const contain = Math.min(this.viewWidth / width, this.viewHeight / height);
+    const cover = Math.max(this.viewWidth / width, this.viewHeight / height);
+    // Filling the view crops the map's overflow. The office is built to the
+    // team's size, so a large team's floor can be far wider than the window:
+    // filling it then hid most of the desks. Fill only while at most
+    // MAX_COVER_CROP of the map is lost; otherwise show all of it.
+    return this.cover && cover / contain <= MAX_COVER_CROP ? cover : contain;
   }
 
   /** Fit the map to the viewport (all of it, or filling it), centered. */

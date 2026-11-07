@@ -48,6 +48,12 @@ export interface ZoneRect { x: number; y: number; width: number; height: number;
 export interface Point { x: number; y: number; }
 
 const TILE_LAYERS = ['floor', 'walls', 'furniture-below', 'furniture-above'] as const;
+/** Layers whose decor (a rug, the café's table mat: tiles not from the floors
+ *  & walls tileset) is drawn in a sibling `<layer>-decor` container just above
+ *  them, so a filter on the layer (the app's colours, see appTheme.ts)
+ *  recolours the floor and walls only. */
+const STRUCTURE_LAYERS = new Set<string>(['floor', 'walls']);
+const isStructureTileset = (t: TiledTilesetRef) => /a5|floors/i.test(String(t.image ?? t.source ?? ''));
 const COLLISION_LAYER = 'collision';
 const SPAWN_POINTS_LAYER = 'spawn-points';
 const ZONES_LAYER = 'zones';
@@ -198,6 +204,8 @@ export class TiledMapRenderer {
       const layer = this.findLayer(layerName, 'tilelayer');
       const container = new Container();
       container.label = layerName;
+      const decor = new Container();
+      decor.label = `${layerName}-decor`;
 
       if (layer?.data) {
         for (let y = 0; y < this.height; y++) {
@@ -249,12 +257,14 @@ export class TiledMapRenderer {
               sprite.y = y * this.tileSize;
             }
 
-            container.addChild(sprite);
+            const own = !STRUCTURE_LAYERS.has(layerName) || isStructureTileset(tileset);
+            (own ? container : decor).addChild(sprite);
           }
         }
       }
 
       this.rootContainer.addChild(container);
+      if (decor.children.length) this.rootContainer.addChild(decor);
     }
 
     // Characters render above every tile layer.
