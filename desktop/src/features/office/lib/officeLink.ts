@@ -160,9 +160,17 @@ export type OfficeAgent = {
   toolCalls: number;
 };
 
+/** An agent from the last session, waiting to be restored. */
+export type RestorableAgent = { id: string; name: string; description: string };
+
 export type OfficeAgentsState = {
   agents: OfficeAgent[];
   selectedId: string | null;
+  /** Last session's agents. A large team isn't restored on its own: the owner
+   *  picks who comes back. */
+  restorable: RestorableAgent[];
+  /** A restore is running. */
+  restoring: boolean;
   /** False until the Office has reported once. */
   loaded: boolean;
 };
@@ -170,6 +178,8 @@ export type OfficeAgentsState = {
 let agentsState: OfficeAgentsState = {
   agents: [],
   selectedId: null,
+  restorable: [],
+  restoring: false,
   loaded: false,
 };
 const agentSubscribers = new Set<() => void>();
@@ -178,6 +188,8 @@ const agentSubscribers = new Set<() => void>();
 export function setOfficeAgentsState(snapshot: {
   agents?: unknown;
   selectedId?: unknown;
+  restorable?: unknown;
+  restoring?: unknown;
 }): void {
   agentsState = {
     agents: Array.isArray(snapshot.agents)
@@ -185,6 +197,10 @@ export function setOfficeAgentsState(snapshot: {
       : [],
     selectedId:
       typeof snapshot.selectedId === "string" ? snapshot.selectedId : null,
+    restorable: Array.isArray(snapshot.restorable)
+      ? (snapshot.restorable as RestorableAgent[])
+      : [],
+    restoring: snapshot.restoring === true,
     loaded: true,
   };
   for (const notify of agentSubscribers) notify();
@@ -268,7 +284,13 @@ export function resetOfficeSession(): void {
   pendingCalls.clear();
   panel = { sections: [], section: null, agentName: null };
   for (const notify of subscribers) notify();
-  agentsState = { agents: [], selectedId: null, loaded: false };
+  agentsState = {
+    agents: [],
+    selectedId: null,
+    restorable: [],
+    restoring: false,
+    loaded: false,
+  };
   for (const notify of agentSubscribers) notify();
   overlayOpen = false;
   for (const notify of overlaySubscribers) notify();

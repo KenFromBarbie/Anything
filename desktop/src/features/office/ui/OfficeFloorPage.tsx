@@ -53,6 +53,7 @@ import { Input } from "@/shared/ui/input";
 import { useSidebar } from "@/shared/ui/sidebar";
 
 import { AgentChat } from "./agents/AgentChat";
+import { RestoreTeamButton } from "./RestoreTeamButton";
 
 const GAP = 12;
 const CHAT_WIDTH = 340;
@@ -129,6 +130,7 @@ export function OfficeFloorPage() {
       {createPortal(
         <>
           <div className="pointer-events-none fixed right-4 top-14 z-40 flex gap-2">
+            <RestoreTeamButton />
             <Button
               className="pointer-events-auto shadow-md"
               data-testid="office-open-meeting"

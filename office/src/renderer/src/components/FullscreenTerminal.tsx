@@ -514,7 +514,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
                 <PixelButton
                   variant="primary"
                   size="sm"
-                  onClick={restoreTeam}
+                  onClick={() => void restoreTeam()}
                   disabled={restoring}
                   style={{ width: '100%' }}
                   title={t('fullscreenTerminal.respawnTitle', { names: restorableAgents.map((a: Agent) => a.name).join(', ') })}
@@ -539,6 +539,19 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
                       }}
                     >
                       {a.name}
+                      <button
+                        onClick={() => void restoreTeam([a.id])}
+                        disabled={restoring}
+                        title={t('agentStrip.restoreOne', { name: a.name })}
+                        aria-label={t('agentStrip.restoreOne', { name: a.name })}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: 14, height: 14, padding: 0, lineHeight: 1,
+                          fontFamily: 'var(--cth-font-ui)', fontSize: 10,
+                          color: 'var(--cth-ink-700)', background: 'transparent',
+                          border: 'none', cursor: 'pointer'
+                        }}
+                      ><Icon name="play" /></button>
                       <button
                         onClick={() => useStore.getState().removeRestorableAgent(a.id)}
                         title={`Dismiss ${a.name} — remove permanently from the restore list`}

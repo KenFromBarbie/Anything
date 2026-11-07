@@ -2,6 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { useStore, type Agent } from '@/store/store';
 import { buildSpawnCommand, inferAgentProvider, tokenizeCommand, type HarnessConfig } from '@/store/config';
 import { roleForHiveSpawn } from '@shared/agentRole';
+import { mapLimited } from './mapLimited';
 
 /** "Restore team" — respawn every worker from the previous session.
  *
@@ -32,6 +33,17 @@ const listeners = new Set<() => void>();
  *  window in which you can hit a dismiss ✕ if you don't want an agent back. */
 export const AUTO_RESTORE_DELAY_MS = 2500;
 
+/** The boot restore only runs on its own for a team this small. Each agent is
+ *  a CLI process of ~200 MB; a large roster restored unasked filled the
+ *  computer's memory (22 agents ≈ 5 GB) and took it down. Larger teams wait in
+ *  the restore menu for the owner to pick who comes back. */
+export const AUTO_RESTORE_MAX = 3;
+
+/** How many agents a restore starts at once. Spawning is CPU- and memory-heavy
+ *  (each CLI boots, resumes its transcript and probes git), so a large team
+ *  starting together spiked the machine. */
+export const RESTORE_CONCURRENCY = 2;
+
 function emit(): void {
   for (const l of [...listeners]) l();
 }
@@ -47,6 +59,22 @@ const getRestoring = (): boolean => restoring;
 const getNote = (): string | null => note;
 const getAutoRestoring = (): boolean => autoRestoring;
 
+/** The restore of the mounted hook, for Anything's own restore menu (the
+ *  Office's strip is hidden inside Anything). */
+let latestRestore: ((ids?: readonly string[]) => Promise<void>) | null = null;
+
+/** Restore these agents (or all) as the Office's own button does. */
+export function restoreFromHost(ids?: readonly string[]): Promise<void> {
+  if (!latestRestore) return Promise.reject(new Error('the Office is still starting'));
+  return latestRestore(ids);
+}
+
+/** Whether a restore (manual or automatic) is running. */
+export const isRestoring = (): boolean => restoring || autoRestoring;
+
+/** Called whenever a restore starts or ends. */
+export const onRestoreChange = subscribe;
+
 export interface RestoreTeamState {
   restoring: boolean;
   /** True when the run in flight was started automatically at boot, not by a
@@ -54,7 +82,8 @@ export interface RestoreTeamState {
   autoRestoring: boolean;
   /** Outcome of the last run ("restored 3 · 1 failed — …"), or null. */
   restoreNote: string | null;
-  restoreTeam: () => Promise<void>;
+  /** Restore the agents with these ids, or the whole list when omitted. */
+  restoreTeam: (ids?: readonly string[]) => Promise<void>;
 }
 
 /**
@@ -69,13 +98,14 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
   /** Respawn every worker from the previous session with its ORIGINAL agent id,
    *  cwd, model and command — the hive workspace (memory.md, inbox, registry
    *  entry) reattaches by itself, no memory transplant needed. */
-  const restoreTeam = async (): Promise<void> => {
+  const restoreTeam = async (ids?: readonly string[]): Promise<void> => {
     if (restoring) return;
     restoring = true;
     note = null;
     emit();
     const prevSel = useStore.getState().selectedId;
-    const restorableAgents = useStore.getState().restorableAgents;
+    const restorableAgents = useStore.getState().restorableAgents
+      .filter((a) => !ids || ids.includes(a.id));
     // Tally every agent's outcome so the run ALWAYS leaves a visible trace — the
     // original bug was that every failure path was console-only, so a click that
     // couldn't spawn anything looked like a dead button.
@@ -83,7 +113,7 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
     let alreadyLive = 0;
     const failures: string[] = [];
     try {
-      // Restore every agent CONCURRENTLY. Each spawn is keyed by its own ptyId and
+      // Restore agents CONCURRENTLY, at most RESTORE_CONCURRENCY at a time. Each spawn is keyed by its own ptyId and
       // touches no cross-agent state in the renderer, and in the main process the
       // whole `pty:spawn` handler (hive registry read-modify-write included) runs
       // synchronously between awaits, so concurrent handlers can't interleave
@@ -94,7 +124,7 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
       // the roster order — and that order is persisted, so a slow provider or a
       // slow git probe silently overwrote the sequence the user had dragged the
       // cards into.
-      const restoredInOrder = await Promise.all([...restorableAgents].map(async (a): Promise<Agent | null> => {
+      const restoredInOrder = await mapLimited(restorableAgents, RESTORE_CONCURRENCY, async (a): Promise<Agent | null> => {
         // Per-agent guard: one agent's failure (or a rejected IPC call) must NEVER
         // abort the others — an unhandled rejection here used to make the
         // entire restore a silent no-op after the first bad agent.
@@ -195,7 +225,7 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
           console.error('[restore] error for', a.id, e);
         }
         return null;
-      }));
+      });
       // Add in the ORIGINAL roster order, not completion order.
       for (const restoredAgent of restoredInOrder) {
         if (restoredAgent) useStore.getState().addAgent(restoredAgent);
@@ -214,6 +244,8 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
       emit();
     }
   };
+
+  latestRestore = restoreTeam;
 
   // Restore the previous session's team on open, without waiting for a click.
   //
@@ -235,7 +267,10 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
       timer = setTimeout(() => {
         timer = null;
         if (autoStarted || restoring) return;
-        if (!useStore.getState().restorableAgents.length) return;
+        const waiting = useStore.getState().restorableAgents.length;
+        if (!waiting) return;
+        // A large team waits in the restore menu instead (AUTO_RESTORE_MAX).
+        if (waiting > AUTO_RESTORE_MAX) { autoStarted = true; return; }
         // Latch BEFORE the await so the other mount point's timer, which may
         // fire in this same tick, sees it.
         autoStarted = true;

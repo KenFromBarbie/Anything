@@ -12,6 +12,7 @@
 import i18n from '@/i18n';
 import { useStore, type Agent } from '@/store/store';
 import { restartAgent } from '@/components/agentRestart';
+import { isRestoring, onRestoreChange, restoreFromHost } from '@/hooks/useRestoreTeam';
 import { openQuestion, parseTasks, type HiveTask, type HumanQA } from '@/components/TasksKanban';
 import { disposeTerminal } from '@/components/terminalPool';
 import { sectionOps } from '@/host/buzzSectionsApi';
@@ -144,11 +145,27 @@ function snapshotOf(s: ReturnType<typeof useStore.getState>) {
         toolCalls: s.toolCounts[a.id] ?? 0
       })
     ),
-    selectedId: s.selectedId
+    selectedId: s.selectedId,
+    // Last session's agents, waiting to be restored (one by one or all).
+    restorable: s.restorableAgents.map((a) => ({ id: a.id, name: a.name, description: a.description ?? '' })),
+    restoring: isRestoring()
   };
 }
 
 const ops: Record<string, Op> = {
+  /** Bring back last session's agents: these ids, or all of them. */
+  'agents.restore': async (a) => {
+    const ids = Array.isArray(a.ids) ? a.ids.map((x) => String(x)) : undefined;
+    await restoreFromHost(ids);
+    return { ok: true };
+  },
+
+  /** Take an agent off the restore list for good. */
+  'agents.dismissRestorable': async (a) => {
+    useStore.getState().removeRestorableAgent(text(a.id, 120));
+    return { ok: true };
+  },
+
   'tasks.list': async () => parseTasks(await window.cth.hiveTasks()),
 
   'tasks.add': async (a) => {
@@ -570,11 +587,14 @@ export function startStatePush(post: (message: Record<string, unknown>) => void)
     post({ type: 'state', ...message });
   };
   push();
-  const unsubscribe = useStore.subscribe(() => {
+  const schedule = () => {
     if (!timer) timer = setTimeout(push, 250);
-  });
+  };
+  const unsubscribe = useStore.subscribe(schedule);
+  const unsubscribeRestore = onRestoreChange(schedule);
   return () => {
     unsubscribe();
+    unsubscribeRestore();
     if (timer) clearTimeout(timer);
   };
 }

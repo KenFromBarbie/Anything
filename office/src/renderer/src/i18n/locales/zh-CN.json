@@ -123,6 +123,7 @@
     "restorable": "{{name}}——可从上次会话恢复",
     "dismiss": "忽略 {{name}}——从恢复列表中永久移除",
     "dismissAria": "忽略 {{name}}",
+    "restoreOne": "恢复 {{name}}",
     "restoreAll": "全部恢复（{{count}}）"
   },
   "sidebar": {
