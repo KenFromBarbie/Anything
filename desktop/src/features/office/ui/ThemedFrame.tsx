@@ -15,7 +15,7 @@ import { useTheme } from "@/shared/theme/ThemeProvider";
 /** The app's look, for a page an agent made: dark or light, its accent and
  *  font. Posted to the page as `{ type: "buzz-theme", … }` when it loads and
  *  when the theme changes. */
-function themeMessage(dark: boolean) {
+export function themeMessage(dark: boolean) {
   const css = getComputedStyle(document.documentElement);
   const hsl = (name: string) => {
     const v = css.getPropertyValue(name).trim();
@@ -28,6 +28,9 @@ function themeMessage(dark: boolean) {
     foreground: hsl("--foreground"),
     muted: hsl("--muted-foreground"),
     border: hsl("--border"),
+    background: hsl("--background"),
+    card: hsl("--card"),
+    sidebar: hsl("--sidebar"),
     font: css.fontFamily,
   };
 }

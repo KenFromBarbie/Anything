@@ -1,4 +1,4 @@
-import { Container, Sprite, Texture, Rectangle } from 'pixi.js';
+import { Container, Sprite, Texture, Rectangle, type Filter } from 'pixi.js';
 
 // Trimmed port of shahar061/the-office (office/engine/TiledMapRenderer.ts):
 // renders floor/walls/furniture tile layers and parses collision, spawn-points
@@ -81,6 +81,12 @@ export class TiledMapRenderer {
   }
 
   getContainer(): Container { return this.rootContainer; }
+
+  /** Filters on one tile layer (e.g. recolouring the floor), replacing any. */
+  setLayerFilters(layerName: string, filters: Filter[]): void {
+    const layer = this.rootContainer.children.find((c) => c.label === layerName);
+    if (layer) layer.filters = filters;
+  }
   getCharacterContainer(): Container { return this.characterContainer; }
 
   isWalkable(tx: number, ty: number): boolean {

@@ -1,4 +1,6 @@
 import * as React from "react";
+
+import { useOfficeThemeSync } from "@/features/office/lib/officeThemeSync";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { openMeetingDialog } from "@/features/office/lib/meetingRoom";
@@ -32,6 +34,7 @@ export function OfficeBackdrop() {
   const { enabled, strength } = useOfficeBackdrop();
   const [conn, setConn] = React.useState<Connection | null>(null);
   const frameRef = React.useRef<HTMLIFrameElement>(null);
+  useOfficeThemeSync(frameRef);
   const stage = useStageRect(useOfficeStage());
 
   // The mirror needs the main Office running (it copies its state).
@@ -104,7 +107,8 @@ export function OfficeBackdrop() {
         return;
       }
       if (msg.type === "navigate" && msg.page === "tasks") openFloorTasks();
-      if (msg.type === "navigate" && msg.page === "meeting") openMeetingDialog();
+      if (msg.type === "navigate" && msg.page === "meeting")
+        openMeetingDialog();
       if (msg.type === "desk-click") {
         openDeskAgent(typeof msg.id === "string" ? msg.id : null);
       }

@@ -5,6 +5,7 @@ import { Application, Container, Graphics, Ticker, Texture } from 'pixi.js';
 import 'pixi.js/unsafe-eval';
 import { useStore, type Agent } from '@/store/store';
 import { TiledMapRenderer } from './TiledMapRenderer';
+import { applyAppTheme, onAppTheme } from './appTheme';
 import { Camera } from './Camera';
 import { hostedInBuzz, mirrorRole } from '@/host/buzzHost';
 import { emitAgentClick, emitDeskClick, setAgentLocator } from './agentLocator';
@@ -311,6 +312,8 @@ export function OfficeFloor() {
 
       const mapRenderer = new TiledMapRenderer(resolveThemeMap(theme), tilesetTextures);
       world.addChild(mapRenderer.getContainer());
+      // In the app's colours, following its light/dark theme.
+      (app as any).__appThemeOff = onAppTheme((t) => applyAppTheme(app, mapRenderer, t));
       const charLayer = mapRenderer.getCharacterContainer();
       const tileCount = mapRenderer.getContainer().children.reduce(
         (n, c) => n + ((c as Container).children?.length ?? 0), 0);
@@ -1978,6 +1981,7 @@ export function OfficeFloor() {
         (a as any).__resize?.disconnect?.();
         try { (a as any).__unsub?.(); } catch { /* noop */ }
         try { (a as any).__offMessage?.(); } catch { /* noop */ }
+        try { (a as any).__appThemeOff?.(); } catch { /* noop */ }
         try { clearInterval((a as any).__taskBoardPoll); } catch { /* noop */ }
         safeDestroy(a);
       }

@@ -1,4 +1,6 @@
 import * as React from "react";
+
+import { useOfficeThemeSync } from "@/features/office/lib/officeThemeSync";
 import { useQueryClient } from "@tanstack/react-query";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
@@ -81,6 +83,7 @@ export function hostTheme(context: Element) {
 export function OfficeScreen() {
   const [state, setState] = React.useState<OfficeState>({ status: "starting" });
   const frameRef = React.useRef<HTMLIFrameElement>(null);
+  useOfficeThemeSync(frameRef);
   const queryClient = useQueryClient();
   const anchor = useOfficeAnchor();
   const disconnectRef = React.useRef<(() => void) | null>(null);
