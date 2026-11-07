@@ -17,6 +17,8 @@ import { hexToNumber, DEFAULT_CHARACTER } from './cast';
 import { pickSoloLine, pickExchange, type BreakSpot } from './cafeteriaLines';
 import { colors } from '@/design/tokens';
 import { loadTheme, resolveThemeMap, themeTilesetUrls } from './themeLoader';
+import { officeThemeFor } from './themeRegistry';
+import { officeLayoutKey, type Headcount } from './modularOffice';
 import {
   installContextLossRecovery, planInitFailure, DEFAULT_MAX_INIT_RETRIES
 } from './glRecovery';
@@ -190,6 +192,10 @@ export function OfficeFloor() {
   // The active office theme (store mirror of config.officeTheme). Changing it
   // tears down and rebuilds the whole scene on the new map/cast (see deps below).
   const officeTheme = useStore((s) => s.officeTheme);
+  // The office is built to the team's size: the scene is rebuilt when the
+  // layout changes (a desk pod more or less, a plusher or plainer floor), not
+  // on every hire.
+  const layoutKey = useStore((s) => officeLayoutKey(headcountOf(s.agents)));
 
   // Is the floor actually on screen? A fullscreen terminal or file editor covers
   // it completely, and a hidden window shows nothing at all — but the Pixi ticker
@@ -266,7 +272,9 @@ export function OfficeFloor() {
 
     const init = async () => {
       // Load the active theme bundle (falls back to 'office' on a bad/absent bundle).
-      const theme = await loadTheme(officeTheme);
+      const theme = officeTheme === 'office'
+        ? officeThemeFor(headcountOf(useStore.getState().agents))
+        : await loadTheme(officeTheme);
       await app.init({
         background: hexNum(theme.palette.background),
         antialias: false,
@@ -1988,7 +1996,7 @@ export function OfficeFloor() {
       appRef.current = null;
       while (host.firstChild) host.removeChild(host.firstChild);
     };
-  }, [officeTheme, glGeneration, i18n.language]);
+  }, [officeTheme, layoutKey, glGeneration, i18n.language]);
 
   return (
     <div
@@ -2019,4 +2027,10 @@ function hex(n: number): string { return '#' + n.toString(16).padStart(6, '0'); 
 function safeDestroy(app: Application) {
   try { app.ticker?.stop(); } catch { /* noop */ }
   try { app.destroy(true, { children: true }); } catch { /* noop */ }
+}
+
+/** Who works on the floor, for the office's size. */
+function headcountOf(agents: readonly Agent[]): Headcount {
+  const workers = agents.filter((a) => !a.isGod && !a.archived);
+  return { workers: workers.length, staff: workers.filter((a) => a.staff).length };
 }

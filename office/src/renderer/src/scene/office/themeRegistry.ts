@@ -27,6 +27,7 @@ import a5FloorsWallsUrl from '@/assets/tilesets/a5-office-floors-walls.png?url';
 import interiorsUrl from '@/assets/tilesets/interiors.png?url';
 // .tmj is Tiled JSON; imported as raw text and parsed by the loader.
 import officeMapRaw from '@/assets/maps/office.tmj?raw';
+import { buildModularOffice, type Headcount } from './modularOffice';
 import brooklyn99MapRaw from '@/assets/maps/brooklyn99.tmj?raw';
 
 /** Theme identifiers. Only `office` exists in Phase 0; the five TV-show themes
@@ -288,6 +289,44 @@ export const BROOKLYN99_THEME: ThemeConfig = {
   palette: OFFICE_THEME.palette,
   cast: OFFICE_THEME.cast,
 };
+
+const ERRAND_SECONDS = { water: 4.5, dispenser: 3.5, bin: 2.6 } as const;
+const modularCache = new Map<string, ThemeConfig>();
+
+/** The office built to the team's size (see modularOffice.ts): the same
+ *  theme, with the generated map and every coordinate moved with its room. */
+export function officeThemeFor(headcount: Headcount): ThemeConfig {
+  const built = buildModularOffice(JSON.parse(officeMapRaw), headcount);
+  const cached = modularCache.get(built.key);
+  if (cached) return cached;
+  const at = (t: Tile): Tile => built.place(t) ?? t;
+  const theme: ThemeConfig = {
+    ...OFFICE_THEME,
+    mapRaw: JSON.stringify(built.map),
+    primarySeatNames: built.primarySeatNames,
+    staffSeatNames: built.staffSeatNames,
+    coffee: {
+      ...OFFICE_THEME.coffee,
+      trayTile: at(OFFICE_THEME.coffee.trayTile),
+      trayStand: at(OFFICE_THEME.coffee.trayStand),
+      machineStand: at(OFFICE_THEME.coffee.machineStand),
+      sinkTile: at(OFFICE_THEME.coffee.sinkTile),
+      sinkStand: at(OFFICE_THEME.coffee.sinkStand),
+    },
+    errandSpots: [
+      // The hand-drawn office's errands, where their part of it was built.
+      ...OFFICE_THEME.errandSpots.flatMap((e) => {
+        const stand = built.place(e.stand);
+        const fx = built.place(e.fx);
+        return stand && fx ? [{ ...e, stand, fx }] : [];
+      }),
+      ...built.errands.map((e) => ({ ...e, duration: ERRAND_SECONDS[e.kind] })),
+    ],
+  };
+  modularCache.clear(); // one layout at a time
+  modularCache.set(built.key, theme);
+  return theme;
+}
 
 /** All registered themes. Phase 0 ships only the office; show themes register
  *  here as their content lands (Phase 2). */
