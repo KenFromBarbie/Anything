@@ -357,7 +357,7 @@ function AgentRow({
         <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-2">
           <span className="text-sm text-muted-foreground">Engine</span>
           <select
-            aria-label="Michael's engine"
+            aria-label="The CEO's engine"
             className={SECTION_SELECT}
             disabled={busy}
             onChange={(event) => {
@@ -376,7 +376,7 @@ function AgentRow({
             ))}
           </select>
           <select
-            aria-label="Michael's model"
+            aria-label="The CEO's model"
             className={SECTION_SELECT}
             disabled={busy}
             onChange={(event) => setEngineModel(event.target.value || null)}
@@ -497,7 +497,7 @@ function AgentRow({
 export function ModelsBudgetsSection() {
   const client = useQueryClient();
   const { agents } = useOfficeAgents();
-  const michaelName = agents.find((agent) => agent.isGod)?.name ?? "Michael";
+  const michaelName = agents.find((agent) => agent.isGod)?.name ?? "CEO";
   const ordered = [...agents].sort((a, b) => Number(b.isGod) - Number(a.isGod));
   const telemetry = useQuery({
     queryKey: ["office", "telemetry"],

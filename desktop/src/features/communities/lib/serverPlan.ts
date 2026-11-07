@@ -216,7 +216,8 @@ export function planFromDraft(
   links: string[] = [],
 ): ServerPlan {
   const fallback = draftPlan(name, purpose, files, links);
-  const seen = new Set<string>(["michael"]);
+  // The CEO's names (now and before the rename) are taken.
+  const seen = new Set<string>(["ceo", "michael"]);
   const agents = (draft.staff ?? [])
     .map((a) => ({ name: str(a.name, 40), role: str(a.role, 200) }))
     .filter((a) => {
@@ -252,8 +253,9 @@ export function planFromDraft(
   return plan;
 }
 
-/** Permanent staff each have an office of their own; there are this many. */
-export const STAFF_SEATS = 4;
+/** How many executives a drafted setup may have. Each gets a private desk:
+ *  four offices, then desks in the nook the Office widens to fit. */
+export const STAFF_SEATS = 8;
 
 const fileName = (path: string) =>
   path.split(/[\\/]/).filter(Boolean).pop() ?? path;
@@ -287,8 +289,8 @@ export function startingPrompt(plan: ServerPlan): string {
   }
   lines.push(
     "HOW WORK FLOWS",
-    "1. You plan and delegate; you don't do the work yourself. Split every request from me by area and send each part to the staff member who owns it, as a contract: objective, expected output, references and tools, boundaries and the definition of done.",
-    "2. Your staff break their part into tasks and hire floor workers to do them, check the results, and report back to you. Work that fits no one's area: give it to the closest fit, or ask me whether it needs a new permanent role.",
+    "1. You plan and delegate; you don't do the work yourself. Split every request from me by area and send each part to the executive who owns it, as a contract: objective, expected output, references and tools, boundaries and the definition of done.",
+    "2. Your executives break their part into tasks and hire floor workers to do them, check the results, and report back to you. Work that fits no one's area: give it to the closest fit, or ask me whether it needs a new permanent role.",
     "3. Keep the task board true: every card has an owner, and you are the one who signs work off.",
     "4. Answer me with one combined result, not a relay of everyone's messages. Anything only I can decide or do, ask me in the thread it came from.",
     "",
@@ -313,8 +315,8 @@ export function startingPrompt(plan: ServerPlan): string {
   lines.push(
     "FIRST STEPS",
     `1. Read the material${materialList(plan)}.`,
-    "2. Write the plan on the board: the goals, the first milestones, and each staff member's first tasks.",
-    "3. Brief each staff member on their area and their first tasks, and get them started.",
+    "2. Write the plan on the board: the goals, the first milestones, and each executive's first tasks.",
+    "3. Brief each executive on their area and their first tasks, and get them started.",
     `4. Post the plan in ${first}, then tell me what you need from me.`,
   );
   return lines.join("\n");

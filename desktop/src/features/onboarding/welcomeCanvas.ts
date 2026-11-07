@@ -6,14 +6,14 @@ This server runs an AI office for you. **Michael** runs it: you tell him what yo
 
 ## Start here
 
-1. **Tell Michael what you're working on.** Mention @Michael in any channel or message him directly: the goal, who it's for, what done looks like, and any deadline.
+1. **Tell Michael what you're working on.** Mention @CEO in any channel or message him directly: the goal, who it's for, what done looks like, and any deadline.
 2. **Hand over your material.** Attach files or paste links in your message; the agents read them before they start.
 3. **Watch it happen in the Office.** Open the Office view to see who is at their desk, what each agent is doing, and to click a desk to manage the agent sitting there.
 4. **Check the board.** Tasks shows every piece of work, who owns it and what is blocked on you.
 
 ## Things you can ask for
 
-- "Michael, plan the first month of this project and give each of the staff their part."
+- "CEO, plan the first month of this project and give each executive their part."
 - "Research our three closest competitors and summarise what they do better than us."
 - "Draft replies to the questions in the attached file, and flag anything you're unsure of."
 - "Set up a weekly report every Monday on what got done and what's next."

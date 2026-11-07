@@ -216,7 +216,7 @@ function VaultCard() {
         text: graphRequest(path),
       }),
     onSuccess: () =>
-      toast(`${michael?.name ?? "Michael"} is rebuilding the graph.`, {
+      toast(`${michael?.name ?? "CEO"} is rebuilding the graph.`, {
         description: "It shows here when it's done.",
       }),
     onError: (error) => toast.error(error.message),

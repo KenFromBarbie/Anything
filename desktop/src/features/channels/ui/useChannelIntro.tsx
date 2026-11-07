@@ -26,10 +26,10 @@ import { HashSearch } from "@/shared/ui/icons";
 /** What the Welcome channel says first: how the office works and how to
  *  get it going. */
 const WELCOME_INTRO = [
-  "Michael runs your office here. Tell him what you need and he splits it between your permanent staff, who hire floor workers for the work and report back to him. You get one answer.",
+  "The CEO runs your office here. Tell him what you need and he splits it between your executives, who hire floor workers for the work and report back to him. You get one answer.",
   "",
-  "To start, mention @Michael below with what you're working on: the goal, who it's for and what done looks like. Attach files or paste links and the agents read them first. For example:",
-  '• "Plan the first month and give each of the staff their part."',
+  "To start, mention @CEO below with what you're working on: the goal, who it's for and what done looks like. Attach files or paste links and the agents read them first. For example:",
+  '• "Plan the first month and give each executive their part."',
   '• "Summarise the attached brief and list the questions you need me to answer."',
   '• "Every Monday, send me what got done last week and what\'s next."',
 ].join("\n");

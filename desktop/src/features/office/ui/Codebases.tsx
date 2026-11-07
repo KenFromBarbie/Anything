@@ -185,7 +185,7 @@ function CodebaseCard({ codebase }: { codebase: Codebase }) {
                 tell.mutate(codebaseLearnRequest(codebase), {
                   onSuccess: () =>
                     toast(
-                      `${michael?.name ?? "Michael"} is learning ${codebase.name}'s design.`,
+                      `${michael?.name ?? "CEO"} is learning ${codebase.name}'s design.`,
                       {
                         description:
                           "Things you make in its look will follow it.",
@@ -239,7 +239,7 @@ function CodebaseCard({ codebase }: { codebase: Codebase }) {
               onSuccess: () => {
                 setAsk("");
                 setAsking(false);
-                toast(`${michael?.name ?? "Michael"} is on it.`, {
+                toast(`${michael?.name ?? "CEO"} is on it.`, {
                   description:
                     "The work goes on a branch of its own; you get a summary in chat.",
                 });

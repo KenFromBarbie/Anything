@@ -201,7 +201,7 @@ export function useServerSetupRunner(relayUrl: string | undefined): void {
         }
         update(relayUrl, () => null);
         toast.success(
-          `${setup.name} is set up: ${setup.channels.length} channels, ${setup.agents.length} permanent staff, and Michael has the plan.`,
+          `${setup.name} is set up: ${setup.channels.length} channels, ${setup.agents.length} executives, and the CEO has the plan.`,
         );
       } catch (error) {
         failed.current = true;

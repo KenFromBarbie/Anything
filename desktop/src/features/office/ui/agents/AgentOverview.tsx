@@ -28,7 +28,7 @@ export function AgentOverview({ agent }: { agent: OfficeAgent }) {
       "Queued",
       agent.queue.length ? `${agent.queue.length} message(s)` : "none",
     ],
-    ["Michael", agent.onHold ? "on hold (1:1 with you)" : "can hand them work"],
+    ["CEO", agent.onHold ? "on hold (1:1 with you)" : "can hand them work"],
   ];
   return (
     <div className="grid max-w-2xl gap-4" data-testid="agent-overview">

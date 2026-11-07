@@ -116,7 +116,7 @@ export function OfficeAgentsPage() {
   const { sections } = useOfficePanelState();
   const overlay = useOfficeOverlay();
   const selected = agents.find((agent) => agent.id === selectedId) ?? null;
-  const michaelName = agents.find((agent) => agent.isGod)?.name ?? "Michael";
+  const michaelName = agents.find((agent) => agent.isGod)?.name ?? "CEO";
   const chat = useOpenAgentDm();
   const [tab, setTab] = React.useState<PageTab>("agents");
   // In the Agents tab an agent opens on its setup; its Office panels (git,

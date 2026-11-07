@@ -141,6 +141,97 @@ pub async fn download_file(
     save_bytes_with_dialog(&app, &filename, "All Files", &extensions, &bytes).await
 }
 
+/// One file to export: a relay `/media/` URL and its display name.
+#[derive(serde::Deserialize)]
+pub struct ExportFile {
+    url: String,
+    filename: String,
+}
+
+/// What an export did.
+#[derive(serde::Serialize)]
+pub struct ExportReport {
+    folder: String,
+    saved: usize,
+    failed: Vec<String>,
+}
+
+/// Export several shared files at once (the Office printer): pick a folder
+/// once, then download each file into it. Each file gets `download_file`'s
+/// protections (relay `/media/` URLs only, sanitized names, size cap, the
+/// upload-side type policy); a name already in the folder gets " (2)" etc.
+/// `Ok(None)` when the folder dialog was cancelled.
+#[tauri::command]
+pub async fn export_files(
+    files: Vec<ExportFile>,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<ExportReport>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    if files.is_empty() {
+        return Err("Nothing selected to export.".into());
+    }
+    let relay_base = relay_api_base_url_with_override(&state);
+    for file in &files {
+        validate_download_url(&file.url, &relay_base)?;
+    }
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title("Export to folder")
+        .pick_folder(move |path| {
+            let _ = tx.send(path);
+        });
+    let Some(folder) = rx.await.map_err(|_| "dialog cancelled".to_string())? else {
+        return Ok(None);
+    };
+    let folder = folder
+        .as_path()
+        .ok_or_else(|| "The folder dialog returned an invalid path".to_string())?
+        .to_path_buf();
+
+    let mut saved = 0;
+    let mut failed = Vec::new();
+    for file in files {
+        let name = sanitize_filename(&file.filename);
+        let result = async {
+            let bytes = fetch_blob_bytes(&file.url, &state).await?;
+            detect_and_validate_mime(&bytes)?;
+            let dest = unique_path(&folder, &name);
+            std::fs::write(&dest, &bytes).map_err(|e| format!("could not write: {e}"))
+        }
+        .await;
+        match result {
+            Ok(()) => saved += 1,
+            Err(error) => failed.push(format!("{name}: {error}")),
+        }
+    }
+    Ok(Some(ExportReport {
+        folder: folder.display().to_string(),
+        saved,
+        failed,
+    }))
+}
+
+/// `folder/name`, or `folder/stem (2).ext` and so on when that exists.
+fn unique_path(folder: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let first = folder.join(name);
+    if !first.exists() {
+        return first;
+    }
+    let path = std::path::Path::new(name);
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(name);
+    let ext = path.extension().and_then(|e| e.to_str());
+    (2..)
+        .map(|n| match ext {
+            Some(ext) => folder.join(format!("{stem} ({n}).{ext}")),
+            None => folder.join(format!("{stem} ({n})")),
+        })
+        .find(|p| !p.exists())
+        .expect("an unused name")
+}
+
 /// Copy an image from a relay media URL directly to the system clipboard.
 ///
 /// Fetches the image, decodes it to RGBA8, and writes it to the clipboard via

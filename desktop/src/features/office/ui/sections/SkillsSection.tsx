@@ -144,7 +144,7 @@ export function SkillsSection() {
       }),
     onSuccess: (_result, url) => {
       setRepo("");
-      toast(`${michael?.name ?? "Michael"} is installing ${url}.`, {
+      toast(`${michael?.name ?? "CEO"} is installing ${url}.`, {
         description: "It shows under Installed once it's in.",
       });
       // Pick it up when it lands, without a manual refresh.
@@ -175,7 +175,7 @@ export function SkillsSection() {
   return (
     <div className="grid gap-4" data-testid="section-skills">
       <SectionCard
-        description="Paste a GitHub repository with skills in it. Michael reads it, installs its skills for this server's agents, and tells you what he added. To install for every server, use Settings → Memory & skills."
+        description="Paste a GitHub repository with skills in it. The CEO reads it, installs its skills for this server's agents, and tells you what he added. To install for every server, use Settings → Memory & skills."
         title="Add from GitHub"
       >
         <form

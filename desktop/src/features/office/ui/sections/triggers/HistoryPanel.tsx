@@ -162,7 +162,7 @@ function EntryCard({
 export function HistoryPanel() {
   const client = useQueryClient();
   const { agents } = useOfficeAgents();
-  const michaelName = agents.find((a) => a.isGod)?.name ?? "Michael";
+  const michaelName = agents.find((a) => a.isGod)?.name ?? "CEO";
   const history = useQuery({
     queryKey: KEY,
     queryFn: () => officeCth<Entry[] | undefined>("listTriggerHistory"),

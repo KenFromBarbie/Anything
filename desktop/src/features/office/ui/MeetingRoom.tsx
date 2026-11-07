@@ -113,7 +113,7 @@ export function MeetingDialog() {
             <p className="text-xs text-muted-foreground">
               {inCall
                 ? "Leave your current call first."
-                : "Say a name to ask someone; with no name, Michael answers."}
+                : "Say a name to ask someone; with no name, the CEO answers."}
             </p>
             <Button
               disabled={starting || picked.size === 0 || inCall}

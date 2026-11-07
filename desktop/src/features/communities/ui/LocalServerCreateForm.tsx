@@ -227,7 +227,7 @@ export function LocalServerCreateForm({
             className="min-h-28"
             id="local-server-purpose"
             onChange={(event) => setPurpose(event.target.value)}
-            placeholder="What you're making or running, who it's for, and how work should flow. The setup (staff, channels, Michael's first instructions) is drafted from this."
+            placeholder="What you're making or running, who it's for, and how work should flow. The setup (executives, channels, the CEO's first instructions) is drafted from this."
             value={purpose}
           />
         </label>
@@ -322,11 +322,11 @@ export function LocalServerCreateForm({
       ) : null}
 
       <Section
-        hint="Standing roles with an office each. They split up Michael's requests and hire floor workers."
+        hint="Standing roles with an office each. They split up the CEO's requests and hire floor workers."
         onAdd={() =>
           edit((p) => ({ ...p, agents: [...p.agents, { name: "", role: "" }] }))
         }
-        title="Permanent staff"
+        title="Executives"
       >
         <div className="grid gap-2 sm:grid-cols-2">
           {plan.agents.map((agent, index) => (

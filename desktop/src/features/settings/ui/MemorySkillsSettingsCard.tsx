@@ -92,7 +92,7 @@ function GlobalSkillsCard() {
     onSuccess: (_result, repoUrl) => {
       setRepo("");
       toast(
-        `${michael?.name ?? "Michael"} is installing ${repoUrl} for every server.`,
+        `${michael?.name ?? "CEO"} is installing ${repoUrl} for every server.`,
       );
     },
     onError: (error) => toast.error(error.message),

@@ -22,7 +22,7 @@ import { setTerminalBackground } from '@/components/PtyTerminalView';
 import { useStore } from '@/store/store';
 import { SIDEBAR_TABS } from '@/components/SidebarTabs';
 import { runBuzzApi, startStatePush, stateNow } from '@/host/buzzApi';
-import { locateAgent, onAgentClick, onDeskClick } from '@/scene/office/agentLocator';
+import { locateAgent, onAgentClick, onDeskClick, onPropClick } from '@/scene/office/agentLocator';
 export { EDIT_AGENT_EVENT } from '@/host/buzzApi';
 
 export type HostView = 'all' | 'agents' | 'office' | 'tasks' | 'askme';
@@ -344,6 +344,7 @@ if (mirrorRole) {
   // app's tasks window.
   onAgentClick((id) => post({ type: 'agent-click', id, at: locateAgent(id) }));
   onDeskClick((id) => post({ type: 'desk-click', id }));
+  onPropClick((prop) => post({ type: 'prop-click', prop }));
   useStore.subscribe((st, prev) => {
     const req = st.ccTabRequest;
     if (!req || req === prev.ccTabRequest) return;
@@ -381,6 +382,7 @@ if (mirrorRole) {
   // (every click, even on the agent already selected).
   onAgentClick((id) => post({ type: 'agent-click', id, at: locateAgent(id) }));
   onDeskClick((id) => post({ type: 'desk-click', id }));
+  onPropClick((prop) => post({ type: 'prop-click', prop }));
   // Buzz's own UI for the Office's agents and tasks reads this snapshot.
   startStatePush(post);
   // …and the background mirror draws the floor from this one.

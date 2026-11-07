@@ -47,7 +47,7 @@ const KEY = ["office", "workers"] as const;
 export function WorkersSection() {
   const client = useQueryClient();
   const { agents } = useOfficeAgents();
-  const michael = agents.find((agent) => agent.isGod)?.name ?? "Michael";
+  const michael = agents.find((agent) => agent.isGod)?.name ?? "CEO";
   const workers = useQuery({
     queryKey: KEY,
     queryFn: () => officeCth<WorkersData>("listWorkers"),

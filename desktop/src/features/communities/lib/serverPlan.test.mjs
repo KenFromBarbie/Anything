@@ -47,7 +47,8 @@ test("Claude's draft becomes the setup, cleaned up", () => {
       { name: "Oscar", role: "Academic records" },
       { name: "Toby", role: "HR" },
       { name: "Kevin", role: "IT support" },
-      { name: "Andy", role: "one too many" },
+      { name: "Andy", role: "a fifth executive" },
+      { name: "CEO", role: "taken too" },
     ],
     channels: [
       { name: "Admissions Queries", purpose: "Applicant questions" },
@@ -61,9 +62,13 @@ test("Claude's draft becomes the setup, cleaned up", () => {
   });
   assert.deepEqual(
     plan.agents.map((a) => a.name),
-    ["Pam", "Oscar", "Toby", "Kevin"],
+    ["Pam", "Oscar", "Toby", "Kevin", "Andy"],
   );
-  assert.equal(plan.agents.length, STAFF_SEATS);
+  // More than four executives are kept, up to STAFF_SEATS.
+  const many = planFromDraft("big", "A big firm", {
+    staff: Array.from({ length: STAFF_SEATS + 3 }, (_, i) => ({ name: `Exec ${i + 1}`, role: "area" })),
+  });
+  assert.equal(many.agents.length, STAFF_SEATS);
   assert.deepEqual(
     plan.channels.map((c) => c.name),
     ["admissions-queries", "timetables"],

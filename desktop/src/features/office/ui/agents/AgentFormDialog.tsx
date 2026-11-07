@@ -240,7 +240,7 @@ export function AgentFormDialog({
             </DialogTitle>
             <DialogDescription>
               {mode === "add"
-                ? "A new agent on Michael's floor, with its own terminal. Michael can hand it work, and you can add it to channels."
+                ? "A new agent on the CEO's floor, with its own terminal. The CEO can hand it work, and you can add it to channels."
                 : "Name, look and briefing apply now; an engine change applies the next time the agent restarts."}
             </DialogDescription>
           </DialogHeader>

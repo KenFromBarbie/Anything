@@ -44,7 +44,7 @@ const CONTEXT_SAVE_MS = 2000;
 const CLI_TIMEOUT_MS = 30000;
 const SEEN_CAP = 1000;
 const MAX_REPLY_BYTES = 64 * 1024;
-const PROFILE = { name: 'Michael', about: 'Runs the Office: splits your requests between the staff and brings back one answer.' };
+const PROFILE = { name: 'CEO', about: 'Runs the Office: splits your requests between the executives and brings back one answer.' };
 const AUTO_JOIN = ['general'];
 const GOD = 'god';
 /** A DM reply longer than this (characters) is posted as a thread under the

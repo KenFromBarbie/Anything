@@ -250,7 +250,7 @@ export function StudioMake({
       addPending({ ...input.pending, id: `${Date.now()}`, at: Date.now() });
       setBrief("");
       setChosen(null);
-      toast(`${michael?.name ?? "Michael"} is on it.`, {
+      toast(`${michael?.name ?? "CEO"} is on it.`, {
         description: "It shows up here when it's ready.",
       });
     },
@@ -458,7 +458,7 @@ export function StudioMake({
           ) : null}
           <div className="flex items-center gap-2">
             <p className="flex-1 text-xs text-muted-foreground">
-              {michael?.name ?? "Michael"} makes it (or hands it to the right
+              {michael?.name ?? "CEO"} makes it (or hands it to the right
               agent) and it appears here.
             </p>
             <Button
@@ -698,7 +698,7 @@ export function AskForChanges({ item }: { item: Artifact }) {
       }),
     onSuccess: () => {
       setAsk("");
-      toast(`${maker?.name ?? "Michael"} is making the changes.`, {
+      toast(`${maker?.name ?? "CEO"} is making the changes.`, {
         description: "The new version shows up in Artifacts.",
       });
     },
@@ -722,7 +722,7 @@ export function AskForChanges({ item }: { item: Artifact }) {
             if (ask.trim()) send.mutate(ask.trim());
           }
         }}
-        placeholder={`Ask ${maker?.name ?? "Michael"} for changes…`}
+        placeholder={`Ask ${maker?.name ?? "CEO"} for changes…`}
         rows={1}
         value={ask}
       />

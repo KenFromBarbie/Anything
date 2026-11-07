@@ -88,7 +88,7 @@ test("all Studio work goes down the office and is reviewed on the way back", () 
     changeRequest({ id: "a1", title: "Lamp" }, "taller"),
     codebaseRequest(codebase, "add dark mode"),
   ]) {
-    assert.match(text, /Michael gives it to the staff member/);
+    assert.match(text, /the CEO gives it to the executive/);
     assert.match(text, /floor workers/);
   }
   assert.match(changeRequest({ id: "a1", title: "Lamp" }, "x"), /--version-of a1/);

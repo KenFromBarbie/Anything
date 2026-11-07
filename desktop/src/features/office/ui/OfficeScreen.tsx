@@ -1,3 +1,4 @@
+import { openExportFiles } from "@/features/files/ui/ExportFilesDialog";
 import * as React from "react";
 
 import { useOfficeThemeSync } from "@/features/office/lib/officeThemeSync";
@@ -189,6 +190,10 @@ export function OfficeScreen() {
         openDeskAgent(typeof msg.id === "string" ? msg.id : null);
         return;
       }
+      if (msg.type === "prop-click") {
+        if (msg.prop === "printer") openExportFiles();
+        return;
+      }
       if (msg.type === "navigate") {
         if (msg.page === "tasks" && openFloorTasks()) return;
         if (msg.page === "meeting") {
@@ -277,7 +282,7 @@ export function OfficeScreen() {
     return (
       <OfficeMessage
         title="Opening the office…"
-        detail="Starting Michael and the floor."
+        detail="Starting the CEO and the floor."
       />
     );
   }

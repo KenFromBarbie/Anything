@@ -8,7 +8,7 @@ import { TiledMapRenderer } from './TiledMapRenderer';
 import { applyAppTheme, onAppTheme } from './appTheme';
 import { Camera } from './Camera';
 import { hostedInBuzz, mirrorRole } from '@/host/buzzHost';
-import { emitAgentClick, emitDeskClick, setAgentLocator } from './agentLocator';
+import { emitAgentClick, emitDeskClick, emitPropClick, setAgentLocator } from './agentLocator';
 import { findMeetSeats, inChair, nearestReachable, reachableFrom, type MeetSeat } from './meetingSeats';
 import { Character, paintCup } from './Character';
 import { DeskScreen } from './DeskScreen';
@@ -1156,6 +1156,33 @@ export function OfficeFloor() {
         st.requestCommandCenterTab('tasks');
       });
       charLayer.addChild(boardG);
+
+      // Cubicle panels between neighbouring desks (the generated office's
+      // `partitions` layer): a thin wall on the line between two desks, drawn
+      // in depth order so people in front of it overlap it.
+      for (const o of mapRenderer.getObjects('partitions')) {
+        const h = o.height ?? 0;
+        const panel = new Graphics();
+        panel.rect(o.x - 2, o.y, 4, h).fill(0x302a28);
+        panel.rect(o.x - 1, o.y + 1, 2, h - 3).fill(0xebe8e0);
+        panel.eventMode = 'none';
+        panel.zIndex = o.y + h;
+        charLayer.addChild(panel);
+      }
+      // Props that do something when clicked: a printer opens the export of
+      // the shared files in the app.
+      for (const o of mapRenderer.getObjects('props')) {
+        const hit = new Graphics();
+        hit.rect(o.x, o.y, o.width ?? 16, o.height ?? 16).fill({ color: 0xffffff, alpha: 0.001 });
+        hit.eventMode = 'static';
+        hit.cursor = 'pointer';
+        hit.zIndex = o.y;
+        hit.on('pointertap', (ev) => {
+          ev.stopPropagation();
+          emitPropClick(o.name);
+        });
+        charLayer.addChild(hit);
+      }
 
       // Each desk's computer: clicking it manages that desk in the app (the
       // agent who sits there, or hire one for a free desk). Invisible, over

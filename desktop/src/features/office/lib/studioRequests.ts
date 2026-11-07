@@ -76,7 +76,7 @@ const FIT_THE_APP =
 
 /** Every piece of work runs down the office and is checked on the way back. */
 export const THROUGH_THE_OFFICE =
-  "Run it through the office: Michael gives it to the staff member who owns the area, they split it into tasks for floor workers, check each worker's result, and send Michael one reviewed result; Michael reviews that before it is published or answered. Publish only the reviewed result, once.";
+  "Run it through the office: the CEO gives it to the executive who owns the area, they split it into tasks for floor workers, check each worker's result, and send the CEO one reviewed result; the CEO reviews that before it is published or answered. Publish only the reviewed result, once.";
 
 const PUBLISH = (showCommand: string) =>
   `Publish what you made with ${showCommand} --file "<path>" --title "<what it is>" so the owner sees it in the app's Artifacts. When it's published you're done: no channel reply is needed.`;

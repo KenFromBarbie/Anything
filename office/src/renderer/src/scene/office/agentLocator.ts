@@ -39,3 +39,16 @@ export function onDeskClick(listener: (agentId: string | null) => void): () => v
 export function emitDeskClick(agentId: string | null): void {
   for (const listener of deskListeners) listener(agentId);
 }
+
+/** A prop on the floor was clicked (e.g. 'printer': Anything opens the
+ *  export dialog for the shared files). */
+const propListeners = new Set<(prop: string) => void>();
+
+export function onPropClick(listener: (prop: string) => void): () => void {
+  propListeners.add(listener);
+  return () => propListeners.delete(listener);
+}
+
+export function emitPropClick(prop: string): void {
+  for (const listener of propListeners) listener(prop);
+}

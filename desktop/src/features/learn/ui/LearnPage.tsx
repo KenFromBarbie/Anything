@@ -168,7 +168,7 @@ function StartCourseCard({
       setNameTouched(false);
       if (!michaelAdded) {
         toast.warning(
-          "Michael isn't set up yet, so the course is waiting in its chat.",
+          "The CEO isn't set up yet, so the course is waiting in its chat.",
         );
       } else {
         toast.success(

@@ -1,3 +1,4 @@
+import { openExportFiles } from "@/features/files/ui/ExportFilesDialog";
 import * as React from "react";
 
 import { useOfficeThemeSync } from "@/features/office/lib/officeThemeSync";
@@ -112,6 +113,7 @@ export function OfficeBackdrop() {
       if (msg.type === "desk-click") {
         openDeskAgent(typeof msg.id === "string" ? msg.id : null);
       }
+      if (msg.type === "prop-click" && msg.prop === "printer") openExportFiles();
       if (msg.type === "navigate" && msg.page === "settings") {
         window.location.hash = "#/settings?section=ai-accounts";
       }

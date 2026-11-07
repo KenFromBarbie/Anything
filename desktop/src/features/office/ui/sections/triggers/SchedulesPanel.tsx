@@ -271,7 +271,7 @@ function MissionEditor({
 export function SchedulesPanel() {
   const client = useQueryClient();
   const { agents } = useOfficeAgents();
-  const michaelName = agents.find((a) => a.isGod)?.name ?? "Michael";
+  const michaelName = agents.find((a) => a.isGod)?.name ?? "CEO";
   const missions = useQuery({
     queryKey: KEY,
     queryFn: () => officeCth<Mission[]>("listMissions"),

@@ -27,7 +27,7 @@ export function FloorMonitor({
         title="Monitor"
       />
       <OrchestrationPresets
-        michaelName={agents.find((agent) => agent.isGod)?.name ?? "Michael"}
+        michaelName={agents.find((agent) => agent.isGod)?.name ?? "CEO"}
       />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[40rem] text-sm">

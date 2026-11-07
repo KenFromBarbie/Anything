@@ -1,6 +1,9 @@
 /** God's identity before anyone has customized it — the app's own default,
  *  not a magic string sprinkled at every spawn call site. */
-export const DEFAULT_GOD_NAME = 'Michael';
+export const DEFAULT_GOD_NAME = 'CEO';
+/** The default before the rename: a CEO still called this was never named by
+ *  the owner, so it is shown (and respawned) as the new default. */
+export const LEGACY_GOD_NAME = 'Michael';
 
 /**
  * Resolve god's display name for a (re)spawn.
@@ -16,5 +19,5 @@ export const DEFAULT_GOD_NAME = 'Michael';
  */
 export function resolveGodName(persistedName: string | undefined | null): string {
   const trimmed = persistedName?.trim();
-  return trimmed ? trimmed : DEFAULT_GOD_NAME;
+  return trimmed && trimmed !== LEGACY_GOD_NAME ? trimmed : DEFAULT_GOD_NAME;
 }

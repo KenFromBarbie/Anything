@@ -98,7 +98,7 @@ export function ActivitySection() {
         )}
       </SectionCard>
       <SectionCard
-        description="Michael's running notes on where the floor stands."
+        description="The CEO's running notes on where the floor stands."
         title="Board"
       >
         {board.data?.trim() ? (

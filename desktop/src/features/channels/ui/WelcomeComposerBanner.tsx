@@ -5,7 +5,8 @@ import { Bot, Check, X } from "lucide-react";
 import { ComposerDockGlassBackdrop } from "@/features/messages/ui/ComposerDockBackdrop";
 import { cn } from "@/shared/lib/cn";
 
-const WELCOME_PERSONA_NAMES = ["Michael"] as const;
+// "Michael": the CEO's name on servers made before the rename.
+const WELCOME_PERSONA_NAMES = ["CEO", "Michael"] as const;
 export const WELCOME_PERSONA_ROTATION_MS = 3200;
 export const WELCOME_PERSONA_EASE = [0.22, 1, 0.36, 1] as const;
 const WELCOME_PERSONA_EXIT_EASE = [0.64, 0, 0.78, 0] as const;
@@ -244,7 +245,7 @@ function WelcomeComposerPersonaMention() {
         ...(mentionWidth === null ? {} : { width: mentionWidth }),
       }}
     >
-      <span className="sr-only">@Michael</span>
+      <span className="sr-only">@CEO</span>
       <span
         aria-hidden
         className="pointer-events-none invisible inline-block whitespace-nowrap leading-[inherit]"

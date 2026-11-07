@@ -66,10 +66,10 @@ export const PRESETS_KEY = ["office", "orchestration-presets"] as const;
 const LINKS: { link: Link; label: string; hint: string }[] = [
   {
     link: "michael",
-    label: "Michael",
+    label: "CEO",
     hint: "Reads every request, assigns, signs off",
   },
-  { link: "staff", label: "Staff", hint: "Plan, hand out and review" },
+  { link: "staff", label: "Executives", hint: "Plan, hand out and review" },
   { link: "floor", label: "Floor", hint: "Do the work" },
   { link: "others", label: "Everyone else", hint: "Agents you hired yourself" },
 ];

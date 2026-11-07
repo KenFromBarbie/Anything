@@ -31,7 +31,7 @@ export function DispatchCard({ agents }: { agents: OfficeAgent[] }) {
         onSuccess: () => {
           setText("");
           setSuggestedId("");
-          toast.success(`Sent to ${michael?.name ?? "Michael"}.`);
+          toast.success(`Sent to ${michael?.name ?? "CEO"}.`);
         },
         onError: (error) => toast.error(error.message),
       },
@@ -45,7 +45,7 @@ export function DispatchCard({ agents }: { agents: OfficeAgent[] }) {
       onSubmit={send}
     >
       <SectionHeader
-        description={`${michael?.name ?? "Michael"} breaks it into tasks and hands them out.`}
+        description={`${michael?.name ?? "CEO"} breaks it into tasks and hands them out.`}
         title="Dispatch"
       />
       <Textarea
@@ -85,7 +85,7 @@ export function DispatchCard({ agents }: { agents: OfficeAgent[] }) {
           type="submit"
         >
           {dispatch.isPending ? <Loader2 className="animate-spin" /> : <Send />}
-          Send to {michael?.name ?? "Michael"}
+          Send to {michael?.name ?? "CEO"}
         </Button>
       </div>
     </form>

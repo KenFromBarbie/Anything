@@ -169,7 +169,7 @@ export async function stopManagedAgentWithRules({
     // The backend stops the whole Office for Michael's record.
     await stopManagedAgent(agent.pubkey);
     return {
-      noticeMessage: "The Office stopped. Michael and its agents are stopped.",
+      noticeMessage: "The Office stopped. The CEO and its agents are stopped.",
     };
   }
   if (agent.backend.type === "provider") {

@@ -10,7 +10,7 @@ export function agentLabel(id: string, agents: OfficeAgent[]): string {
   const agent = agents.find((a) => a.id === id);
   if (agent) return agent.name;
   if (id === "god") {
-    return agents.find((a) => a.isGod)?.name ?? "Michael";
+    return agents.find((a) => a.isGod)?.name ?? "CEO";
   }
   const match = /^([a-z][a-z0-9]*)-[a-z0-9]{6,}$/i.exec(id);
   if (!match) return id;

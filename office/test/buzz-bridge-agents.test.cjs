@@ -74,7 +74,7 @@ test("the owner's @mention of a floor agent reaches that agent's inbox", async (
   assert.equal(sent.length, 1);
   assert.equal(sent[0].to, 'jim-1');
   assert.match(sent[0].body, /from the office owner/);
-  assert.match(sent[0].body, /@Michael/, 'tells the agent who else is on Buzz');
+  assert.match(sent[0].body, /@CEO/, 'tells the agent who else is on Buzz');
 });
 
 test('a stranger cannot task an office agent', async (t) => {
@@ -90,7 +90,7 @@ test('office agents reach each other by @mention only, up to the hop cap', async
   const ask = message(b.michael.pubkey, { mention: jim.pubkey });
   await b.handleEvent(ask, jim);
   assert.equal(sent.length, 1);
-  assert.match(sent[0].body, /from Michael, one of the office's agents/);
+  assert.match(sent[0].body, /from CEO, one of the office's agents/);
   // Michael posting in Jim's thread without mentioning him is not relayed.
   await b.handleEvent(message(b.michael.pubkey, { replyTo: ask.id }), jim);
   assert.equal(sent.length, 1);
@@ -107,13 +107,13 @@ test('a delegated agent replies in the thread as itself, not as Michael', async 
   const { b, calls } = await withJim(t);
   const ask = message(OWNER, { mention: b.michael.pubkey });
   await b.handleEvent(ask, b.michael);
-  const [code, body] = await b.replyAs({ replyTo: ask.id, text: 'On it. @Michael FYI', as: 'jim-1' });
+  const [code, body] = await b.replyAs({ replyTo: ask.id, text: 'On it. @CEO FYI', as: 'jim-1' });
   assert.equal(code, 200);
   assert.equal(body.as, 'Jim');
   const send = calls.find((c) => c.args[0] === 'messages' && c.args[1] === 'send');
   assert.equal(send.as, 'Jim');
   assert.ok(!send.args.includes('--reply-to'), 'answered in the channel, not a thread');
-  assert.ok(send.args.includes('--mention') && send.args.includes(b.michael.pubkey), '@Michael is notified');
+  assert.ok(send.args.includes('--mention') && send.args.includes(b.michael.pubkey), '@CEO is notified');
   // Jim is now in that thread: the owner's follow-up reaches him too.
   assert.ok(b.thread(ask.id).agents.includes('jim-1'));
 });
@@ -124,8 +124,8 @@ test('an agent without a Buzz identity replies as the agent the thread was deliv
   await b.handleEvent(ask, b.michael);
   const [code, body] = await b.replyAs({ replyTo: ask.id, text: 'done: see PR', as: 'pam-9' });
   assert.equal(code, 200);
-  assert.equal(body.as, 'Michael');
-  assert.equal(calls.filter((c) => c.args[1] === 'send').at(-1).as, 'Michael');
+  assert.equal(body.as, 'CEO');
+  assert.equal(calls.filter((c) => c.args[1] === 'send').at(-1).as, 'CEO');
 });
 
 test('replies only go to threads an office agent was brought into', async (t) => {
@@ -138,7 +138,7 @@ test('buzz-post starts a channel conversation as the calling agent, and only for
   const { b, calls } = await withJim(t);
   const [denied] = await b.postAs({ channel: 'general', text: 'hi', as: 'not-on-the-floor' });
   assert.equal(denied, 403);
-  const [code, body] = await b.postAs({ channel: '#general', text: '@Michael the build is green', as: 'jim-1' });
+  const [code, body] = await b.postAs({ channel: '#general', text: '@CEO the build is green', as: 'jim-1' });
   assert.equal(code, 200);
   assert.equal(body.as, 'Jim');
   const send = calls.filter((c) => c.args[1] === 'send').at(-1);
@@ -287,7 +287,7 @@ test('the vault mirrors each agent\'s memory and keeps their own notes', async (
   b.syncVaultNow();
   assert.match(fs.readFileSync(path.join(vault, 'Agents', 'Jim.md'), 'utf8'), /Owns \[\[Projects\/Deck\]\]/);
   assert.match(fs.readFileSync(path.join(vault, 'Agents', 'Jim', 'Memory.md'), 'utf8'), /ten slides/);
-  assert.match(fs.readFileSync(path.join(vault, 'Agents.md'), 'utf8'), /\[\[Agents\/Michael\|Michael\]\]/);
+  assert.match(fs.readFileSync(path.join(vault, 'Agents.md'), 'utf8'), /\[\[Agents\/CEO\|CEO\]\]/);
 });
 
 test('Michael reads every message in his channels; strangers are kept out', async (t) => {

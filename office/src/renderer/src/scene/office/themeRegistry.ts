@@ -305,6 +305,7 @@ export function officeThemeFor(headcount: Headcount): ThemeConfig {
     mapRaw: JSON.stringify(built.map),
     primarySeatNames: built.primarySeatNames,
     staffSeatNames: built.staffSeatNames,
+    cafeSeatNames: built.cafeSeatNames,
     coffee: {
       ...OFFICE_THEME.coffee,
       trayTile: at(OFFICE_THEME.coffee.trayTile),

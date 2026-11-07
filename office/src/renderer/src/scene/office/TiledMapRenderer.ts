@@ -111,6 +111,12 @@ export class TiledMapRenderer {
   getSpawnPoint(name: string): Point | undefined { return this.spawnPoints.get(name); }
   getAllSpawnPoints(): Map<string, Point> { return this.spawnPoints; }
   getZone(name: string): ZoneRect | undefined { return this.zones.get(name); }
+
+  /** An object layer's objects (pixel coordinates), e.g. `partitions` or
+   *  `props` of the generated office; empty when the map has none. */
+  getObjects(layerName: string): TiledObject[] {
+    return this.findLayer(layerName, 'objectgroup')?.objects ?? [];
+  }
   getAllZones(): Map<string, ZoneRect> { return this.zones; }
 
   /** The (flip-stripped) gid painted at a tile of a layer, 0 when empty.

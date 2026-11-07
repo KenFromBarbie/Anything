@@ -17,7 +17,7 @@
  */
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import { DEFAULT_GOD_NAME } from '@shared/godIdentity';
+import { DEFAULT_GOD_NAME, resolveGodName } from '@shared/godIdentity';
 import en from './locales/en.json';
 import zhCN from './locales/zh-CN.json';
 import ar from './locales/ar.json';
@@ -79,7 +79,7 @@ const SUPPORTED: readonly string[] = LANGUAGES.map((l) => l.code);
  * `godName` explicitly.
  */
 export function setGodName(name: string | undefined | null): void {
-  const next = name?.trim() || DEFAULT_GOD_NAME;
+  const next = resolveGodName(name);
   const interpolation = i18n.options.interpolation ?? (i18n.options.interpolation = {});
   const vars = interpolation.defaultVariables ?? (interpolation.defaultVariables = {});
   if (vars.godName === next) return;

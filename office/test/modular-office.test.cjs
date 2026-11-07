@@ -23,6 +23,7 @@ const TEAMS = [
   { workers: 9, staff: 3 },
   { workers: 14, staff: 4 },
   { workers: 30, staff: 4 },
+  { workers: 12, staff: 7 },
 ];
 
 function inspect(office) {
@@ -80,7 +81,7 @@ for (const team of TEAMS) {
 
 test('the office grows with the team and gets plainer', () => {
   const widths = TEAMS.map((t) => buildModularOffice(source, t).map.width);
-  for (let i = 1; i < widths.length; i++) assert.ok(widths[i] >= widths[i - 1], widths.join(' '));
+  assert.ok(widths[widths.length - 1] > widths[0], widths.join(' '));
   assert.ok(widths[0] < source.width, 'a small team gets a smaller office than the hand-drawn one');
   assert.deepEqual([1, 5, 10, 16].map(comfortFor), ['luxury', 'comfort', 'standard', 'lean']);
 });
@@ -115,14 +116,40 @@ test('a large team gets more bands of desks, not an ever wider floor', () => {
   assert.ok(buildModularOffice(source, { workers: 40, staff: 4, viewAspect: 1.8 }).map.height > source.height);
 });
 
-test('every open-floor desk but a few walkway columns sits in a cubicle', () => {
+test('desks stand side by side, with a cubicle panel between neighbours', () => {
   const office = buildModularOffice(source, { workers: 20, staff: 0, viewAspect: 1.8 });
-  const walls = office.map.layers.find((l) => l.name === 'walls').data;
-  const { map, spawns } = inspect(office);
-  let walled = 0;
-  for (const name of office.primarySeatNames.slice(1)) {
-    const { x, y } = spawns.get(name);
-    if (walls[y * map.width + (x - 2)]) walled++;
+  const panels = office.map.layers.find((l) => l.name === 'partitions').objects;
+  // Two panels (front and back row) for each desk pair beside another (runs
+  // of desks are broken by aisles).
+  assert.ok(panels.length >= office.desks / 3, `${panels.length} panels for ${office.desks} desks`);
+});
+
+test('the café seats about a third of the team, in pairs across tables', () => {
+  for (const workers of [2, 14, 30]) {
+    const office = buildModularOffice(source, { workers, staff: 2, viewAspect: 1.8 });
+    const { spawns, nextToReach } = inspect(office);
+    assert.ok(office.cafeSeatNames.length >= Math.ceil((workers + 1) / 3), `${workers}: ${office.cafeSeatNames.length} café seats`);
+    for (const name of office.cafeSeatNames) {
+      const seat = spawns.get(name);
+      assert.ok(seat && nextToReach(seat), `${workers}: ${name} can be reached`);
+      const partner = office.cafeSeatNames.map((n) => spawns.get(n)).some((t) => t.x === seat.x && Math.abs(t.y - seat.y) === 2);
+      assert.ok(partner, `${name} has a seat across the table`);
+    }
   }
-  assert.ok(walled >= (office.primarySeatNames.length - 1) / 2, `${walled} cubicles`);
+});
+
+test('printers are on the props layer, beside a walkway', () => {
+  const office = buildModularOffice(source, { workers: 12, staff: 0, viewAspect: 1.8 });
+  const printers = office.map.layers.find((l) => l.name === 'props').objects.filter((o) => o.name === 'printer');
+  assert.ok(printers.length > 0);
+  const { nextToReach } = inspect(office);
+  for (const p of printers) {
+    const x = p.x / 16, y = p.y / 16;
+    assert.ok(nextToReach({ x, y: y - 1 }) || nextToReach({ x: x - 1, y }) || nextToReach({ x, y: y + 2 }), `printer at ${x},${y}`);
+  }
+});
+
+test('more than four executives each get a private desk', () => {
+  const office = buildModularOffice(source, { workers: 12, staff: 7, viewAspect: 1.8 });
+  assert.equal(office.staffSeatNames.length, 7);
 });

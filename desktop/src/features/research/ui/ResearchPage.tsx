@@ -297,7 +297,7 @@ function ResearchProjects({ projectId }: { projectId: string | null }) {
             </DropdownMenu>
           </div>
         }
-        description="Projects are folders. Start one by describing it; Michael researches it and saves what he finds there."
+        description="Projects are folders. Start one by describing it; the CEO researches it and saves what he finds there."
         title="Research"
       />
 
@@ -369,7 +369,7 @@ function StartProjectCard({
           setNameTouched(false);
           if (!michaelAdded) {
             toast.warning(
-              "Michael isn't set up yet, so the brief is waiting in the project chat.",
+              "The CEO isn't set up yet, so the brief is waiting in the project chat.",
             );
           }
           onStarted(project, channelId);
