@@ -197,6 +197,36 @@ export class TiledMapRenderer {
     return undefined;
   }
 
+  /** A floor tile (from the floors & walls tileset) near (x, y), at an even
+   *  offset so the floor's two-tile pattern lines up; 0 if none. */
+  private nearbyFloorTile(data: number[], x: number, y: number): number {
+    for (let r = 2; r <= 8; r += 2) {
+      for (const [dx, dy] of [[-r, 0], [r, 0], [0, -r], [0, r], [-r, -r], [r, r], [-r, r], [r, -r]]) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= this.width || ny >= this.height) continue;
+        const gid = data[ny * this.width + nx] & TILE_ID_MASK;
+        const resolved = gid ? this.resolveTileset(gid) : undefined;
+        if (resolved && isStructureTileset(resolved.tileset)) return gid;
+      }
+    }
+    return 0;
+  }
+
+  /** An unflipped tile's sprite at (x, y). */
+  private tileSprite(tileId: number, x: number, y: number): Sprite {
+    const { tileset, texture } = this.resolveTileset(tileId)!;
+    const cols = tileset.columns ?? 16;
+    const tw = tileset.tilewidth ?? this.tileSize;
+    const th = tileset.tileheight ?? this.tileSize;
+    const localId = tileId - tileset.firstgid;
+    const frame = new Rectangle((localId % cols) * tw, Math.floor(localId / cols) * th, tw, th);
+    const sprite = new Sprite(new Texture({ source: texture.source, frame }));
+    sprite.x = x * this.tileSize;
+    sprite.y = y * this.tileSize;
+    return sprite;
+  }
+
   private buildTileLayers(): void {
     if (this.mapData.tilesets.length === 0) return;
 
@@ -259,6 +289,14 @@ export class TiledMapRenderer {
 
             const own = !STRUCTURE_LAYERS.has(layerName) || isStructureTileset(tileset);
             (own ? container : decor).addChild(sprite);
+            // Decor painted on the floor layer (the café's table mat) took the
+            // floor tile's place, and its see-through edges showed the canvas
+            // behind: put the floor back under it, from the nearest floor tile
+            // of the same pattern (two tiles away keeps the checker in step).
+            if (!own && layerName === 'floor') {
+              const under = this.nearbyFloorTile(layer.data, x, y);
+              if (under) container.addChild(this.tileSprite(under, x, y));
+            }
           }
         }
       }
