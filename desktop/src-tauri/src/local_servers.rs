@@ -176,10 +176,6 @@ fn start_server(app: &AppHandle, server: &LocalServer) -> Result<(), String> {
     if port_in_use(server.port) {
         return Ok(());
     }
-    // Deleted since the supervisor read the list: stays stopped.
-    if !load_registry(app).iter().any(|s| s.port == server.port) {
-        return Ok(());
-    }
     let offset = server.port - 3000;
     let mut cmd = match relay_source(app)? {
         RelaySource::Checkout { bin, env_file } => {
@@ -550,6 +546,12 @@ pub fn start_all(app: &AppHandle) {
             for server in load_registry(&app) {
                 if STOPPING.load(Ordering::Acquire) {
                     return;
+                }
+                // Deleted while this pass ran (the list is read once above):
+                // stays stopped. A new server isn't on the list yet while it
+                // is created, so this check belongs here, not in start_server.
+                if !load_registry(&app).iter().any(|s| s.port == server.port) {
+                    continue;
                 }
                 if let Err(error) = start_server(&app, &server) {
                     eprintln!("buzz-desktop: local server {}: {error}", server.name);
