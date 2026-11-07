@@ -297,6 +297,11 @@ export interface HarnessConfig {
   /** Opt-in strong keep-alive (prevent-display-sleep). Mirrors main + renderer
    *  HarnessConfig so updateConfig({ strongKeepalive }) is typed across the bridge. */
   strongKeepalive?: boolean;
+  /** Restore every agent from the last session when the app opens, however
+   *  many there are. Default OFF: only a team of 3 or fewer comes back on its
+   *  own (each agent is a ~200 MB process); a larger team waits in the restore
+   *  menu. */
+  autoRestoreAll?: boolean;
   /** Auto-update from GitHub releases (default ON; Settings → General). */
   autoUpdate?: boolean;
   /** Anonymous product analytics (default ON, opt-out; see TELEMETRY.md).

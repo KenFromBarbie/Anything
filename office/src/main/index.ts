@@ -7,7 +7,7 @@ import {
 } from 'node:fs';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { join, resolve, sep, basename, dirname, isAbsolute } from 'node:path';
-import { homedir } from 'node:os';
+import { freemem, homedir } from 'node:os';
 import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
 import { resolveCommand as resolveCliCommand, isSafeCommandName } from './shellEnv';
@@ -2608,6 +2608,9 @@ ipcMain.handle('pty:spawn', async (evt, opts: AgentSpawnOptions) => {
   return spawnAgentCore(opts, owner);
 });
 
+/** Below this much free memory no agent is started (see spawnAgentCore). */
+const MIN_FREE_MEMORY_FOR_SPAWN = 1.2 * 2 ** 30;
+
 /** Core agent-spawn logic — provider inference, the missing-CLI installer
  *  short-circuit, git-worktree isolation, hive provisioning, model/resume flags,
  *  and the final PTY spawn. Extracted VERBATIM from the `pty:spawn` IPC handler so
@@ -2623,6 +2626,17 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // with `cwd does not exist`. Expanding BEFORE hive provisioning is what makes the
   // registry store an ABSOLUTE cwd (and `cwdValid: true`). The resolved value is
   // returned to the caller so the renderer records the same absolute path.
+  // ── memory floor ─────────────────────────────────────────────────────────────
+  // Each agent is a CLI process of ~200 MB. Starting more when the computer is
+  // nearly out of memory took it down (a restore of 21 agents left 0.7 GB), so
+  // below the floor a spawn is refused with a reason the floor shows.
+  const free = freemem();
+  if (free < MIN_FREE_MEMORY_FOR_SPAWN) {
+    return {
+      ok: false,
+      error: `not enough free memory to start another agent (${(free / 2 ** 30).toFixed(1)} GB free; needs ${(MIN_FREE_MEMORY_FOR_SPAWN / 2 ** 30).toFixed(1)} GB)`
+    };
+  }
   opts.cwd = expandTilde(opts.cwd);
   if (opts.hive) opts.hive = { ...opts.hive, cwd: expandTilde(opts.hive.cwd) };
   // Which CLI is this? Explicit wins; else inferred from the binary

@@ -60,6 +60,7 @@ import {
   ThreadLayoutSetting,
 } from "./AppearanceSettingsControls";
 import { OfficeBackdropSetting } from "./OfficeBackdropSetting";
+import { RestoreTeamSetting } from "./RestoreTeamSetting";
 import { ChannelTemplatesSettingsCard } from "./ChannelTemplatesSettingsCard";
 import { MeetingSettingsCard } from "./MeetingSettingsCard";
 import { MemorySkillsSettingsCard } from "./MemorySkillsSettingsCard";
@@ -768,6 +769,7 @@ function ThemeSettingsCard() {
 
           <GlassBackgroundSetting />
           <OfficeBackdropSetting />
+          <RestoreTeamSetting />
           {buzzThemeSelected ? <ProminentActiveTabSetting /> : null}
         </SettingsOptionGroup>
 

@@ -62,6 +62,8 @@ const getAutoRestoring = (): boolean => autoRestoring;
 /** The restore of the mounted hook, for Anything's own restore menu (the
  *  Office's strip is hidden inside Anything). */
 let latestRestore: ((ids?: readonly string[]) => Promise<void>) | null = null;
+/** The config of the mounted hook, read when the boot restore fires. */
+let latestConfig: HarnessConfig | null = null;
 
 /** Restore these agents (or all) as the Office's own button does. */
 export function restoreFromHost(ids?: readonly string[]): Promise<void> {
@@ -246,6 +248,7 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
   };
 
   latestRestore = restoreTeam;
+  latestConfig = config ?? null;
 
   // Restore the previous session's team on open, without waiting for a click.
   //
@@ -269,8 +272,9 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
         if (autoStarted || restoring) return;
         const waiting = useStore.getState().restorableAgents.length;
         if (!waiting) return;
-        // A large team waits in the restore menu instead (AUTO_RESTORE_MAX).
-        if (waiting > AUTO_RESTORE_MAX) { autoStarted = true; return; }
+        // A large team waits in the restore menu instead (AUTO_RESTORE_MAX),
+        // unless the owner chose to always restore everyone.
+        if (waiting > AUTO_RESTORE_MAX && !latestConfig?.autoRestoreAll) { autoStarted = true; return; }
         // Latch BEFORE the await so the other mount point's timer, which may
         // fire in this same tick, sees it.
         autoStarted = true;

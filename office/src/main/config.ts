@@ -298,6 +298,11 @@ export interface HarnessConfig {
    *  AC). Default OFF: the honest default is "survive sleep + catch up once on
    *  resume" (see the powerMonitor 'resume' handler), not "stay awake". */
   strongKeepalive?: boolean;
+  /** Restore every agent from the last session when the app opens, however
+   *  many there are. Default OFF: only a team of 3 or fewer comes back on its
+   *  own (each agent is a ~200 MB process); a larger team waits in the restore
+   *  menu. */
+  autoRestoreAll?: boolean;
   /** Auto-update from GitHub releases (v0.3.4). Default ON. Packaged builds
    *  check on boot + every ~6h, download in the background, and show a
    *  "restart to update" toast — installation is always user-initiated. OFF
@@ -456,6 +461,7 @@ const DEFAULTS: HarnessConfig = {
   missions: [OPS_STANDUP_MISSION],
   notifications: false,
   strongKeepalive: false,
+  autoRestoreAll: false,
   autoUpdate: true,
   telemetryEnabled: true,
   multiWindow: true,

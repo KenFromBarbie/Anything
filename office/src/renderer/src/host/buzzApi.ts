@@ -160,6 +160,13 @@ const ops: Record<string, Op> = {
     return { ok: true };
   },
 
+  /** Settings → Office: restore everyone when the app opens (default off). */
+  'restore.settings': async () => ({ always: (await window.cth.getConfig()).autoRestoreAll === true }),
+  'restore.setAlways': async (a) => {
+    const next = await window.cth.updateConfig({ autoRestoreAll: a.always === true });
+    return { always: next.autoRestoreAll === true };
+  },
+
   /** Take an agent off the restore list for good. */
   'agents.dismissRestorable': async (a) => {
     useStore.getState().removeRestorableAgent(text(a.id, 120));
