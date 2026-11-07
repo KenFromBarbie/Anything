@@ -99,3 +99,30 @@ test('the floor is made wide enough to fill the view, with amenities', () => {
   assert.ok(wide.map.width > narrow.map.width);
   assert.equal(wide.primarySeatNames.length, narrow.primarySeatNames.length, 'the extra width is not desks');
 });
+
+test('a large team gets more bands of desks, not an ever wider floor', () => {
+  for (const workers of [20, 40, 60]) {
+    const office = buildModularOffice(source, { workers, staff: 4, viewAspect: 1.8 });
+    const { map, spawns, nextToReach } = inspect(office);
+    const shape = (map.width - 2) / (map.height - 2);
+    assert.ok(shape <= 2.3, `${workers} people: ${map.width}x${map.height}`);
+    assert.ok(office.primarySeatNames.length - 1 + office.staffSeatNames.length >= workers);
+    for (const name of office.primarySeatNames) {
+      const seat = spawns.get(name);
+      assert.ok(nextToReach({ x: seat.x, y: seat.y + 1 }), `${workers} people: ${name} can be reached`);
+    }
+  }
+  assert.ok(buildModularOffice(source, { workers: 40, staff: 4, viewAspect: 1.8 }).map.height > source.height);
+});
+
+test('every open-floor desk but a few walkway columns sits in a cubicle', () => {
+  const office = buildModularOffice(source, { workers: 20, staff: 0, viewAspect: 1.8 });
+  const walls = office.map.layers.find((l) => l.name === 'walls').data;
+  const { map, spawns } = inspect(office);
+  let walled = 0;
+  for (const name of office.primarySeatNames.slice(1)) {
+    const { x, y } = spawns.get(name);
+    if (walls[y * map.width + (x - 2)]) walled++;
+  }
+  assert.ok(walled >= (office.primarySeatNames.length - 1) / 2, `${walled} cubicles`);
+});

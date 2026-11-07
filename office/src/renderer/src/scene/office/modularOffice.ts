@@ -91,7 +91,14 @@ const POD_W = 4;
 const ROW_A = 13;             // desk spawn rows of a pod
 const ROW_B = 18;
 const DOOR_SRC_X = 16;        // the entrance gap in the bottom wall
-const H = 22;
+const H0 = 22;                // the hand-drawn map's height
+// A band of desk pods is rows 11–20 of the hand-drawn floor (walkway, front
+// desks, walkways, back desks, walkway). A larger team gets more bands, so
+// the floor grows down as well as across and keeps the window's shape.
+const BAND_H = 10;
+const MAX_BANDS = 4;
+// Cubicle partitions: a thin wall's cap and body (the walls tileset).
+const PARTITION = [611, 643, 643];
 
 // Furniture: [tileset gid of the top-left tile, width, height]. Office
 // tileset at gid 1, interiors at 1025, 16 tiles a row.
@@ -142,8 +149,18 @@ export function comfortFor(people: number): Comfort {
 
 type StripKind = 'pod' | 'lounge' | 'library' | 'utility';
 
-/** Lay out the bottom strips and whether the staff room is built. */
-export function planOffice(h: Headcount): { comfort: Comfort; strips: StripKind[]; staffRoom: boolean; pad: number } {
+export interface OfficePlan {
+  comfort: Comfort;
+  /** Bands of strips, top to bottom; the last one has the entrance. */
+  bands: StripKind[][];
+  staffRoom: boolean;
+  /** Width of the nook in the top row. */
+  pad: number;
+  height: number;
+}
+
+/** Lay out the floor: bands of strips and whether the staff room is built. */
+export function planOffice(h: Headcount): OfficePlan {
   const workers = Math.max(0, Math.floor(h.workers));
   const staff = Math.min(Math.max(0, Math.floor(h.staff)), workers);
   const comfort = comfortFor(workers + 1);
@@ -156,36 +173,63 @@ export function planOffice(h: Headcount): { comfort: Comfort; strips: StripKind[
     comfort === 'luxury' ? ['lounge', 'library'] :
     comfort === 'comfort' ? ['lounge'] :
     comfort === 'standard' ? ['utility'] : [];
-  const strips: StripKind[] = [...Array<StripKind>(pods).fill('pod'), ...extras];
   // The top row needs the CEO office and boardroom (and the staff room).
   const minWidth = LEFT_W + (staffRoom ? STAFF_ROOM.w : 0) + WING_TOP.w - WING.w + 1;
-  // Filler for the rest of the width: alternating lounges and libraries for
-  // a small team, office storage for a larger one.
-  const plush = comfort === 'luxury' || comfort === 'comfort';
-  // Wide enough to fill the view: the map's visible part is its height less
-  // the outer wall's edge tile on each side (see Camera's `edge`).
-  const viewWidth = h.viewAspect && h.viewAspect > 0 ? Math.ceil((H - 2) * h.viewAspect) + 2 : 0;
-  const fillWidth = Math.max(minWidth, viewWidth - WING.w);
-  for (let i = 0; strips.length * POD_W < fillWidth; i++) {
-    strips.push(plush ? (i % 2 ? 'lounge' : 'library') : 'utility');
+  const minStrips = Math.ceil(minWidth / POD_W);
+  const aspect = h.viewAspect && h.viewAspect > 0 ? h.viewAspect : 0;
+  // The fewest bands whose floor fits the view's width (with no view, one).
+  // The view's width in tiles: the map's visible part is its height less the
+  // outer wall's edge tile on each side (see Camera's `edge`).
+  let bandCount = 1;
+  let strips = Math.max(minStrips, pods + extras.length);
+  for (let b = 1; aspect && b <= MAX_BANDS; b++) {
+    const height = H0 + (b - 1) * BAND_H;
+    const viewStrips = Math.floor((Math.ceil((height - 2) * aspect) + 2 - WING.w) / POD_W);
+    const need = Math.max(minStrips, Math.ceil((pods + extras.length) / b));
+    bandCount = b;
+    strips = Math.max(need, viewStrips);
+    if (need <= viewStrips) break;
   }
-  const pad = strips.length * POD_W + WING.w - WING_TOP.w - LEFT_W - (staffRoom ? STAFF_ROOM.w : 0);
-  return { comfort, strips, staffRoom, pad };
+  // The pods are shared evenly between the bands (bottom band first), each
+  // band's on its left, near Michael; then the amenities, then filler:
+  // lounges and libraries for a small team, office storage for a larger one.
+  const plush = comfort === 'luxury' || comfort === 'comfort';
+  const bands: StripKind[][] = [];
+  const rest: StripKind[] = [...extras];
+  let filler = 0;
+  for (let k = 0; k < bandCount; k++) {
+    const share = Math.ceil((pods - (bands.flat().filter((x) => x === 'pod').length)) / (bandCount - k));
+    const band: StripKind[] = Array<StripKind>(share).fill('pod');
+    while (band.length < strips) {
+      band.push(rest.shift() ?? (plush ? (filler++ % 2 ? 'lounge' : 'library') : 'utility'));
+    }
+    bands.unshift(band);
+  }
+  const pad = strips * POD_W + WING.w - WING_TOP.w - LEFT_W - (staffRoom ? STAFF_ROOM.w : 0);
+  return { comfort, bands, staffRoom, pad, height: H0 + (bandCount - 1) * BAND_H };
 }
 
 /** Changes only when the layout for this headcount does (rebuild the floor
  *  then, not on every hire). */
 export function officeLayoutKey(h: Headcount): string {
-  const plan = planOffice(h);
-  return `${plan.comfort}:${plan.strips.join(',')}:${plan.staffRoom ? 's' : ''}`;
+  return keyOf(planOffice(h));
+}
+
+function keyOf(plan: OfficePlan): string {
+  return `${plan.comfort}:${plan.bands.map((b) => b.join(',')).join('|')}:${plan.staffRoom ? 's' : ''}`;
 }
 
 /** Build the office for this headcount from the hand-drawn map. */
 export function buildModularOffice(source: MapJson, headcount: Headcount): ModularOffice {
   const plan = planOffice(headcount);
-  const bottomW = plan.strips.length * POD_W;
+  const S = plan.bands[0].length;
+  const bottomW = S * POD_W;
   const W = bottomW + WING.w;
+  const H = plan.height;
   const dx = W - (WING.x + WING.w); // how far the wing moves
+  const dy = H - H0;                // how far the bottom band moves
+  const bottom = plan.bands[plan.bands.length - 1];
+  const plush = plan.comfort === 'luxury' || plan.comfort === 'comfort';
 
   const src = new Map<string, Layer>();
   for (const l of source.layers) if (l.type === 'tilelayer') src.set(l.name, l.data);
@@ -197,6 +241,8 @@ export function buildModularOffice(source: MapJson, headcount: Headcount): Modul
     if (x < 0 || y < 0 || x >= W || y >= H) return;
     out.get(name)![y * W + x] = v;
   };
+
+  const blocked = (x: number, y: number) => out.get('collision')![y * W + x] !== 0;
 
   /** Copy a block of the hand-drawn map; `only` limits which layers. */
   const copy = (sx: number, sy: number, w: number, h: number, tx: number, ty: number, only?: LayerName[]) => {
@@ -250,62 +296,101 @@ export function buildModularOffice(source: MapJson, headcount: Headcount): Modul
 
   // ── wing: staff office over the café ─────────────────────────────────────
   copy(WING_TOP.x, 0, WING_TOP.w, TOP_ROWS, WING_TOP.x + dx, 0);
-  copy(WING.x, TOP_ROWS, WING.w, H - TOP_ROWS, WING.x + dx, TOP_ROWS);
+  copy(WING.x, TOP_ROWS, WING.w, H0 - TOP_ROWS, WING.x + dx, TOP_ROWS + dy);
+  // Beside the extra bands, above the café: open floor, the outer wall, and
+  // two amenity strips a band.
+  const wx = WING.x + dx;
+  for (let y = TOP_ROWS; y < TOP_ROWS + dy; y++) {
+    for (let c = 0; c < WING.w; c++) {
+      const px = wx + c;
+      copy(px % 2 === 0 ? 4 : 5, TOP_ROWS + ((y - TOP_ROWS) % BAND_H), 1, 1, px, y, ['floor']);
+    }
+    copy(SW - 1, 13, 1, 1, W - 1, y, ['floor', 'walls', 'collision']);
+  }
+  for (let j = 0; j < plan.bands.length - 1; j++) {
+    const oy = j * BAND_H;
+    furnishStrip(plush ? 'lounge' : 'utility', wx + 1, put, errands, j % 2 === 1, oy);
+    furnishStrip(plush ? 'library' : 'utility', wx + 5, put, errands, j % 2 === 0, oy);
+  }
 
-  // ── bottom row: pods and amenity strips ──────────────────────────────────
+  // ── the floor: bands of pods and amenity strips ──────────────────────────
   const seats: string[] = [];
   let pod = 0;
   // The entrance: a gap in the bottom wall on a strip's walkway column
   // (column 0, never furnished), towards the middle, right of a desk pod so
   // the bin by the door has room.
-  const pods = plan.strips.filter((k) => k === 'pod').length;
-  const doorStrip = Math.max(1, Math.min(Math.floor(plan.strips.length / 2), pods));
-  plan.strips.forEach((kind, i) => {
-    const sx = i * POD_W;
-    // The first strip carries the outer wall; the rest are open floor.
-    const from = i === 0 ? 0 : 4;
-    if (kind === 'pod') {
-      copy(from, TOP_ROWS, POD_W, H - TOP_ROWS, sx, TOP_ROWS);
-      pod++;
-      // Against the bottom wall behind the back desk (the corner plant of the
-      // first pod stays): plants for a small team, storage for a large one.
-      if (i !== 0 && i !== doorStrip - 1) {
-        if (plan.comfort === 'luxury' || plan.comfort === 'comfort') put(pod % 2 ? P.bush : P.plantWhite, sx + 3, pod % 2 ? 20 : 19);
-        else put(pod % 2 ? P.lowCabGrey : P.lowCab, sx + 2, 20);
-      }
-      const a = `pc-${2 * pod - 1}`;
-      const b = `pc-${2 * pod}`;
-      spawn(a, { x: sx + 2, y: ROW_A });
-      spawn(b, { x: sx + 2, y: ROW_B });
-      seats.push(a, b);
-    } else {
-      copy(from, TOP_ROWS, POD_W, H - TOP_ROWS, sx, TOP_ROWS, ['floor', 'walls', 'collision']);
-      for (let y = TOP_ROWS; y < H - 1; y++) {
-        for (let c = 0; c < POD_W; c++) {
-          if (i === 0 && c === 0) continue; // the outer wall
-          set('collision', sx + c, y, 0);
+  const bottomPods = bottom.filter((k) => k === 'pod').length;
+  const doorStrip = Math.max(1, Math.min(Math.floor(S / 2), bottomPods));
+  // Seats are numbered bottom band first, as the plan fills them.
+  for (let j = plan.bands.length - 1; j >= 0; j--) {
+    const band = plan.bands[j];
+    const last = j === plan.bands.length - 1;
+    const y0 = TOP_ROWS + j * BAND_H;
+    const rows = last ? H0 - TOP_ROWS : BAND_H;
+    band.forEach((kind, i) => {
+      const sx = i * POD_W;
+      // The first strip carries the outer wall; the rest are open floor.
+      const from = i === 0 ? 0 : 4;
+      if (kind === 'pod') {
+        copy(from, TOP_ROWS, POD_W, rows, sx, y0);
+        pod++;
+        // Cubicles: a partition on each desk's left. Every fourth column and
+        // the entrance's stay open, so a band's walkways stay connected.
+        // Row 11 under the rooms is a row of two-tile pockets, each reached
+        // only down its strip's left column: the first band's front partition
+        // is left out where its pocket opens into a room above or holds a
+        // task board's stand (OfficeFloor: (8,11), (9,11), (12,11)).
+        if (i !== 0 && i % 4 !== 0 && !(last && i === doorStrip)) {
+          const pocketNeeded =
+            j === 0 &&
+            (sx === 8 || sx === 12 || !blocked(sx, TOP_ROWS - 1) || !blocked(sx + 1, TOP_ROWS - 1));
+          const front = pocketNeeded ? [] : [y0 + 1];
+          for (const top of [...front, y0 + 6]) {
+            PARTITION.forEach((gid, r) => {
+              set('walls', sx, top + r, gid);
+              set('collision', sx, top + r, 1);
+            });
+          }
         }
+        // The row behind the back desks stays clear: with the partitions it
+        // is the only way along to those desks.
+        const a = `pc-${2 * pod - 1}`;
+        const b = `pc-${2 * pod}`;
+        spawn(a, { x: sx + 2, y: y0 + (ROW_A - TOP_ROWS) });
+        spawn(b, { x: sx + 2, y: y0 + (ROW_B - TOP_ROWS) });
+        seats.push(a, b);
+      } else {
+        copy(from, TOP_ROWS, POD_W, rows, sx, y0, ['floor', 'walls', 'collision']);
+        for (let y = y0; y < y0 + BAND_H; y++) {
+          for (let c = 0; c < POD_W; c++) {
+            if (i === 0 && c === 0) continue; // the outer wall
+            set('collision', sx + c, y, 0);
+          }
+        }
+        // Every other lounge or library gets its second look.
+        const seen = band.slice(0, i).filter((k) => k === kind).length + j;
+        furnishStrip(kind, sx, put, errands, seen % 2 === 1, y0 - TOP_ROWS);
       }
-      // Every other lounge or library gets its second look.
-      const seen = plan.strips.slice(0, i).filter((k) => k === kind).length;
-      furnishStrip(kind, sx, put, errands, seen % 2 === 1);
-    }
-  });
+    });
+  }
 
   const doorX = doorStrip * POD_W;
-  copy(DOOR_SRC_X, 20, 1, 2, doorX, 20);
-  spawn('entrance', { x: doorX, y: 20 });
+  copy(DOOR_SRC_X, 20, 1, 2, doorX, 20 + dy);
+  spawn('entrance', { x: doorX, y: 20 + dy });
   // The bin is two tiles tall: its lid (row 19) is drawn over people.
-  copy(DOOR_SRC_X + 1, 19, 1, 2, doorX - 1, 19, ['furniture-below', 'furniture-above', 'collision']);
-  errands.push({ kind: 'bin', stand: { x: doorX - 2, y: 20 }, facing: 'right', fx: { x: doorX - 1, y: 20 } });
+  copy(DOOR_SRC_X + 1, 19, 1, 2, doorX - 1, 19 + dy, ['furniture-below', 'furniture-above', 'collision']);
+  errands.push({ kind: 'bin', stand: { x: doorX - 2, y: 20 + dy }, facing: 'right', fx: { x: doorX - 1, y: 20 + dy } });
 
   // ── coordinates that move with their module ─────────────────────────────
   const place = (t: Tile): Tile | null => {
-    if (t.y < TOP_ROWS ? t.x >= WING_TOP.x : t.x >= WING.x) return { x: t.x + dx, y: t.y };
-    if (t.y < TOP_ROWS && t.x < LEFT_W) return { ...t };
-    if (t.y < TOP_ROWS && t.x < STAFF_ROOM.x + STAFF_ROOM.w) return plan.staffRoom ? { ...t } : null;
+    if (t.y < TOP_ROWS) {
+      if (t.x >= WING_TOP.x) return { x: t.x + dx, y: t.y };
+      if (t.x < LEFT_W) return { ...t };
+      return t.x < STAFF_ROOM.x + STAFF_ROOM.w && plan.staffRoom ? { ...t } : null;
+    }
+    if (t.x >= WING.x) return { x: t.x + dx, y: t.y + dy };
     // The open floor is rebuilt; only the first strip's corner plant stays.
-    if (t.x < POD_W && plan.strips[0] === 'pod') return { ...t };
+    if (t.x < POD_W && bottom[0] === 'pod') return { x: t.x, y: t.y + dy };
     return null;
   };
   for (const l of source.layers) {
@@ -348,7 +433,7 @@ export function buildModularOffice(source: MapJson, headcount: Headcount): Modul
     staffSeatNames,
     place,
     errands,
-    key: `${plan.comfort}:${plan.strips.join(',')}:${plan.staffRoom ? 's' : ''}`,
+    key: keyOf(plan),
   };
 }
 
@@ -356,8 +441,13 @@ type Put = (p: Piece, x: number, y: number) => void;
 
 /** An amenity strip: 4 tiles wide, rows 11–20. Column 0 and rows 11, 15–16
  *  stay clear as walkways. */
-function furnishStrip(kind: StripKind, sx: number, put: Put, errands: ExtraErrand[], alt = false) {
+function furnishStrip(kind: StripKind, sx: number, place: Put, out: ExtraErrand[], alt = false, oy = 0) {
   const x = (c: number) => sx + c;
+  // The rows below are the bottom band's (11–20); `oy` moves them to another.
+  const put: Put = (p, px, py) => place(p, px, py + oy);
+  const errands = {
+    push: (e: ExtraErrand) => out.push({ ...e, stand: { ...e.stand, y: e.stand.y + oy }, fx: { ...e.fx, y: e.fx.y + oy } }),
+  };
   if (kind === 'lounge' && alt) {
     put(P.sofaWhite, x(1), 12);
     put(P.rugRed, x(0) + 1, 14);
@@ -376,6 +466,13 @@ function furnishStrip(kind: StripKind, sx: number, put: Put, errands: ExtraErran
     put(P.books, x(2), 19);
     put(P.bush, x(1), 20);
     errands.push({ kind: 'water', stand: { x: x(0), y: 20 }, facing: 'right', fx: { x: x(1), y: 20 } });
+  } else if (kind === 'utility' && alt) {
+    put(P.vending, x(1), 12);
+    put(P.cooler, x(3), 12);
+    put(P.lowCab, x(1), 17);
+    put(P.boxes, x(2), 18);
+    put(P.cabWood, x(1), 19);
+    errands.push({ kind: 'dispenser', stand: { x: x(3), y: 14 }, facing: 'up', fx: { x: x(3), y: 13 } });
   } else if (kind === 'lounge') {
     put(P.sofa, x(1), 12);
     put(P.rugBlue, x(1), 14);
