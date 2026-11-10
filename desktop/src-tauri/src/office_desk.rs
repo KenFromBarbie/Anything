@@ -403,6 +403,82 @@ pub async fn office_artifact_save_edit(
     Ok(entry)
 }
 
+/// The app's own editors (Create → Document, Slides, Chart) save here: one
+/// editable file (`<name>.doc.json`, `.slides.json`, `.sheet.json`) that the
+/// gallery draws and the editor reopens. Saving again with `series` (the
+/// first version's id) makes a new version of the same thing.
+#[tauri::command]
+pub async fn office_artifact_save_file(
+    app: AppHandle,
+    title: String,
+    file_name: String,
+    text: String,
+    series: Option<String>,
+) -> Result<Value, String> {
+    let title = title.trim();
+    if title.is_empty() {
+        return Err("give it a name".into());
+    }
+    let ok_name = file_name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || "-_. ".contains(c))
+        && [".doc.json", ".slides.json", ".sheet.json"].iter().any(|e| file_name.ends_with(e))
+        && !file_name.contains("..");
+    if !ok_name {
+        return Err("that isn't an editor file name".into());
+    }
+    if text.len() > 20 * 1024 * 1024 {
+        return Err("it's too big to save (20 MB at most)".into());
+    }
+    serde_json::from_str::<Value>(&text).map_err(|e| format!("not valid JSON: {e}"))?;
+    let dir = artifacts_dir(&app).ok_or("the Office is not set up")?;
+    allow_artifacts(&app);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or_default();
+    let id = format!("{now:x}-own");
+    std::fs::create_dir_all(dir.join(&id)).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join(&id).join(&file_name), text.as_bytes()).map_err(|e| e.to_string())?;
+    let mut entry = json!({
+        "id": id,
+        "title": title,
+        "note": "Made in the app",
+        "agentId": "",
+        "agent": "You",
+        "createdAt": now,
+        "file": format!("{id}/{file_name}"),
+        "kind": "text",
+    });
+    let mut list = stored_artifacts(&dir);
+    if let Some(series) = series.filter(|s| list.iter().any(|i| i["id"].as_str() == Some(s.as_str()))) {
+        entry["series"] = json!(series);
+    }
+    list.push(entry.clone());
+    write_list(&dir.join("index.json"), &list)?;
+    let _ = app.emit(ARTIFACT_EVENT, &entry);
+    Ok(artifact_list(&dir)
+        .into_iter()
+        .find(|i| i["id"] == entry["id"])
+        .unwrap_or(entry))
+}
+
+/// Write an editor's export (.doc, .html, .csv, .md, .txt) where the owner
+/// chose in the save dialog.
+#[tauri::command]
+pub async fn office_export_file(path: String, text: String) -> Result<(), String> {
+    let path = PathBuf::from(path);
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !["doc", "html", "htm", "csv", "md", "txt"].contains(&ext.as_str()) || !path.is_absolute() {
+        return Err("export to a .doc, .html, .csv, .md or .txt file".into());
+    }
+    std::fs::write(&path, text.as_bytes()).map_err(|e| format!("couldn't save it: {e}"))
+}
+
 /// Give an artifact a new title.
 #[tauri::command]
 pub async fn office_artifact_rename(app: AppHandle, id: String, title: String) -> Result<(), String> {

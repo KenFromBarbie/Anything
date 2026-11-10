@@ -46,6 +46,10 @@ import { Markdown } from "@/shared/ui/markdown";
 
 import { groupVersions } from "@/features/office/lib/artifactVersions";
 
+import { EditorFileView, EditorHost } from "@/features/office/editors/EditorFiles";
+import { useOpenEditor } from "@/features/office/editors/editorStore";
+import { editorKindOf } from "@/features/office/editors/formats";
+
 import { Codebases } from "./Codebases";
 import { ImageQuickEdit } from "./ImageQuickEdit";
 import { AskForChanges, StudioMake } from "./StudioMake";
@@ -191,6 +195,7 @@ export function ArtifactsPage({
   const [filter, setFilter] = React.useState<Filter>("all");
   const [editing, setEditing] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  const editorOpen = useOpenEditor() !== null;
   const opened = items.find((item) => item.id === openId) ?? null;
   // Each iteration an agent publishes is a version of one thing, not a new
   // card: the gallery shows the latest, the viewer steps through them.
@@ -225,7 +230,10 @@ export function ArtifactsPage({
           title="Create"
         />
       )}
-      {browsing ? (
+      {editorOpen ? (
+        // A Document / Slides / Sheet open in its editor, in the page.
+        <EditorHost />
+      ) : browsing ? (
         <React.Suspense fallback={null}>
           <BrowserPage embedded onHome={() => setBrowsing(false)} />
         </React.Suspense>
@@ -431,6 +439,10 @@ function ArtifactThumb({ item }: { item: Artifact }) {
       />
     );
   }
+  if (editorKindOf(item.path)) {
+    // A Document / Slides / Sheet made in the app's editors, drawn small.
+    return <EditorFileView item={item} thumb />;
+  }
   if (item.kind === "text" && src) {
     // The text itself, drawn small.
     return (
@@ -631,6 +643,8 @@ export function ArtifactViewer({
   } else if (item.kind === "audio" && src) {
     // biome-ignore lint/a11y/useMediaCaption: agent-made audio, no captions
     body = <audio className="m-6 w-[calc(100%-3rem)]" controls src={src} />;
+  } else if (editorKindOf(item.path)) {
+    body = <EditorFileView item={item} />;
   } else if (item.kind === "text" && src) {
     body = <TextArtifact markdown={/\.md$/i.test(item.path ?? "")} src={src} />;
   } else if (item.kind === "html" && src) {

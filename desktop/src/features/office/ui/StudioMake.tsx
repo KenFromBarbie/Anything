@@ -71,7 +71,17 @@ import { Input } from "@/shared/ui/input";
 import { SubsectionLabel } from "@/shared/ui/PageHeader";
 import { Textarea } from "@/shared/ui/textarea";
 
+import { openEditor } from "@/features/office/editors/editorStore";
+import { blankFile, type EditorKind } from "@/features/office/editors/formats";
+
 import type { Artifact } from "./ArtifactsPage";
+
+/** The tiles that open one of the app's own editors. */
+const EDITOR_FOR: Partial<Record<MakeKind, EditorKind>> = {
+  document: "doc",
+  slides: "slides",
+  chart: "sheet",
+};
 import { AddCodebaseDialog } from "./Codebases";
 
 const TILES: Record<MakeKind, { icon: LucideIcon; tone: string }> = {
@@ -324,13 +334,20 @@ export function StudioMake({
             {...TILES[k]}
             key={k}
             label={label}
-            onClick={() =>
+            onClick={() => {
+              // Document, Slides and Chart open their Office-style editor.
+              const editor = EDITOR_FOR[k];
+              if (editor) {
+                setChosen(null);
+                openEditor({ kind: editor, title: "", file: blankFile(editor) });
+                return;
+              }
               setChosen(
                 chosen?.type === "kind" && chosen.kind === k
                   ? null
                   : { type: "kind", kind: k },
-              )
-            }
+              );
+            }}
             selected={chosen?.type === "kind" && chosen.kind === k}
             testId={`studio-make-${k}`}
           />

@@ -2,6 +2,8 @@
 // wants something made, or changed. Agents make everything with their own
 // tools — code — and publish it with buzz-show, so it lands in Artifacts.
 
+import { APP, EXT, editorKindOf, FORMAT_SPEC } from "@/features/office/editors/formats";
+
 export type MakeKind =
   | "document"
   | "slides"
@@ -153,9 +155,14 @@ export function changeRequest(
   showCommand = "buzz-show",
 ): string {
   const where = artifact.path ?? artifact.url ?? "";
+  // Made in the app's Document / Slides / Sheet editor: the file IS the
+  // source; the new version must stay in its format to stay editable.
+  const editor = editorKindOf(artifact.path);
   return [
     `[STUDIO CHANGE from the owner] Change "${artifact.title}" (artifact ${artifact.id}${where ? `, ${where}` : ""}): ${ask.trim()}`,
-    "Work from your source for it (not the published copy) if you still have it, and keep what wasn't asked to change.",
+    editor
+      ? `It was made in the app's ${APP[editor].name} editor: read that file, change it, and write the new version in the same format (a file whose name ends in ${EXT[editor]}, holding ${FORMAT_SPEC[editor]}), keeping what wasn't asked to change.`
+      : "Work from your source for it (not the published copy) if you still have it, and keep what wasn't asked to change.",
     FIT_THE_APP,
     THROUGH_THE_OFFICE,
     `${PUBLISH(showCommand)} Publish it as a new version: the same title and --version-of ${artifact.id}.`,

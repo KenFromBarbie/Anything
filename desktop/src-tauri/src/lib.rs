@@ -627,6 +627,8 @@ pub fn run() {
             office_desk::office_artifact_open,
             office_desk::office_artifact_save_edit,
             office_desk::office_artifact_rename,
+            office_desk::office_artifact_save_file,
+            office_desk::office_export_file,
             office_desk::office_artifact_delete,
             studio_store::studio_workflows,
             studio_store::studio_workflow_save,
