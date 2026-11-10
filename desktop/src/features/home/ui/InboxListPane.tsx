@@ -18,7 +18,10 @@ import {
 import { buildInboxListRows } from "@/features/home/lib/inboxListRows";
 import { hasRenderedVideoAttachment } from "@/features/messages/lib/videoReviewContext";
 import { getThreadReference } from "@/features/messages/lib/threading";
-import { InboxDirectMessages } from "@/features/home/ui/InboxDirectMessages";
+import {
+  InboxDirectMessages,
+  useListedDmIds,
+} from "@/features/home/ui/InboxDirectMessages";
 import { InboxFilterMenu } from "@/features/home/ui/InboxFilterMenu";
 import { AgentQuestionsInbox } from "@/features/tasks/ui/AgentQuestions";
 import {
@@ -287,16 +290,21 @@ export function InboxListPane({
       }),
     [items, reminders, unreadOnly],
   );
+  const listedDmIds = useListedDmIds();
   const visibleInboxRows = React.useMemo(
     () =>
       isMixedInboxView
-        ? // DMs have their own section at the top of All (unread first);
-          // listing their messages again below showed each DM twice.
+        ? // DMs listed in the Direct messages section at the top of All are
+          // not repeated below (each showed twice). A hidden DM isn't listed
+          // there, so its messages stay here: that's how it is reopened.
           inboxRows.filter(
-            (row) => row.kind !== "inbox" || row.item.item.channelType !== "dm",
+            (row) =>
+              row.kind !== "inbox" ||
+              row.item.item.channelType !== "dm" ||
+              !listedDmIds.has(row.item.item.channelId ?? ""),
           )
         : inboxRows.filter((row) => row.kind === "inbox"),
-    [inboxRows, isMixedInboxView],
+    [inboxRows, isMixedInboxView, listedDmIds],
   );
   const reminderSources = useReminderSources(reminders);
   const unreadVisibleItemCount = React.useMemo(

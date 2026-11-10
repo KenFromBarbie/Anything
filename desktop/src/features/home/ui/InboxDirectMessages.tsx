@@ -15,6 +15,27 @@ import { useProtectedVisibleDirectMessages } from "@protected-feature-components
 
 const COLLAPSED_KEY = "anything.inbox-dms-collapsed";
 
+/** The DMs the Direct messages section lists (hidden ones aren't). */
+export function useListedDmIds(): Set<string> {
+  const { data: channels = [] } = useChannelsQuery();
+  const { data: identity } = useIdentityQuery();
+  const allDms = React.useMemo(
+    () =>
+      channels
+        .filter((c) => c.channelType === "dm" && !c.archivedAt)
+        .map((c) => ({
+          ...c,
+          name: typeof c.name === "string" ? c.name : "",
+          participantPubkeys: Array.isArray(c.participantPubkeys)
+            ? c.participantPubkeys
+            : [],
+        })),
+    [channels],
+  );
+  const listed = useProtectedVisibleDirectMessages(allDms, identity?.pubkey);
+  return React.useMemo(() => new Set(listed.map((c) => c.id)), [listed]);
+}
+
 /**
  * Direct messages, at the top of the Inbox (they're not in the sidebar): every
  * conversation, unread first in recent order, and a new message.
