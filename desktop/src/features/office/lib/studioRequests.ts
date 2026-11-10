@@ -9,6 +9,8 @@ export type MakeKind =
   | "image"
   | "video"
   | "model"
+  | "clothing"
+  | "simulation"
   | "site";
 
 export const MAKE_KINDS: {
@@ -47,6 +49,16 @@ export const MAKE_KINDS: {
     placeholder: "A low-poly desk lamp, matte black, ready for a product shot",
   },
   {
+    kind: "clothing",
+    label: "Clothing",
+    placeholder: "A boxy linen shirt for a 175 cm man, chest 100, in two sizes",
+  },
+  {
+    kind: "simulation",
+    label: "Simulation",
+    placeholder: "Will the boat bike stay upright in 30 cm waves with an 85 kg rider?",
+  },
+  {
     kind: "site",
     label: "Site",
     placeholder: "A landing page for the student portal, one page",
@@ -66,7 +78,11 @@ const HOW: Record<MakeKind, string> = {
   video:
     "Build it in code: frames (Pillow/matplotlib/HTML) or slides turned into an MP4 with ffmpeg (or moviepy), with captions burnt in. Publish the MP4.",
   model:
-    "Model it in code: Python with trimesh (or Blender in background mode, blender -b -P script.py, if it's installed), or three.js in Node with GLTFExporter. Give it real materials and colours. Export one binary .glb with everything inside it, centred at the origin, Y up, at a sensible scale and under about 20 MB. Publish the .glb; the app shows it in a 3D viewer.",
+    "Model it in code with the office's simkit (mesh primitives and loft, glb.Scene; see the 3D section of BUZZ.md), or Blender in background mode (blender -b -P script.py) if it's installed, or three.js in Node with GLTFExporter. Real proportions in metres, real materials and colours; if it has moving parts, animate them (glb.Scene.animate). Export one binary .glb, centred at the origin, Y up, under about 20 MB. Publish the .glb; the app shows it in a 3D viewer and plays its animation.",
+  clothing:
+    "Use the office's simkit cloth module (its README is linked from BUZZ.md, start from examples/garment.py): a Body from the measurements given (or a standard size, and say which), the garment's pattern pieces with ease and seam allowance, a printable 1:1 SVG pattern, and a drape of it on the body in the chosen fabric. Publish the SVG pattern, the animated fit .glb (red tight, blue loose) and an HTML report with the measurements, the fit of each size or fabric tried, and what you'd change.",
+  simulation:
+    "Use the office's simkit (README linked from BUZZ.md; start from examples/boat.py for anything on water, examples/aircraft.py for anything that flies or meets wind). Build the thing as a closed mesh at real scale with a realistic mass and centre of gravity, run the simulation, check one number against a hand calculation, and try the cases that matter (heavier load, bigger waves, other speeds). Publish an animated .glb of it (on the water, or coloured by lift) and an HTML report (simkit.report): the answer to the question first, then the numbers, charts, the assumptions and what would make it better.",
   site: 'Build it as a static site (HTML/CSS/JS) in a folder of its own, with an index.html. Publish the folder with --dir "<folder>" (the app serves it, so it keeps working); never publish a localhost --url, which dies when its server stops.',
 };
 

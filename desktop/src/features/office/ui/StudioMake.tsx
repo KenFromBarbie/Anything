@@ -25,9 +25,11 @@ import {
   RefreshCw,
   Send,
   Shapes,
+  Shirt,
   Sparkles,
   Trash2,
   WandSparkles,
+  Wind,
   Workflow,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -79,6 +81,8 @@ const TILES: Record<MakeKind, { icon: LucideIcon; tone: string }> = {
   image: { icon: ImageIcon, tone: "bg-emerald-700/80 text-emerald-50" },
   video: { icon: Film, tone: "bg-violet-700/80 text-violet-50" },
   model: { icon: Box, tone: "bg-amber-600/80 text-amber-50" },
+  clothing: { icon: Shirt, tone: "bg-pink-700/80 text-pink-50" },
+  simulation: { icon: Wind, tone: "bg-cyan-700/80 text-cyan-50" },
   site: { icon: Globe, tone: "bg-teal-700/80 text-teal-50" },
 };
 

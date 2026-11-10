@@ -434,6 +434,35 @@ ${global}
    * carries no posting note of its own, which left agents trying the raw CLI.
    * Running agents are told once, too.
    */
+  /**
+   * Copy the simulation kit (src/sidecar/simkit) into the hive's tools
+   * folder, where every agent can read and import it. Only when its version
+   * changed. Returns the kit's folder, or null if it isn't there.
+   */
+  installSimkit(root) {
+    const from = join(__dirname, 'simkit');
+    const to = join(root, 'tools', 'simkit');
+    try {
+      if (!fs.existsSync(join(from, '__init__.py'))) return null;
+      const version = (file) => {
+        try { return fs.readFileSync(file, 'utf8').match(/__version__ = "([^"]+)"/)?.[1] ?? ''; } catch { return ''; }
+      };
+      const want = version(join(from, '__init__.py'));
+      if (version(join(to, '__init__.py')) !== want || !fs.existsSync(join(to, 'README.md'))) {
+        fs.mkdirSync(join(root, 'tools'), { recursive: true });
+        fs.cpSync(from, to, {
+          recursive: true,
+          force: true,
+          filter: (src) => !/__pycache__|\.pyc$/.test(src)
+        });
+      }
+      return to;
+    } catch (e) {
+      this.log.warn('[buzz-bridge] could not install simkit:', e.message);
+      return null;
+    }
+  }
+
   writePostingGuide() {
     if (!this.postWrapperPath) return;
     const vault = this.syncVaultNow();
@@ -446,6 +475,7 @@ ${global}
       return;
     }
     const agents = this.identities().filter((i) => i.pubkey).map((i) => `- @${i.name} (${i.agentId})`);
+    const simkit = this.installSimkit(root);
     const guide = [
       '# Posting in the server\'s channels',
       '',
@@ -477,8 +507,21 @@ ${global}
       'A new iteration of something already published is a VERSION of it, not a new thing: publish it with the same --title (add --version-of <its artifact id> when the title changes). The owner sees one card with its versions, the latest on top. Publish only what is finished and reviewed, not every draft.',
       'A lesson for one of the owner’s Learn courses: add --course <course id> (the course’s brief gives it, and how a lesson reports progress); it shows in that course in the Learn tab.',
       'Never publish a localhost address: the server behind it stops when you do (or the app restarts), and the owner is left with a dead link. Publish the site’s folder with --dir; the app serves it itself.',
-      'A 3D model: publish one binary .glb (materials and colours inside it, centred at the origin, Y up, under about 20 MB); the app shows it in a 3D viewer the owner can turn and zoom. .obj and .stl work too, without materials.',
+      'A 3D model: publish one binary .glb (materials and colours inside it, centred at the origin, Y up, under about 20 MB); the app shows it in a 3D viewer the owner can turn and zoom, and plays its animations. .obj and .stl work too, without materials.',
       '',
+      ...(simkit
+        ? [
+          '## 3D, clothing and simulations (simkit)',
+          `The office has a Python kit for engineering work at ${simkit} (numpy; Pillow for GIFs). Read ${join(simkit, 'README.md')} before 3D, clothing or simulation work, and start from a script in ${join(simkit, 'examples')} (boat.py, aircraft.py, garment.py): copy it to your own folder, never edit the kit.`,
+          `In your scripts: import sys; sys.path.insert(0, r"${join(simkit, '..')}"); from simkit import mesh, glb, hydro, aero, cloth, report`,
+          '- Boats, floats, hulls: hydro.Boat: draft, freeboard, GM, GZ curve, motion in waves; an animated .glb of it on the water.',
+          '- Aircraft, wings, drones, sails, fins: aero.vlm / aero.aircraft_polar (lift, drag, stall and glide speeds, stability), aero.airfoil_polar, aero.wind_tunnel (a GIF of the airflow).',
+          '- Clothing: cloth.Body from measurements, cloth.tshirt / cloth.skirt or your own pieces, a printable 1:1 SVG pattern, cloth.drape for an animated fit on the body (red tight, blue loose).',
+          '- Anything that moves: glb.Scene.animate writes keyframes; the app plays them.',
+          'Publish the animated .glb and an HTML report (simkit.report) with the numbers, charts and the assumptions. Say what the model is (an engineering estimate, not CFD or a production cloth solver) and check one result against a case you can work out by hand.',
+          ''
+        ]
+        : []),
       '## Learn courses',
       'The owner starts a course in the app’s Learn tab: a "New course" message in its own channel, with the course id, the course folder and the material they attached. Run it through the office chain. The CEO gives it to the executive who fits it; they:',
       '1. Write the plan as syllabus.md in the course folder: the lessons in order, each with what the learner can do after it. Keep it up to date.',
@@ -575,6 +618,18 @@ ${global}
         act: 'inform',
         subject: 'Make artifacts that fit the app',
         body: `[OFFICE NOTE] ${ARTIFACT_DESIGN.join('\n')}\nThe full guide is ${join(root, 'BUZZ.md')}.`,
+        requires_reply: false
+      }, 'human')).catch(() => {});
+    }
+    this.state.toldSimkit ??= [];
+    for (const who of this.identities()) {
+      if (!simkit || !who.pubkey || this.state.toldSimkit.includes(who.agentId)) continue;
+      this.state.toldSimkit.push(who.agentId);
+      void Promise.resolve(send({ sender: null, senderFrame: null }, {
+        to: who.agentId,
+        act: 'inform',
+        subject: '3D, clothing and simulations',
+        body: `[OFFICE NOTE] The office has a simulation kit at ${simkit}: boats on water (stability, waves), aircraft and wings (lift, drag, stall, stability, airflow), clothing (patterns, drape and fit), and animated .glb output the app plays. Read ${join(simkit, 'README.md')} and start from its examples before any 3D, clothing or simulation work.`,
         requires_reply: false
       }, 'human')).catch(() => {});
     }
