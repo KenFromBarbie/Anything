@@ -10,7 +10,6 @@ import {
   GitBranch,
   Loader2,
   MessageSquare,
-  Plus,
   RefreshCw,
   Send,
   Trash2,
@@ -77,18 +76,21 @@ export function Codebases() {
           work in them.
         </span>
       </div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+      <div className="flex flex-wrap items-start gap-3">
         {codebases.map((codebase) => (
           <CodebaseCard codebase={codebase} key={codebase.id} />
         ))}
+        {/* Styled like the Make something new tiles. */}
         <button
-          className="flex min-h-24 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border/70 text-sm text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
+          className="group flex w-28 flex-col gap-1.5 text-left"
           data-testid="codebase-add"
           onClick={() => setAdding(true)}
           type="button"
         >
-          <Plus className="h-4 w-4" />
-          Link a codebase
+          <span className="flex h-20 w-28 items-center justify-center rounded-xl bg-indigo-700/80 text-indigo-50 shadow-sm transition-transform group-hover:-translate-y-0.5">
+            <FolderGit2 className="h-7 w-7" />
+          </span>
+          <span className="text-sm text-foreground">Link a codebase</span>
         </button>
       </div>
       <AddCodebaseDialog onOpenChange={setAdding} open={adding} />
@@ -133,7 +135,7 @@ function CodebaseCard({ codebase }: { codebase: Codebase }) {
   const Icon = codebase.source === "github" ? FolderGit2 : FolderOpen;
   return (
     <div
-      className="flex flex-col gap-2 rounded-xl border border-border/70 bg-card/40 p-3"
+      className="flex w-[260px] flex-col gap-2 rounded-xl border border-border/70 bg-card/40 p-3"
       data-testid={`codebase-${codebase.id}`}
     >
       <div className="flex items-start gap-3">

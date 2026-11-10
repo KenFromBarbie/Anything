@@ -82,6 +82,7 @@ import {
 import { DeskAgentDialog } from "@/features/office/ui/DeskAgentDialog";
 import { ExportFilesDialog } from "@/features/files/ui/ExportFilesDialog";
 import { CustomizeOfficeDialog } from "@/features/office/ui/CustomizeOfficeDialog";
+import { EnsureCeoDm } from "@/features/office/ui/EnsureCeoDm";
 import { OfficeBackdrop } from "@/features/office/ui/OfficeBackdrop";
 import {
   MeetingDialog,
@@ -1043,6 +1044,7 @@ export function AppShell() {
                   {!isHuddleRoom ? <DeskAgentDialog /> : null}
                   {!isHuddleRoom ? <ExportFilesDialog /> : null}
                   {!isHuddleRoom ? <CustomizeOfficeDialog /> : null}
+                  {!isHuddleRoom ? <EnsureCeoDm /> : null}
                   {!isHuddleRoom ? <MeetingFloorSync /> : null}
                   {!isHuddleRoom ? (
                     <OfficeHost

@@ -290,7 +290,11 @@ export function InboxListPane({
   const visibleInboxRows = React.useMemo(
     () =>
       isMixedInboxView
-        ? inboxRows
+        ? // DMs have their own section at the top of All (unread first);
+          // listing their messages again below showed each DM twice.
+          inboxRows.filter(
+            (row) => row.kind !== "inbox" || row.item.item.channelType !== "dm",
+          )
         : inboxRows.filter((row) => row.kind === "inbox"),
     [inboxRows, isMixedInboxView],
   );

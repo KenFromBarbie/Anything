@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, SquarePen } from "lucide-react";
 import { useAppShell } from "@/app/AppShellContext";
 import { useAppNavigation } from "@/app/navigation/useAppNavigation";
 import { useChannelsQuery } from "@/features/channels/hooks";
+import { useCeoPubkey } from "@/features/office/ui/EnsureCeoDm";
 import { ProfileAvatar } from "@/features/profile/ui/ProfileAvatar";
 import { sortDmChannelsForSidebar } from "@/features/sidebar/lib/dmSidebarSort";
 import { useDmSidebarMetadata } from "@/features/sidebar/useDmSidebarMetadata";
@@ -50,10 +51,15 @@ export function InboxDirectMessages() {
     currentPubkey: identity?.pubkey,
     directMessages: dms,
   });
-  const sorted = React.useMemo(
-    () => sortDmChannelsForSidebar(dms, dmChannelLabels, "recent"),
-    [dms, dmChannelLabels],
-  );
+  const ceo = useCeoPubkey();
+  // The CEO's DM first (it's always there: see EnsureCeoDm), then the rest.
+  const sorted = React.useMemo(() => {
+    const byRecent = sortDmChannelsForSidebar(dms, dmChannelLabels, "recent");
+    if (!ceo) return byRecent;
+    const isCeo = (c: (typeof byRecent)[number]) =>
+      c.participantPubkeys.length <= 2 && c.participantPubkeys.includes(ceo);
+    return [...byRecent.filter(isCeo), ...byRecent.filter((c) => !isCeo(c))];
+  }, [ceo, dms, dmChannelLabels]);
 
   const toggle = () =>
     setCollapsed((value) => {
