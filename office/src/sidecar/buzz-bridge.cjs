@@ -77,7 +77,7 @@ const ARTIFACTS_KEPT = 500;
 const SITE_MAX_BYTES = 200 * 1024 * 1024;
 /** How to make an artifact that looks right in the app (chat and Artifacts). */
 const ARTIFACT_DESIGN = [
-  'Artifacts are shown inside the app: in the chat, across the message (about 500 to 1200px wide), and full size in Artifacts. Design them for that:',
+  'Artifacts are shown inside the app: in the chat, across the message (about 500 to 1200px wide), and full size on the Create page. Design them for that:',
   '- Fill the width: a fluid layout, no fixed page width or outer margins; it must work from 380px to 1400px wide.',
   '- Match the app: a transparent background (the app draws its own surface behind the page), follow prefers-color-scheme (the app sets it to its own theme), the system UI font. The app also posts its look when the page loads: window.addEventListener("message", e => { if (e.data?.type === "buzz-theme") { /* e.data.dark, e.data.accent, e.data.foreground, e.data.muted, e.data.border, e.data.font: CSS colours and font */ } }). Use its accent for buttons, highlights and progress, its border for cards; never a white page.',
   '- No scrolling inside it: let it show at its natural height. In HTML, add this before </body> so the chat shows it at its full height:',
@@ -465,7 +465,7 @@ ${global}
       `    ${this.historyCommand()} --channel <name> [--limit ${HISTORY_MAX}] [--before <older from the last call>]`,
       `    ${this.historyCommand()} --thread <event id>`,
       '',
-      '## Show the owner what you made (the app’s Artifacts page)',
+      '## Show the owner what you made (the app’s Create page)',
       'Decks, documents, videos, images, PDFs or a site you built: publish each finished piece (and each new version) so the owner sees it in the app. Make a PDF of any PPTX/DOCX and pass it as --preview so it can be viewed in the app.',
       'It prints a markdown link (`[Title](buzz://artifact/<id>)`): always put that link in your reply or post about the work, so the owner opens it straight from the chat.',
       '',
@@ -480,7 +480,7 @@ ${global}
       'A 3D model: publish one binary .glb (materials and colours inside it, centred at the origin, Y up, under about 20 MB); the app shows it in a 3D viewer the owner can turn and zoom. .obj and .stl work too, without materials.',
       '',
       '## Learn courses',
-      'The owner starts a course in the app’s Learn tab: a "New course" message in its own channel, with the course id, the course folder and the material they attached. Run it through the office chain. Michael gives it to the staff member who fits it; they:',
+      'The owner starts a course in the app’s Learn tab: a "New course" message in its own channel, with the course id, the course folder and the material they attached. Run it through the office chain. The CEO gives it to the executive who fits it; they:',
       '1. Write the plan as syllabus.md in the course folder: the lessons in order, each with what the learner can do after it. Keep it up to date.',
       '2. Have floor workers build the lessons one or two at a time, each a self-contained interactive HTML page: a short explanation, worked examples, practice the learner does (quizzes, flashcards, drag-and-drop, fill-in, small simulations), feedback on every answer, and a recap. Teach from the owner’s material first, and say where a fact comes from.',
       `3. Review each lesson, then publish it: ${this.showCommand()} --dir "<lesson folder>" --title "Lesson <n>: <topic>" --course <course id>. A fixed lesson keeps its title, so it becomes a new version.`,
@@ -599,7 +599,7 @@ ${global}
         to: who.agentId,
         act: 'inform',
         subject: 'Show your work in the app',
-        body: `[OFFICE NOTE] Publish what you make for the owner (decks, documents, videos, images, sites) to the app's Artifacts page: ${this.showCommand()} --file "<path>" --title "<what it is>" (with --preview "<pdf>" for a PPTX/DOCX). It prints a markdown link: put it in your reply when you finish, so the owner can open the artifact from the chat. Open pages in the app's Browser for the owner and read them back: ${this.browseCommand()} --open <url> / --read. Details in ${join(root, 'BUZZ.md')}.`,
+        body: `[OFFICE NOTE] Publish what you make for the owner (decks, documents, videos, images, sites) to the app's Create page: ${this.showCommand()} --file "<path>" --title "<what it is>" (with --preview "<pdf>" for a PPTX/DOCX). It prints a markdown link: put it in your reply when you finish, so the owner can open the artifact from the chat. Open pages in the app's Browser for the owner and read them back: ${this.browseCommand()} --open <url> / --read. Details in ${join(root, 'BUZZ.md')}.`,
         requires_reply: false
       }, 'human')).catch(() => {});
     }
@@ -1334,7 +1334,7 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
         ? [`The owner's notes for every server (standing preferences and rules; follow them): ${this.globalMemoryPath()}`]
         : []),
       `You can post in any channel (by name or id; you join it if needed): ${this.postCommand()} --channel <name> --text-file "<file>"`,
-      `When you make something for the owner (a deck, document, video, image, a site), show it in the app's Artifacts page: ${this.showCommand()} --file "<path>" --title "<what it is>" (add --preview "<pdf>" for a PPTX/DOCX; --dir "<folder>" for a site, never a localhost --url).`,
+      `When you make something for the owner (a deck, document, video, image, a site), show it on the app's Create page: ${this.showCommand()} --file "<path>" --title "<what it is>" (add --preview "<pdf>" for a PPTX/DOCX; --dir "<folder>" for a site, never a localhost --url).`,
       `Open a web page in the app's Browser for the owner, or read back what it shows: ${this.browseCommand()} --open <url> | --read | --back | --reload`,
       `You can read any channel's history (newest 50; --limit up to ${HISTORY_MAX}, --before <older> pages back, --thread <event id> reads a thread): ${this.historyCommand()} --channel <name>`,
       ...(others.length > 0
@@ -1462,7 +1462,7 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
     return this.byAgent(agentId)?.name ?? this.readRoster()?.find((a) => a.id === agentId)?.name ?? (agentId || 'An agent');
   }
 
-  /** `buzz-show`: publish something an agent made to the app's Artifacts page.
+  /** `buzz-show`: publish something an agent made to the app's Create page.
    *  A file is copied into `shared/artifacts/<id>/` (so later edits to the
    *  working copy don't change what was shown); a site's folder (`--dir`) is
    *  copied whole and opens at its index.html, served by the app, so it keeps

@@ -12,7 +12,7 @@ import {
   type LucideIcon,
   MessageSquare,
   MoreHorizontal,
-  Package,
+  WandSparkles,
   Paperclip,
   Pin,
   PinOff,
@@ -99,7 +99,7 @@ type ResearchTab = "projects" | "artifacts" | "learn";
 
 const RESEARCH_TABS: { key: ResearchTab; label: string; icon: LucideIcon }[] = [
   { key: "projects", label: "Projects", icon: FolderOpen },
-  { key: "artifacts", label: "Artifacts", icon: Package },
+  { key: "artifacts", label: "Create", icon: WandSparkles },
   { key: "learn", label: "Learn", icon: GraduationCap },
 ];
 
@@ -168,8 +168,8 @@ export function ResearchPage({
         onSelect={select}
       />
       <PageHeader
-        description="What the Office's agents made for you: decks, documents, videos, images and sites."
-        title="Artifacts"
+        description="Make something new, and everything the Office's agents made for you: decks, documents, videos, images, 3D and sites."
+        title="Create"
       />
       <React.Suspense fallback={null}>
         <ArtifactsPage embedded initialId={artifactId} />

@@ -72,14 +72,14 @@ const HOW: Record<MakeKind, string> = {
 
 /** Made to be seen in the app (the same rules as the agents' BUZZ.md). */
 const FIT_THE_APP =
-  "Design it for the app, where it's shown across a chat message (about 500 to 1200px wide) and full size in Artifacts: a fluid layout that fills the width (no fixed page width or outer margins), the app's light and dark themes (prefers-color-scheme), no scrolling inside it. For HTML, add the height snippet from BUZZ.md so it shows at its full height.";
+  "Design it for the app, where it's shown across a chat message (about 500 to 1200px wide) and full size on the Create page: a fluid layout that fills the width (no fixed page width or outer margins), the app's light and dark themes (prefers-color-scheme), no scrolling inside it. For HTML, add the height snippet from BUZZ.md so it shows at its full height.";
 
 /** Every piece of work runs down the office and is checked on the way back. */
 export const THROUGH_THE_OFFICE =
   "Run it through the office: the CEO gives it to the executive who owns the area, they split it into tasks for floor workers, check each worker's result, and send the CEO one reviewed result; the CEO reviews that before it is published or answered. Publish only the reviewed result, once.";
 
 const PUBLISH = (showCommand: string) =>
-  `Publish what you made with ${showCommand} --file "<path>" --title "<what it is>" so the owner sees it in the app's Artifacts. When it's published you're done: no channel reply is needed.`;
+  `Publish what you made with ${showCommand} --file "<path>" --title "<what it is>" so the owner sees it on the app's Create page. When it's published you're done: no channel reply is needed.`;
 
 /** A codebase the owner linked (Research → Artifacts → Codebases). */
 export type Codebase = {
@@ -95,6 +95,13 @@ export type Codebase = {
   branch?: string | null;
   notesPath: string;
   hasNotes?: boolean;
+  /** The Office's notebook on it (agents read it first, add what they learn). */
+  memoryPath?: string;
+  /** graphify's code map of it (graph.json), and whether it's built. */
+  graphPath?: string;
+  hasGraph?: boolean;
+  /** An executive leads it for the Office. */
+  managed?: boolean;
 };
 
 /** Making something in a codebase's look, with its parts. */
@@ -186,15 +193,108 @@ export function appRequest(
   ].join("\n");
 }
 
+/** How agents work in a linked codebase: its memory, its code map, GitHub. */
+export function codebaseWorkspaceLines(codebase: Codebase): string[] {
+  const lines: string[] = [];
+  if (codebase.memoryPath) {
+    lines.push(
+      `The Office's memory of it is ${codebase.memoryPath}: read it before you start, and when you finish add what the next agent should know (how to build and test, conventions, decisions, gotchas). Correct what's wrong rather than piling on.`,
+    );
+  }
+  if (codebase.hasNotes) {
+    lines.push(`Its design notes: ${codebase.notesPath}.`);
+  }
+  lines.push(
+    codebase.hasGraph && codebase.graphPath
+      ? `Find your way with its code map before reading files: graphify query "<question>" --graph "${codebase.graphPath}" (also graphify explain "<thing>" and graphify path "<a>" "<b>" with the same --graph). After big changes, bring the map up to date with graphify update "${codebase.path}".`
+      : `It has no code map yet; for anything beyond a small change, make one first with graphify update "${codebase.path}" and use graphify query "<question>" --graph "${codebase.path}/graphify-out/graph.json".`,
+  );
+  if (codebase.source === "github" || codebase.url) {
+    lines.push(
+      "It's on GitHub: read issues and pull requests with gh (gh issue view N, gh pr view N, gh pr diff N, gh pr checks N). Don't push, comment, review on GitHub or open pull requests unless this request says to.",
+    );
+  }
+  return lines;
+}
+
+function branchLine(codebase: Codebase): string {
+  return codebase.git
+    ? "Work on a new git branch (anything/<short-name>) and commit there; don't push or merge unless the owner asks."
+    : "It isn't a git checkout: keep a copy of anything you change.";
+}
+
+const DRAFT_PR =
+  "When it's done and the tests pass, push the branch and open a draft pull request with gh pr create --draft, describing what changed and how it was tested.";
+
+const CODEBASE_DONE =
+  "When you're done, post a short summary of what you changed (and the branch) with buzz-post, and publish anything to look at with buzz-show.";
+
 /** The owner asked an agent to work in a codebase. */
-export function codebaseRequest(codebase: Codebase, ask: string): string {
+export function codebaseRequest(
+  codebase: Codebase,
+  ask: string,
+  options: { draftPr?: boolean } = {},
+): string {
   return [
     `[CODEBASE from the owner] In the codebase "${codebase.name}" at ${codebase.path}: ${ask.trim()}`,
-    codebase.git
-      ? "Work on a new git branch (anything/<short-name>) and commit there; don't push or merge unless the owner asks."
-      : "It isn't a git checkout: keep a copy of anything you change.",
+    branchLine(codebase),
+    ...codebaseWorkspaceLines(codebase),
+    ...(options.draftPr && codebase.git ? [DRAFT_PR] : []),
     THROUGH_THE_OFFICE,
-    "When you're done, post a short summary of what you changed (and the branch) with buzz-post, and publish anything to look at with buzz-show.",
+    CODEBASE_DONE,
+  ].join("\n");
+}
+
+/** The owner wants a GitHub issue fixed. */
+export function codebaseIssueRequest(
+  codebase: Codebase,
+  issue: { number: number; title: string },
+  options: { draftPr?: boolean } = {},
+): string {
+  return [
+    `[CODEBASE from the owner] In the codebase "${codebase.name}" at ${codebase.path}: fix GitHub issue #${issue.number}, "${issue.title}". Read it in full first (gh issue view ${issue.number} --comments).`,
+    `${branchLine(codebase)} Name the branch anything/issue-${issue.number}.`,
+    ...codebaseWorkspaceLines(codebase),
+    "Add or update a test that fails without the fix, and run the project's tests.",
+    ...(options.draftPr && codebase.git ? [`${DRAFT_PR} Put "Fixes #${issue.number}" in its description.`] : []),
+    THROUGH_THE_OFFICE,
+    CODEBASE_DONE,
+  ].join("\n");
+}
+
+/** The owner wants a pull request reviewed (the review comes back to them). */
+export function codebasePrReviewRequest(
+  codebase: Codebase,
+  pr: { number: number; title: string },
+): string {
+  return [
+    `[CODEBASE from the owner] Review pull request #${pr.number}, "${pr.title}", in the codebase "${codebase.name}" at ${codebase.path}.`,
+    `Read it with gh pr view ${pr.number} --comments and gh pr diff ${pr.number}, and its checks with gh pr checks ${pr.number}. Look for bugs, missing tests, and changes that don't fit how the codebase does things.`,
+    ...codebaseWorkspaceLines(codebase),
+    "Don't post the review on GitHub and don't change the branch: send the owner the review (a verdict, then the findings worst first, each with file:line) with buzz-post.",
+    THROUGH_THE_OFFICE,
+  ].join("\n");
+}
+
+/** The owner wants the open issues sorted out. */
+export function codebaseTriageRequest(codebase: Codebase): string {
+  return [
+    `[CODEBASE from the owner] Triage the open GitHub issues of the codebase "${codebase.name}" at ${codebase.path} (gh issue list --state open --limit 100).`,
+    ...codebaseWorkspaceLines(codebase),
+    "For each issue: is it still real (check the code), how big is it, how much does it matter, and which part of the code it touches. Don't label, comment on or close anything on GitHub.",
+    "Send the owner one ranked list with buzz-post: what to fix first and why, what's a duplicate or already fixed, and what needs their decision.",
+    THROUGH_THE_OFFICE,
+  ].join("\n");
+}
+
+/** The owner handed a codebase to the Office to look after. */
+export function codebaseLeadRequest(codebase: Codebase): string {
+  return [
+    `[CODEBASE from the owner] The Office now looks after the codebase "${codebase.name}" at ${codebase.path}. Make one executive its lead, and tell the owner who with buzz-post.`,
+    "The lead: learns it (build, test, layout) and writes that into its memory; makes or refreshes its code map; and from now on, whenever the owner sends work on it, owns that work, splits it for floor workers, reviews their branches and keeps the memory current.",
+    ...codebaseWorkspaceLines(codebase),
+    "Start with a short health report for the owner (buzz-post): does it build, do the tests pass, open issues and pull requests worth attention, and the three things you'd do first. Change nothing yet.",
+    THROUGH_THE_OFFICE,
   ].join("\n");
 }
 

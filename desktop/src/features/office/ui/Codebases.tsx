@@ -8,10 +8,11 @@ import {
   FolderGit2,
   FolderOpen,
   GitBranch,
+  LayoutDashboard,
   Loader2,
-  MessageSquare,
+  Network,
   RefreshCw,
-  Send,
+  ShieldCheck,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,7 +21,6 @@ import { callOffice, useOfficeAgents } from "@/features/office/lib/officeLink";
 import {
   type Codebase,
   codebaseLearnRequest,
-  codebaseRequest,
 } from "@/features/office/lib/studioRequests";
 import {
   addCodebase,
@@ -57,7 +57,7 @@ import {
 } from "@/shared/ui/dropdown-menu";
 import { Input } from "@/shared/ui/input";
 import { SubsectionLabel } from "@/shared/ui/PageHeader";
-import { Textarea } from "@/shared/ui/textarea";
+import { CodebaseWorkspace } from "./CodebaseWorkspace";
 
 /**
  * Codebases, like Claude Design's: link a GitHub repo (cloned into the
@@ -66,7 +66,8 @@ import { Textarea } from "@/shared/ui/textarea";
  */
 export function Codebases() {
   const { data: codebases = [] } = useCodebases();
-  const [adding, setAdding] = React.useState(false);
+  // Linking one is the "Code" tile in Make something new.
+  if (!codebases.length) return null;
   return (
     <section className="flex flex-col gap-3" data-testid="codebases">
       <div className="flex items-baseline gap-2">
@@ -80,20 +81,7 @@ export function Codebases() {
         {codebases.map((codebase) => (
           <CodebaseCard codebase={codebase} key={codebase.id} />
         ))}
-        {/* Styled like the Make something new tiles. */}
-        <button
-          className="group flex w-28 flex-col gap-1.5 text-left"
-          data-testid="codebase-add"
-          onClick={() => setAdding(true)}
-          type="button"
-        >
-          <span className="flex h-20 w-28 items-center justify-center rounded-xl bg-indigo-700/80 text-indigo-50 shadow-sm transition-transform group-hover:-translate-y-0.5">
-            <FolderGit2 className="h-7 w-7" />
-          </span>
-          <span className="text-sm text-foreground">Link a codebase</span>
-        </button>
       </div>
-      <AddCodebaseDialog onOpenChange={setAdding} open={adding} />
     </section>
   );
 }
@@ -102,8 +90,7 @@ function CodebaseCard({ codebase }: { codebase: Codebase }) {
   const client = useQueryClient();
   const { agents } = useOfficeAgents();
   const michael = agents.find((agent) => agent.isGod);
-  const [asking, setAsking] = React.useState(false);
-  const [ask, setAsk] = React.useState("");
+  const [working, setWorking] = React.useState(false);
   const [removing, setRemoving] = React.useState(false);
   const refresh = () =>
     void client.invalidateQueries({ queryKey: CODEBASES_KEY });
@@ -143,9 +130,15 @@ function CodebaseCard({ codebase }: { codebase: Codebase }) {
           <Icon className="h-4 w-4 text-muted-foreground" />
         </span>
         <div className="grid min-w-0 flex-1 gap-0.5">
-          <span className="truncate text-sm font-medium" title={codebase.path}>
+          <button
+            className="truncate text-left text-sm font-medium hover:underline disabled:no-underline"
+            disabled={codebase.exists === false}
+            onClick={() => setWorking(true)}
+            title={codebase.path}
+            type="button"
+          >
             {codebase.name}
-          </span>
+          </button>
           <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
             {codebase.exists === false ? (
               <span className="text-destructive">Folder missing</span>
@@ -231,59 +224,32 @@ function CodebaseCard({ codebase }: { codebase: Codebase }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {asking ? (
-        <form
-          className="flex items-end gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!ask.trim()) return;
-            tell.mutate(codebaseRequest(codebase, ask), {
-              onSuccess: () => {
-                setAsk("");
-                setAsking(false);
-                toast(`${michael?.name ?? "CEO"} is on it.`, {
-                  description:
-                    "The work goes on a branch of its own; you get a summary in chat.",
-                });
-              },
-            });
-          }}
-        >
-          <Textarea
-            autoFocus
-            className="min-h-16 flex-1 resize-y text-sm"
-            onChange={(event) => setAsk(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") setAsking(false);
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }
-            }}
-            placeholder="Add a dark mode toggle to the header…"
-            value={ask}
-          />
-          <Button
-            aria-label="Send"
-            disabled={!ask.trim() || tell.isPending}
-            size="icon"
-            type="submit"
-          >
-            {tell.isPending ? <Loader2 className="animate-spin" /> : <Send />}
-          </Button>
-        </form>
-      ) : (
-        <Button
-          className="self-start"
-          disabled={codebase.exists === false}
-          onClick={() => setAsking(true)}
-          size="sm"
-          variant="outline"
-        >
-          <MessageSquare />
-          Ask an agent to work in it
-        </Button>
-      )}
+      <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+        {codebase.managed ? (
+          <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-600 dark:text-emerald-400">
+            <ShieldCheck className="h-3 w-3" /> The Office leads it
+          </span>
+        ) : null}
+        <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5">
+          <Network className="h-3 w-3" />
+          {codebase.hasGraph ? "Code mapped" : "Not mapped"}
+        </span>
+      </div>
+      <Button
+        className="self-start"
+        disabled={codebase.exists === false}
+        onClick={() => setWorking(true)}
+        size="sm"
+        variant="outline"
+      >
+        <LayoutDashboard />
+        Open workspace
+      </Button>
+      <CodebaseWorkspace
+        codebase={codebase}
+        onOpenChange={setWorking}
+        open={working}
+      />
       <AlertDialog onOpenChange={setRemoving} open={removing}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -306,7 +272,7 @@ function CodebaseCard({ codebase }: { codebase: Codebase }) {
   );
 }
 
-function AddCodebaseDialog({
+export function AddCodebaseDialog({
   open,
   onOpenChange,
 }: {

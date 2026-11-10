@@ -221,8 +221,8 @@ export function ArtifactsPage({
     >
       {embedded ? null : (
         <PageHeader
-          description="What the Office's agents made for you: decks, documents, videos, images and sites."
-          title="Artifacts"
+          description="Make something new, and everything the Office's agents made for you: decks, documents, videos, images, 3D and sites."
+          title="Create"
         />
       )}
       {browsing ? (

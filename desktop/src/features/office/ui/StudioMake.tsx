@@ -12,6 +12,7 @@ import {
   Ellipsis,
   FileText,
   Film,
+  FolderGit2,
   Globe,
   Image as ImageIcon,
   Loader2,
@@ -69,6 +70,7 @@ import { SubsectionLabel } from "@/shared/ui/PageHeader";
 import { Textarea } from "@/shared/ui/textarea";
 
 import type { Artifact } from "./ArtifactsPage";
+import { AddCodebaseDialog } from "./Codebases";
 
 const TILES: Record<MakeKind, { icon: LucideIcon; tone: string }> = {
   document: { icon: FileText, tone: "bg-sky-600/80 text-sky-50" },
@@ -301,6 +303,7 @@ export function StudioMake({
     onError: (error) => toast.error(String(error)),
   });
 
+  const [linkingCode, setLinkingCode] = React.useState(false);
   const selectedKind =
     chosen?.type === "kind"
       ? MAKE_KINDS.find((k) => k.kind === chosen.kind)
@@ -309,6 +312,7 @@ export function StudioMake({
 
   return (
     <section className="flex flex-col gap-3" data-testid="studio-make">
+      <AddCodebaseDialog onOpenChange={setLinkingCode} open={linkingCode} />
       <SubsectionLabel>Make something new</SubsectionLabel>
       <div className="flex flex-wrap gap-3">
         {MAKE_KINDS.map(({ kind: k, label }) => (
@@ -327,6 +331,14 @@ export function StudioMake({
             testId={`studio-make-${k}`}
           />
         ))}
+        {/* Link a codebase (GitHub or a folder) to build and run it. */}
+        <Tile
+          icon={FolderGit2}
+          label="Code"
+          onClick={() => setLinkingCode(true)}
+          testId="codebase-add"
+          tone="bg-indigo-700/80 text-indigo-50"
+        />
         {workflows.map((workflow) => {
           const app = workflow.kind === "app" ? builtApp(workflow) : undefined;
           return (
@@ -699,7 +711,7 @@ export function AskForChanges({ item }: { item: Artifact }) {
     onSuccess: () => {
       setAsk("");
       toast(`${maker?.name ?? "CEO"} is making the changes.`, {
-        description: "The new version shows up in Artifacts.",
+        description: "The new version shows up in Create.",
       });
     },
     onError: (error) => toast.error(error.message),
