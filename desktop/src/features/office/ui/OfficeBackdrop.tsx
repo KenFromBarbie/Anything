@@ -1,4 +1,5 @@
 import { openExportFiles } from "@/features/files/ui/ExportFilesDialog";
+import { openCustomizeOffice } from "@/features/office/ui/CustomizeOfficeDialog";
 import * as React from "react";
 
 import { useOfficeThemeSync } from "@/features/office/lib/officeThemeSync";
@@ -114,6 +115,7 @@ export function OfficeBackdrop() {
         openDeskAgent(typeof msg.id === "string" ? msg.id : null);
       }
       if (msg.type === "prop-click" && msg.prop === "printer") openExportFiles();
+      if (msg.type === "prop-click" && msg.prop === "ceo-desk") openCustomizeOffice();
       if (msg.type === "navigate" && msg.page === "settings") {
         window.location.hash = "#/settings?section=ai-accounts";
       }

@@ -30,6 +30,20 @@ export interface Headcount {
   /** The view's width / height: the floor is made at least wide enough to
    *  fill it (the extra width is amenities), so there are no bars beside it. */
   viewAspect?: number;
+  /** The owner's choices (the CEO's desk → Customize office). */
+  prefs?: OfficeLayoutPrefs;
+}
+
+/** How the owner wants the office (config.officeLayout). Absent = automatic. */
+export interface OfficeLayoutPrefs {
+  /** Fixed comfort, or 'auto' (plusher the smaller the team). */
+  style?: 'auto' | Comfort;
+  /** Café seats for a fifth, a third or half of the team. */
+  cafe?: 'small' | 'normal' | 'large';
+  /** Which amenities may fill spare space (all, when absent). */
+  fill?: Partial<Record<'lounge' | 'library' | 'cafe' | 'utility', boolean>>;
+  /** Cubicle panels between neighbouring desks (on when absent). */
+  cubicles?: boolean;
 }
 
 /** The view's shape, rounded so a small resize doesn't rebuild the floor. */
@@ -110,8 +124,10 @@ const EXEC_DESK_W = 4;
 const FIRST_BAND_AISLES = [5, 8, 12, 13, 20, 26];
 // The café in the hand-drawn map: its four seats around one table.
 const CAFE_TABLE = { x: 27, y: 14 };
-/** Café seats for this many people: a third of them on a break at once. */
-const cafeSeatsFor = (people: number) => Math.ceil(people / 3);
+/** Café seats for this many people: by default a third of them on a break
+ *  at once. */
+const CAFE_SHARE = { small: 5, normal: 3, large: 2 } as const;
+const cafeSeatsFor = (people: number, size: keyof typeof CAFE_SHARE = 'normal') => Math.ceil(people / CAFE_SHARE[size]);
 
 // Furniture: [tileset gid of the top-left tile, width, height]. Office
 // tileset at gid 1, interiors at 1025, 16 tiles a row.
@@ -187,6 +203,8 @@ export interface OfficePlan {
   pad: number;
   /** Executive desks in the nook, for executives beyond the four offices. */
   execDesks: number;
+  /** Cubicle panels between neighbouring desks. */
+  cubicles: boolean;
   height: number;
 }
 
@@ -226,7 +244,9 @@ export function planOffice(h: Headcount): OfficePlan {
   const workers = Math.max(0, Math.floor(h.workers));
   const staff = Math.min(Math.max(0, Math.floor(h.staff)), workers);
   const people = workers + 1;
-  const comfort = comfortFor(people);
+  const prefs = h.prefs ?? {};
+  const comfort = prefs.style && prefs.style !== 'auto' ? prefs.style : comfortFor(people);
+  const allowed = (a: Amenity) => prefs.fill?.[a] !== false;
   const plush = comfort === 'luxury' || comfort === 'comfort';
   const staffRoom = staff > 2;
   const privateDesks = staffRoom ? 4 : 2;
@@ -234,12 +254,13 @@ export function planOffice(h: Headcount): OfficePlan {
   // a desk pair is a front and a back desk.
   const floorPeople = workers - Math.min(staff, privateDesks + Math.max(0, staff - 4));
   const pairs = Math.max(1, Math.ceil((floorPeople + 1) / 2));
-  const amenities: Amenity[] =
+  const amenities: Amenity[] = (
     comfort === 'luxury' ? ['lounge', 'library'] :
     comfort === 'comfort' ? ['lounge'] :
-    comfort === 'standard' ? ['utility'] : [];
+    comfort === 'standard' ? ['utility'] : []
+  ).filter((a) => allowed(a as Amenity)) as Amenity[];
   // The café in the wing seats 4; a café strip seats 8 more.
-  const cafes = Math.max(0, Math.ceil((cafeSeatsFor(people) - 4) / 8));
+  const cafes = Math.max(0, Math.ceil((cafeSeatsFor(people, prefs.cafe) - 4) / 8));
   for (let i = 0; i < cafes; i++) amenities.push('cafe');
   // The top row needs the CEO office and boardroom (and the executive room).
   // More than four executives: a desk each in the nook, so it must fit them.
@@ -270,13 +291,16 @@ export function planOffice(h: Headcount): OfficePlan {
   // kind over and over), then aisles.
   // The column beside the café wing stays an aisle: the café's door opens
   // onto it.
-  const fill: Amenity[] =
+  const fill: Amenity[] = (
     plush ? ['library', 'lounge'] :
-    comfort === 'standard' ? ['library', 'utility', 'lounge', 'cafe'] : ['utility', 'cafe', 'library'];
+    comfort === 'standard' ? ['library', 'utility', 'lounge', 'cafe'] : ['utility', 'cafe', 'library']
+  ).filter((a) => allowed(a as Amenity)) as Amenity[];
+  // Nothing allowed: whatever the owner did allow, else open floor (aisles).
+  if (!fill.length) fill.push(...(['lounge', 'library', 'cafe', 'utility'] as Amenity[]).filter(allowed));
   let filler = 0;
   for (const band of bands) {
     let x = widthOf(band);
-    while (x + STRIP_W <= floorW - 1) {
+    while (fill.length && x + STRIP_W <= floorW - 1) {
       band.push({ kind: fill[filler++ % fill.length], x, w: STRIP_W });
       x += STRIP_W;
     }
@@ -285,7 +309,7 @@ export function planOffice(h: Headcount): OfficePlan {
   // Top to bottom, the last band holds the entrance.
   bands.reverse();
   const pad = floorW + WING.w - WING_TOP.w - LEFT_W - (staffRoom ? STAFF_ROOM.w : 0);
-  return { comfort, bands, floorW, staffRoom, pad, execDesks, height };
+  return { comfort, bands, floorW, staffRoom, pad, execDesks, height, cubicles: prefs.cubicles !== false };
 }
 
 /** Changes only when the layout for this headcount does (rebuild the floor
@@ -296,7 +320,7 @@ export function officeLayoutKey(h: Headcount): string {
 
 function keyOf(plan: OfficePlan): string {
   const band = (b: Cell[]) => b.map((c) => (c.kind === 'aisle' ? '|' : c.kind[0])).join('');
-  return `${plan.comfort}:${plan.bands.map(band).join('/')}:${plan.staffRoom ? 's' : ''}${plan.execDesks || ''}`;
+  return `${plan.comfort}:${plan.bands.map(band).join('/')}:${plan.staffRoom ? 's' : ''}${plan.execDesks || ''}${plan.cubicles ? '' : ':open'}`;
 }
 
 /** Build the office for this headcount from the hand-drawn map. */
@@ -473,7 +497,7 @@ export function buildModularOffice(source: MapJson, headcount: Headcount): Modul
         copy(DESK_SRC_X, TOP_ROWS, DESK_W, rows, cell.x, y0);
         for (let c = 0; c < DESK_W; c++) floorColumn(cell.x + c, TOP_ROWS, rows, y0);
         // A cubicle panel between neighbouring desks (front and back row).
-        if (band[i - 1]?.kind === 'desks') {
+        if (plan.cubicles && band[i - 1]?.kind === 'desks') {
           partitions.push(object('partition', cell.x, y0 + 1, 0, 3), object('partition', cell.x, y0 + 6, 0, 3));
         }
         desks += 2;

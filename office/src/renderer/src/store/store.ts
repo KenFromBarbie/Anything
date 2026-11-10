@@ -1,3 +1,4 @@
+import type { OfficeLayoutPrefs } from '@/scene/office/modularOffice';
 import { create } from 'zustand';
 import type { AccentColorName } from '@/design/tokens';
 import type { OfficeCharacterName } from '@/scene/office/cast';
@@ -287,6 +288,10 @@ interface State {
    *  on switch). OfficeFloor depends on this and rebuilds the scene on change. */
   officeTheme: ThemeId;
   setOfficeTheme: (theme: ThemeId) => void;
+  /** Mirror of config.officeLayout (the CEO's desk → Customize office);
+   *  OfficeFloor rebuilds when the layout it gives changes. */
+  officeLayout: OfficeLayoutPrefs;
+  setOfficeLayout: (prefs: OfficeLayoutPrefs) => void;
   /** Mirror of config.webhookTriggers — the inbound HTTP endpoints. Webhooks are
    *  editable from BOTH Settings → Connections and the Triggers tab, so neither
    *  surface keeps its own copy: both render off this list and both call the
@@ -902,6 +907,8 @@ export const useStore = create<State>((set, get) => ({
   setHasOpenAiKey: (has) => set({ hasOpenAiKey: has }),
   officeTheme: 'office',
   setOfficeTheme: (theme) => set({ officeTheme: theme }),
+  officeLayout: {},
+  setOfficeLayout: (prefs) => set({ officeLayout: prefs }),
   webhookTriggers: [],
   setWebhookTriggers: (list) => set({ webhookTriggers: list }),
   // A copy, not the shared DEFAULT_ORG_TRIGGER instance — main takes the same

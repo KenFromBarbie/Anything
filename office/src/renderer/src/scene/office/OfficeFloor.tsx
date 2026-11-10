@@ -19,7 +19,7 @@ import { pickSoloLine, pickExchange, type BreakSpot } from './cafeteriaLines';
 import { colors } from '@/design/tokens';
 import { loadTheme, resolveThemeMap, themeTilesetUrls } from './themeLoader';
 import { officeThemeFor } from './themeRegistry';
-import { aspectBucket, officeLayoutKey, type Headcount } from './modularOffice';
+import { aspectBucket, officeLayoutKey, type Headcount, type OfficeLayoutPrefs } from './modularOffice';
 import {
   installContextLossRecovery, planInitFailure, DEFAULT_MAX_INIT_RETRIES
 } from './glRecovery';
@@ -207,7 +207,7 @@ export function OfficeFloor() {
     observer.observe(host);
     return () => observer.disconnect();
   }, []);
-  const layoutKey = useStore((s) => officeLayoutKey(headcountOf(s.agents, viewAspect)));
+  const layoutKey = useStore((s) => officeLayoutKey(headcountOf(s.agents, viewAspect, s.officeLayout)));
 
   // Is the floor actually on screen? A fullscreen terminal or file editor covers
   // it completely, and a hidden window shows nothing at all — but the Pixi ticker
@@ -285,7 +285,7 @@ export function OfficeFloor() {
     const init = async () => {
       // Load the active theme bundle (falls back to 'office' on a bad/absent bundle).
       const theme = officeTheme === 'office'
-        ? officeThemeFor(headcountOf(useStore.getState().agents, aspectBucket(host.clientWidth, host.clientHeight)))
+        ? officeThemeFor(headcountOf(useStore.getState().agents, aspectBucket(host.clientWidth, host.clientHeight), useStore.getState().officeLayout))
         : await loadTheme(officeTheme);
       await app.init({
         background: hexNum(theme.palette.background),
@@ -1181,6 +1181,19 @@ export function OfficeFloor() {
                 charLayer.addChild(tile);
               }
             }
+          }
+          // Clicking the CEO's desk customizes the office (in Anything).
+          if (theme.id === 'office') {
+            const deskHit = new Graphics();
+            deskHit.rect((ceo.x - 1) * ts, (ceo.y + 1) * ts, 3 * ts, 2 * ts).fill({ color: 0xffffff, alpha: 0.001 });
+            deskHit.eventMode = 'static';
+            deskHit.cursor = 'pointer';
+            deskHit.zIndex = (ceo.y + 3) * ts + 1;
+            deskHit.on('pointertap', (ev) => {
+              ev.stopPropagation();
+              emitPropClick('ceo-desk');
+            });
+            charLayer.addChild(deskHit);
           }
         }
       }
@@ -2101,7 +2114,7 @@ function safeDestroy(app: Application) {
 }
 
 /** Who works on the floor, for the office's size. */
-function headcountOf(agents: readonly Agent[], viewAspect: number): Headcount {
+function headcountOf(agents: readonly Agent[], viewAspect: number, prefs?: OfficeLayoutPrefs): Headcount {
   const workers = agents.filter((a) => !a.isGod && !a.archived);
-  return { workers: workers.length, staff: workers.filter((a) => a.staff).length, viewAspect };
+  return { workers: workers.length, staff: workers.filter((a) => a.staff).length, viewAspect, prefs };
 }

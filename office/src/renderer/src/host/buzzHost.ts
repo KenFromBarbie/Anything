@@ -58,7 +58,7 @@ export const mirrorRole =
 /** What the floor draws, copied from the main frame to the mirror. */
 function mirrorSnapshot() {
   const s = useStore.getState();
-  return { agents: s.agents, selectedId: s.selectedId, officeTheme: s.officeTheme, meetingAgentIds: s.meetingAgentIds };
+  return { agents: s.agents, selectedId: s.selectedId, officeTheme: s.officeTheme, officeLayout: s.officeLayout, meetingAgentIds: s.meetingAgentIds };
 }
 
 /** The main frame broadcasts the floor's state for the background mirror:
@@ -74,7 +74,7 @@ function startMirrorBroadcast(): void {
     }
   };
   useStore.subscribe((s, prev) => {
-    if (s.agents === prev.agents && s.selectedId === prev.selectedId && s.officeTheme === prev.officeTheme && s.meetingAgentIds === prev.meetingAgentIds) return;
+    if (s.agents === prev.agents && s.selectedId === prev.selectedId && s.officeTheme === prev.officeTheme && s.officeLayout === prev.officeLayout && s.meetingAgentIds === prev.meetingAgentIds) return;
     if (!timer) timer = setTimeout(send, 150);
   });
   setInterval(send, 2000);
@@ -314,6 +314,7 @@ if (mirrorRole) {
         agents: m.snapshot.agents,
         selectedId: m.snapshot.selectedId ?? null,
         officeTheme: m.snapshot.officeTheme ?? useStore.getState().officeTheme,
+        officeLayout: m.snapshot.officeLayout ?? useStore.getState().officeLayout,
         ...(Array.isArray(m.snapshot.meetingAgentIds) ? { meetingAgentIds: m.snapshot.meetingAgentIds } : {}),
       });
     }

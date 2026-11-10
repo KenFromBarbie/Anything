@@ -303,6 +303,14 @@ export interface HarnessConfig {
    *  own (each agent is a ~200 MB process); a larger team waits in the restore
    *  menu. */
   autoRestoreAll?: boolean;
+  /** How the owner wants the office laid out (the CEO's desk → Customize
+   *  office in Anything); absent = automatic. See modularOffice.ts. */
+  officeLayout?: {
+    style?: 'auto' | 'luxury' | 'comfort' | 'standard' | 'lean';
+    cafe?: 'small' | 'normal' | 'large';
+    fill?: { lounge?: boolean; library?: boolean; cafe?: boolean; utility?: boolean };
+    cubicles?: boolean;
+  };
   /** Auto-update from GitHub releases (v0.3.4). Default ON. Packaged builds
    *  check on boot + every ~6h, download in the background, and show a
    *  "restart to update" toast — installation is always user-initiated. OFF

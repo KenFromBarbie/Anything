@@ -1,4 +1,5 @@
 import { openExportFiles } from "@/features/files/ui/ExportFilesDialog";
+import { openCustomizeOffice } from "@/features/office/ui/CustomizeOfficeDialog";
 import * as React from "react";
 
 import { useOfficeThemeSync } from "@/features/office/lib/officeThemeSync";
@@ -192,6 +193,7 @@ export function OfficeScreen() {
       }
       if (msg.type === "prop-click") {
         if (msg.prop === "printer") openExportFiles();
+        if (msg.prop === "ceo-desk") openCustomizeOffice();
         return;
       }
       if (msg.type === "navigate") {

@@ -161,6 +161,29 @@ const ops: Record<string, Op> = {
     return { ok: true };
   },
 
+  /** Customize office (the CEO's desk): how the floor is laid out. */
+  'office.layout': async () => (await window.cth.getConfig()).officeLayout ?? {},
+  'office.setLayout': async (a) => {
+    const raw = (a.layout ?? {}) as Record<string, unknown>;
+    const styles = ['auto', 'luxury', 'comfort', 'standard', 'lean'] as const;
+    const sizes = ['small', 'normal', 'large'] as const;
+    const fillIn = (raw.fill ?? {}) as Record<string, unknown>;
+    const layout = {
+      style: styles.find((x) => x === raw.style) ?? 'auto',
+      cafe: sizes.find((x) => x === raw.cafe) ?? 'normal',
+      fill: {
+        lounge: fillIn.lounge !== false,
+        library: fillIn.library !== false,
+        cafe: fillIn.cafe !== false,
+        utility: fillIn.utility !== false,
+      },
+      cubicles: raw.cubicles !== false,
+    };
+    await window.cth.updateConfig({ officeLayout: layout });
+    useStore.getState().setOfficeLayout(layout);
+    return layout;
+  },
+
   /** Settings → Office: restore everyone when the app opens (default off). */
   'restore.settings': async () => ({ always: (await window.cth.getConfig()).autoRestoreAll === true }),
   'restore.setAlways': async (a) => {
