@@ -320,6 +320,13 @@ pub async fn local_server_create(
 /// missing; a name that can't be a folder becomes "Server").
 #[tauri::command]
 pub fn server_work_folder(app: AppHandle, name: String) -> Result<String, String> {
+    let folder = work_folder_path(&app, &name)?;
+    std::fs::create_dir_all(&folder).map_err(|e| format!("make {}: {e}", folder.display()))?;
+    Ok(folder.to_string_lossy().into_owned())
+}
+
+/// `~/Anything/<name>`, the folder a server's agents work in (not made).
+fn work_folder_path(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
     let home = app
         .path()
         .home_dir()
@@ -336,13 +343,34 @@ pub fn server_work_folder(app: AppHandle, name: String) -> Result<String, String
         })
         .collect();
     let cleaned = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
-    let folder = home.join("Anything").join(if cleaned.is_empty() {
+    Ok(home.join("Anything").join(if cleaned.is_empty() {
         "Server".to_string()
     } else {
         cleaned
-    });
-    std::fs::create_dir_all(&folder).map_err(|e| format!("make {}: {e}", folder.display()))?;
-    Ok(folder.to_string_lossy().into_owned())
+    }))
+}
+
+/// The work folder of the local server at `relay_url`, if this app runs it:
+/// its Office keeps only the agents that work there.
+pub(crate) fn work_folder_for_relay(app: &AppHandle, relay_url: &str) -> Option<String> {
+    // Any form of its address (ws://localhost:3003, http://127.0.0.1:3003/…):
+    // a local server is known by its port.
+    let port = port_of(relay_url)?;
+    let server = load_registry(app).into_iter().find(|s| s.port == port)?;
+    work_folder_path(app, &server.name)
+        .ok()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
+/// The port in a relay address, if it names a local host.
+fn port_of(url: &str) -> Option<u16> {
+    let rest = url.split("://").nth(1)?;
+    let host_port = rest.split('/').next()?;
+    let (host, port) = host_port.rsplit_once(':')?;
+    if !matches!(host, "localhost" | "127.0.0.1" | "[::1]") {
+        return None;
+    }
+    port.parse().ok()
 }
 
 /// Whether servers can be made on this computer: the source checkout's relay,
@@ -580,6 +608,14 @@ pub fn shutdown(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ports_of_local_relays() {
+        assert_eq!(port_of("ws://localhost:3003"), Some(3003));
+        assert_eq!(port_of("http://127.0.0.1:3001/api"), Some(3001));
+        assert_eq!(port_of("wss://relay.example.com:443"), None);
+        assert_eq!(port_of("localhost:3000"), None);
+    }
 
     #[test]
     fn env_files_are_read_like_the_services_script() {

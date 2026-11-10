@@ -344,6 +344,10 @@ fn spawn_sidecar(
     }
     // Buzz bridge: Michael joins this workspace and takes requests from its owner.
     let (relay_url, owner) = bridge_target(app)?;
+    // Which server this Office belongs to: it keeps only that server's agents.
+    if let Some(folder) = crate::local_servers::work_folder_for_relay(app, &relay_url) {
+        cmd.env("BUZZ_OFFICE_SERVER_FOLDER", folder);
+    }
     if let Some(cli) = buzz_cli() {
         cmd.env("BUZZ_OFFICE_RELAY_URL", relay_url)
             .env("BUZZ_OFFICE_OWNER", owner)

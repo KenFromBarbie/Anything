@@ -29,7 +29,7 @@
  *   3. Never let an empty renderer erase a full roster. See `write`.
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { writeJsonDurably } from './durableWrite';
 
 /** What the renderer mirrors to disk. The inner agent shape is deliberately
@@ -137,7 +137,14 @@ export class RosterStore {
       const p = rosterPath(home);
       if (!existsSync(p)) return null;
       const parsed = JSON.parse(readFileSync(p, 'utf8'));
-      return isSnapshot(parsed) ? parsed : null;
+      if (!isSnapshot(parsed)) return null;
+      // This Office's server (the app passes its work folder, ~/Anything/<name>).
+      const serverFolder = process.env.BUZZ_OFFICE_SERVER_FOLDER?.trim();
+      const { snap, moved } = scopeToServer(parsed, serverFolder, serverFolder ? dirname(serverFolder) : null);
+      if (moved.length) {
+        console.warn(`[roster] set aside ${moved.length} agent(s) from other servers: ${moved.join(', ')}`);
+      }
+      return snap;
     } catch {
       return null;
     }
@@ -231,4 +238,60 @@ export class RosterStore {
       copyFileSync(p, join(dir, `roster-${stamp}-${this.backupSeq}-${reason}.json`));
     } catch { /* a failed backup must never block the write */ }
   }
+}
+
+/** Where an agent works: its cwd (or, for older entries, its project path). */
+function workFolderOf(entry: unknown): string | null {
+  const e = entry as { cwd?: unknown; project?: unknown } | null;
+  const path = typeof e?.cwd === 'string' ? e.cwd : typeof e?.project === 'string' ? e.project : null;
+  return path ? path.replace(/[\\/]+$/, '') : null;
+}
+
+/** Whether `path` is `folder` or inside it (Windows paths: either slash, any case). */
+function inside(path: string, folder: string): boolean {
+  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const p = norm(path);
+  const f = norm(folder);
+  return p === f || p.startsWith(`${f}/`);
+}
+
+/**
+ * Each server has its own Office, and each server's agents work in its own
+ * folder under ~/Anything (`serverFolder`). Agents that work in ANOTHER
+ * server's folder don't belong on this floor: they were carried over from
+ * another Office's roster (every server's executives are called Pam, Dwight,
+ * Oscar…, so they showed up as duplicates) and would post to the wrong server.
+ * They're moved to `archived` — set aside, not deleted — with where they work.
+ * Agents outside ~/Anything (a codebase, the hive) are left alone.
+ */
+export function scopeToServer(
+  snap: RosterSnapshot,
+  serverFolder: string | null | undefined,
+  serversRoot: string | null | undefined
+): { snap: RosterSnapshot; moved: string[] } {
+  if (!serverFolder || !serversRoot) return { snap, moved: [] };
+  const foreign = (entry: unknown): boolean => {
+    const where = workFolderOf(entry);
+    return !!where && inside(where, serversRoot) && !inside(where, serverFolder);
+  };
+  const moved: unknown[] = [];
+  const keep = (list: unknown[]) =>
+    list.filter((entry) => {
+      if (!foreign(entry)) return true;
+      moved.push({ ...(entry as object), otherServer: workFolderOf(entry) });
+      return false;
+    });
+  const agents = keep(snap.agents);
+  const restorable = keep(snap.restorable);
+  if (!moved.length) return { snap, moved: [] };
+  const archivedIds = new Set(snap.archived.map(idOf));
+  return {
+    snap: {
+      ...snap,
+      agents,
+      restorable,
+      archived: [...snap.archived, ...moved.filter((m) => !archivedIds.has(idOf(m)))],
+    },
+    moved: moved.map(idOf).filter((id): id is string => !!id),
+  };
 }

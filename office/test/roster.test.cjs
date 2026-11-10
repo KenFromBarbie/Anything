@@ -210,3 +210,34 @@ test('an agent the user removed leaves the roster', () => {
   assert.deepEqual(after.restorable, []);
   assert.equal('removed' in after, false);
 });
+
+test("an Office keeps only its own server's agents; others are set aside, not lost", () => {
+  const { scopeToServer } = loadTs('src/main/roster.ts');
+  const root = 'C:/Users/me/Anything';
+  const snap = {
+    version: 1, savedAt: '', queues: {}, selectedId: null,
+    agents: [
+      { id: 'god', cwd: 'C:/Users/me/AppData/office-x/hive' },
+      { id: 'pam-bb', cwd: 'C:/Users/me/Anything/Boat Bike' },
+      { id: 'pam-wit', cwd: 'C:/Users/me/Anything/Wittenborg' },
+      { id: 'coder', cwd: 'D:/code/site' },
+    ],
+    restorable: [
+      { id: 'oscar-wit', cwd: 'C:/Users/me/Anything/wittenborg/sub' },
+      { id: 'jim-bb', project: 'C:/Users/me/Anything/boat bike/' },
+    ],
+    archived: [],
+  };
+  const { snap: out, moved } = scopeToServer(snap, 'C:/Users/me/Anything/Boat Bike', root);
+  assert.deepEqual(out.agents.map((a) => a.id), ['god', 'pam-bb', 'coder']);
+  assert.deepEqual(out.restorable.map((a) => a.id), ['jim-bb']);
+  assert.deepEqual(moved.sort(), ['oscar-wit', 'pam-wit']);
+  assert.deepEqual(out.archived.map((a) => a.id).sort(), ['oscar-wit', 'pam-wit']);
+  assert.ok(out.archived.every((a) => a.otherServer));
+  // without knowing its server, an Office changes nothing
+  assert.equal(scopeToServer(snap, null, root).snap, snap);
+  // a folder that merely starts with the same letters isn't inside it
+  const near = scopeToServer({ ...snap, agents: [{ id: 'x', cwd: 'C:/Users/me/Anything/Boat Bike 2' }], restorable: [] },
+    'C:/Users/me/Anything/Boat Bike', root);
+  assert.deepEqual(near.moved, ['x']);
+});
