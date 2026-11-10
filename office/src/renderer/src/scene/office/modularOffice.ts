@@ -133,7 +133,8 @@ const P = {
   whiteboard: { gid: O(26, 2), w: 2, h: 2, walk: true },
   plant: { gid: O(28, 2), w: 1, h: 2 },
   plantWhite: { gid: O(28, 3), w: 1, h: 2 },
-  bush: { gid: O(28, 4), w: 1, h: 1 },
+  // A potted plant (the bare clump of leaves had no pot).
+  bush: { gid: O(28, 2), w: 1, h: 2 },
   printer: { gid: O(27, 11), w: 2, h: 1 },
   shelfWood: { gid: O(9, 8), w: 2, h: 2 },
   shelfBooks: { gid: O(8, 13), w: 2, h: 3 },
@@ -143,10 +144,15 @@ const P = {
   books: { gid: I(68, 10), w: 2, h: 3 },
   books2: { gid: I(71, 10), w: 2, h: 3 },
   palm: { gid: I(44, 13), w: 2, h: 2 },
-  lamp: { gid: I(55, 11), w: 1, h: 2 },
+  // The floor lamp with its base (the cream one beside it has none).
+  lamp: { gid: I(56, 12), w: 1, h: 3 },
   lampBlue: { gid: I(53, 12), w: 1, h: 3 },
   globe: { gid: I(66, 12), w: 1, h: 2 },
   stool: { gid: I(31, 4), w: 1, h: 1, walk: true },
+  /** A long low coffee table (in front of a sofa). */
+  coffeeTable: { gid: I(13, 7), w: 3, h: 2 },
+  /** A small round table: a café table, or a side table by an armchair. */
+  roundTable: { gid: I(13, 6), w: 1, h: 1 },
   rugBlue: { gid: I(11, 13), w: 3, h: 4, rug: true },
   rugRed: { gid: I(15, 7), w: 4, h: 3, rug: true },
   rugSmall: { gid: I(15, 11), w: 2, h: 2, rug: true },
@@ -254,7 +260,7 @@ export function planOffice(h: Headcount): OfficePlan {
       extra[widths.indexOf(Math.min(...widths))].push(a);
     }
     const laid = bands();
-    const natural = Math.max(minFloorW, ...laid.map(widthOf));
+    const natural = Math.max(minFloorW, ...laid.map((b) => widthOf(b) + 1));
     const viewW = aspect ? Math.ceil((height - 2) * aspect) + 2 - WING.w : 0;
     best = { bands: laid, floorW: Math.max(natural, viewW), height };
     if (!aspect || natural <= viewW) break;
@@ -262,13 +268,15 @@ export function planOffice(h: Headcount): OfficePlan {
   const { bands, floorW, height } = best!;
   // Fill every band to the floor's width: amenity strips (a mix, not one
   // kind over and over), then aisles.
+  // The column beside the café wing stays an aisle: the café's door opens
+  // onto it.
   const fill: Amenity[] =
     plush ? ['library', 'lounge'] :
     comfort === 'standard' ? ['library', 'utility', 'lounge', 'cafe'] : ['utility', 'cafe', 'library'];
   let filler = 0;
   for (const band of bands) {
     let x = widthOf(band);
-    while (x + STRIP_W <= floorW) {
+    while (x + STRIP_W <= floorW - 1) {
       band.push({ kind: fill[filler++ % fill.length], x, w: STRIP_W });
       x += STRIP_W;
     }
@@ -364,10 +372,13 @@ export function buildModularOffice(source: MapJson, headcount: Headcount): Modul
   const errands: ExtraErrand[] = [];
   const cafeSeats: string[] = ['cafe-seat-1', 'cafe-seat-2', 'cafe-seat-3', 'cafe-seat-4'];
   /** A café table (two seats each side, paired across it) at (x, y): stools
-   *  on rows y and y + 2, the table between. */
+   *  on rows y and y + 3, the two-row table between them (so its top never
+   *  covers the stools behind it). */
   const cafeTable = (x: number, y: number, names?: string[]) => {
-    put(P.lowCab, x, y);
-    for (const [cx, cy] of [[x, y], [x + 1, y], [x, y + 2], [x + 1, y + 2]]) {
+    put(P.lowCab, x, y + 1);
+    set('collision', x, y + 1, 1);
+    set('collision', x + 1, y + 1, 1);
+    for (const [cx, cy] of [[x, y], [x + 1, y], [x, y + 3], [x + 1, y + 3]]) {
       put(P.stool, cx, cy);
       if (!names) {
         const name = `cafe-seat-${cafeSeats.length + 1}`;
@@ -418,8 +429,8 @@ export function buildModularOffice(source: MapJson, headcount: Headcount): Modul
   // beside it stays: the café's mugs are drawn on it (theme coffee.trayTile).
   {
     const tx = CAFE_TABLE.x + dx;
-    const ty = CAFE_TABLE.y + dy;
-    for (let yy = ty; yy <= ty + 2; yy++) {
+    const ty = CAFE_TABLE.y - 1 + dy; // rows 13–16: stools, table, stools
+    for (let yy = ty; yy <= ty + 3; yy++) {
       for (let xx = tx; xx <= tx + 1; xx++) {
         for (const n of ['furniture-below', 'furniture-above', 'collision'] as const) set(n, xx, yy, 0);
         floorColumn(xx, TOP_ROWS + 4, 1, yy);
@@ -428,10 +439,10 @@ export function buildModularOffice(source: MapJson, headcount: Headcount): Modul
     cafeTable(tx, ty, cafeSeats);
     // The mug stand beside it (theme coffee.trayTile): the old tiny drawer
     // unit read as a white pad; a small round side table instead.
-    set('furniture-below', tx + 2, ty + 1, I(13, 6));
-    set('furniture-above', tx + 2, ty + 1, 0);
-    set('collision', tx + 2, ty + 1, 1);
-    cafeSeats.forEach((name, i) => spawn(name, { x: tx + (i % 2), y: ty + (i < 2 ? 0 : 2) }));
+    set('furniture-below', tx + 2, ty + 2, I(13, 6));
+    set('furniture-above', tx + 2, ty + 2, 0);
+    set('collision', tx + 2, ty + 2, 1);
+    cafeSeats.forEach((name, i) => spawn(name, { x: tx + (i % 2), y: ty + (i < 2 ? 0 : 3) }));
   }
   // Beside the extra bands, above the café: open floor, the outer wall, and
   // two amenity strips a band.
@@ -571,26 +582,29 @@ function furnishStrip(kind: Amenity, sx: number, place: Put, out: ExtraErrand[],
   };
   if (kind === 'cafe') {
     table(x(1), 12 + oy);
-    table(x(1), 17 + oy);
-    put(alt ? P.plantWhite : P.plant, x(3), 18);
+    table(x(1), 16 + oy);
+    put(alt ? P.plantWhite : P.plant, x(3), 17);
   } else if (kind === 'lounge' && alt) {
-    // The sofa, a rug the strip's width below it, and two armchairs facing
-    // each other across the rug's middle row; a palm and a plant behind.
+    // A sofa, a rug before it with a round table in the middle and an
+    // armchair either side facing it; a lamp, a palm and a plant behind.
     put(P.sofaWhite, x(1), 12);
-    put(P.rugRed, x(0), 15);
-    put(P.armchairSide, x(1), 16);
-    put(P.armchairSideL, x(3), 16);
+    put(P.rugRed, x(0), 14);
+    put(P.armchairSide, x(1), 15);
+    put(P.roundTable, x(2), 15);
+    put(P.armchairSideL, x(3), 15);
+    put(P.lampBlue, x(1), 17);
     put(P.palm, x(2), 18);
-    put(P.bush, x(1), 19);
-    errands.push({ kind: 'water', stand: { x: x(1), y: 18 }, facing: 'down', fx: { x: x(1), y: 19 } });
+    errands.push({ kind: 'water', stand: { x: x(3), y: 17 }, facing: 'down', fx: { x: x(3), y: 18 } });
   } else if (kind === 'library' && alt) {
+    // Bookcases along the top; a reading corner: an armchair and a side table
+    // on a rug, under a lamp; a plant.
     put(P.books2, x(1), 12);
     put(P.lamp, x(3), 12);
-    put(P.rugSmall, x(1), 15);
-    put(P.armchair, x(3), 14);
-    put(P.shelfBooks, x(1), 17);
-    put(P.bush, x(3), 19);
-    errands.push({ kind: 'water', stand: { x: x(3), y: 18 }, facing: 'down', fx: { x: x(3), y: 19 } });
+    put(P.armchair, x(1), 16);
+    put(P.roundTable, x(2), 16);
+    put(P.shelfBooks, x(2), 18);
+    put(P.bush, x(1), 18);
+    errands.push({ kind: 'water', stand: { x: x(1), y: 17 }, facing: 'down', fx: { x: x(1), y: 18 } });
   } else if (kind === 'utility' && alt) {
     put(P.vending, x(1), 12);
     put(P.cooler, x(3), 12);
@@ -599,21 +613,26 @@ function furnishStrip(kind: Amenity, sx: number, place: Put, out: ExtraErrand[],
     put(P.plant, x(1), 18);
     errands.push({ kind: 'dispenser', stand: { x: x(3), y: 15 }, facing: 'up', fx: { x: x(3), y: 14 } });
   } else if (kind === 'lounge') {
+    // A sofa and a coffee table before it on a rug, two armchairs facing each
+    // other across the rug's foot; a lamp and a plant behind.
+    put(P.rugBlue, x(1), 13);
     put(P.sofa, x(1), 12);
-    put(P.rugBlue, x(1), 14);
-    put(P.armchair, x(1), 16);
-    put(P.bush, x(1), 17);
-    put(P.lamp, x(1), 18);
-    put(P.fireplace, x(2), 16);
-    errands.push({ kind: 'water', stand: { x: x(0), y: 17 }, facing: 'right', fx: { x: x(1), y: 17 } });
-  } else if (kind === 'library') {
-    put(P.books, x(1), 12);
-    put(P.globe, x(3), 13);
-    put(P.rugSmall, x(1), 15);
-    put(P.armchairSide, x(3), 16);
-    put(P.palm, x(1), 17);
+    put(P.coffeeTable, x(1), 14);
+    put(P.armchairSide, x(1), 16);
+    put(P.armchairSideL, x(3), 16);
+    put(P.lamp, x(1), 17);
     put(P.plantWhite, x(3), 18);
     errands.push({ kind: 'water', stand: { x: x(3), y: 17 }, facing: 'down', fx: { x: x(3), y: 18 } });
+  } else if (kind === 'library') {
+    // Bookcases and a globe along the top; a fireplace with a reading chair
+    // and side table before it; a palm.
+    put(P.books, x(1), 12);
+    put(P.globe, x(3), 13);
+    put(P.armchair, x(1), 16);
+    put(P.roundTable, x(2), 16);
+    put(P.fireplace, x(2), 17);
+    put(P.plantWhite, x(1), 18);
+    errands.push({ kind: 'water', stand: { x: x(1), y: 17 }, facing: 'down', fx: { x: x(1), y: 18 } });
   } else {
     put(P.cabGrey, x(1), 12);
     put(P.cabWood, x(2), 12);

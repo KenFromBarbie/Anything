@@ -132,7 +132,7 @@ test('the café seats about a third of the team, in pairs across tables', () => 
     for (const name of office.cafeSeatNames) {
       const seat = spawns.get(name);
       assert.ok(seat && nextToReach(seat), `${workers}: ${name} can be reached`);
-      const partner = office.cafeSeatNames.map((n) => spawns.get(n)).some((t) => t.x === seat.x && Math.abs(t.y - seat.y) === 2);
+      const partner = office.cafeSeatNames.map((n) => spawns.get(n)).some((t) => t.x === seat.x && [2, 3].includes(Math.abs(t.y - seat.y)));
       assert.ok(partner, `${name} has a seat across the table`);
     }
   }

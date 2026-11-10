@@ -535,11 +535,13 @@ export function OfficeFloor() {
         const p = mapRenderer.getSpawnPoint(name);
         if (p) cafeSpots.push({ tile: p, facing: facingForSeat(p), spot: 'table', seated: true, partner: -1 });
       }
-      // Pair the two seats that share a table (same column, two tiles apart).
+      // Pair the two seats that share a table (same column, across a table
+      // one or two tiles deep).
       for (let i = 0; i < cafeSpots.length; i++) {
         for (let j = i + 1; j < cafeSpots.length; j++) {
           const a = cafeSpots[i].tile, b = cafeSpots[j].tile;
-          if (a.x === b.x && Math.abs(a.y - b.y) === 2) { cafeSpots[i].partner = j; cafeSpots[j].partner = i; }
+          const gap = Math.abs(a.y - b.y);
+          if (a.x === b.x && (gap === 2 || gap === 3)) { cafeSpots[i].partner = j; cafeSpots[j].partner = i; }
         }
       }
       for (const [name, spot] of theme.cafeStands) {
