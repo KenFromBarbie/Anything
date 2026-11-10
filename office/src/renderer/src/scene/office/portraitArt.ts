@@ -395,6 +395,11 @@ function drawSceneTorso(buf: Buf, r: Recipe, back: boolean): void {
   }
 }
 
+/** The backs of the ears, where the front view has them (rows 9–11). */
+function drawEarsBack(buf: Buf, s: SkinPal): void {
+  for (const ex of [HX0 - 1, HX1 + 1]) { set(buf, ex, 9, s.sh); set(buf, ex, 10, s.sh); set(buf, ex, 11, s.line); }
+}
+
 /** Back of the head: a rounded hair-covered skull with crown sheen + nape, no face. */
 function drawHeadBack(buf: Buf, r: Recipe): void {
   const s = SKIN[r.skin];
@@ -406,6 +411,7 @@ function drawHeadBack(buf: Buf, r: Recipe): void {
     [9, 4, 13], [10, 4, 13], [11, 4, 13], [12, 4, 13], [13, 5, 12], [14, 6, 11],
   ];
   for (const [y, a, b] of rows) rect(buf, a, y, b, y, base);
+  drawEarsBack(buf, s);
   // long styles drape down the sides past the head
   const len = r.hair === 'styleFrame' ? (r.hairargs?.length ?? 17)
             : r.hair === 'styleMessy' ? (r.hairargs?.length ?? 9) : 0;
@@ -417,6 +423,13 @@ function drawHeadBack(buf: Buf, r: Recipe): void {
   for (const [x, y] of [[7, 2], [8, 2], [9, 2], [10, 2], [7, 3], [8, 3], [9, 3]] as const) set(buf, x, y, hi);
   for (let y = 4; y <= 11; y++) set(buf, 9, y, hi);   // sheen down the crown
   for (let y = 4; y <= 12; y++) set(buf, 8, y, sh);   // part line
+  // textured styles keep their outline from behind
+  if (r.hair === 'styleSpiky') {
+    for (const [x, y] of [[5, 2], [7, 1], [9, 2], [11, 1], [6, 2], [8, 2], [10, 2], [12, 2]] as const) set(buf, x, y, hi);
+  } else if (r.hair === 'styleCurly') {
+    for (const [x, y] of [[5, 2], [7, 1], [9, 1], [11, 2], [3, 5], [14, 5], [3, 8], [14, 8]] as const) set(buf, x, y, base);
+    for (const [x, y] of [[6, 6], [11, 6], [6, 10], [11, 10], [10, 8]] as const) set(buf, x, y, sh);
+  }
   // nape + neck (skin)
   rect(buf, 7, 14, 10, 14, sh);
   rect(buf, 7, 15, 10, 17, s.sh);
@@ -432,6 +445,7 @@ function drawHeadBackBald(buf: Buf, r: Recipe): void {
     [9, 4, 13], [10, 4, 13], [11, 4, 13], [12, 4, 13], [13, 5, 12], [14, 6, 11],
   ];
   for (const [y, a, b] of rows) rect(buf, a, y, b, y, sbase);
+  drawEarsBack(buf, s);
   for (let y = 4; y <= 12; y++) { set(buf, 4, y, ssh); set(buf, 13, y, ssh); }
   for (const [x, y] of [[7, 2], [8, 2], [9, 2], [8, 3], [9, 4], [9, 5]] as const) set(buf, x, y, shi);
   // low hair fringe ring around the back/sides
@@ -496,6 +510,29 @@ function drawAccessory(buf: Buf, kind: Accessory, color: RGB): void {
     set(buf, 8, 8, lens); set(buf, 5, 8, [96, 104, 120]); set(buf, 10, 8, [96, 104, 120]);
   }
 }
+
+/** The same accessories seen from behind, so they don't vanish when a
+ *  character walks away: the headband over the crown and both cups, the
+ *  earrings, the arms of the shades. Same pixels as the front where they show. */
+function drawAccessoryBack(buf: Buf, kind: Accessory, color: RGB): void {
+  const [hi, base, sh] = shades(color);
+  if (kind === 'headphones') {
+    for (let x = HX0; x <= HX1; x++) set(buf, x, 1, base);
+    set(buf, HX0 - 1, 2, base); set(buf, HX1 + 1, 2, base);
+    for (let y = 3; y < 8; y++) { set(buf, HX0 - 2, y, sh); set(buf, HX1 + 2, y, sh); }
+    rect(buf, HX0 - 2, 8, HX0 - 1, 11, base); rect(buf, HX1 + 1, 8, HX1 + 2, 11, base);
+    set(buf, HX0 - 2, 8, hi); set(buf, HX1 + 2, 8, hi);
+  } else if (kind === 'earring') {
+    set(buf, HX0 - 1, 12, [232, 196, 78]); set(buf, HX1 + 1, 12, [232, 196, 78]);
+  } else if (kind === 'shades') {
+    const arm: RGB = [28, 26, 34];
+    set(buf, HX0, 8, arm); set(buf, HX0 - 1, 8, arm);
+    set(buf, HX1, 8, arm); set(buf, HX1 + 1, 8, arm);
+  }
+}
+
+const accessoryColor = (r: Recipe): RGB =>
+  r.accessory === 'headphones' ? [60, 62, 74] : r.c1;
 
 // ─── generated characters ───────────────────────────────────────────────────
 // Like a generative NFT collection: each character is a stack of traits
@@ -637,7 +674,7 @@ function drawHeadGroup(buf: Buf, r: Recipe): void {
   if (r.facial) drawFacial(buf, r.facial, r.hairc);
   HAIR_FNS[r.hair](buf, r.hairc, skinBase, r.hairargs ?? {});
   if (r.glasses) drawGlasses(buf);
-  if (r.accessory) drawAccessory(buf, r.accessory, r.accessory === 'headphones' ? [60, 62, 74] : r.c1);
+  if (r.accessory) drawAccessory(buf, r.accessory, accessoryColor(r));
 }
 
 function defaultPants(r: Recipe): RGB {
@@ -661,8 +698,10 @@ function composeScene(r: Recipe, phase: number, back: boolean): Buf {
   CUR_W = SCENE_W; CUR_H = SCENE_H;
   const buf = new Uint8ClampedArray(SCENE_W * SCENE_H * 4);
   drawSceneBody(buf, r, phase, back);
-  if (back) drawHeadBack(buf, r);
-  else drawHeadGroup(buf, r);
+  if (back) {
+    drawHeadBack(buf, r);
+    if (r.accessory) drawAccessoryBack(buf, r.accessory, accessoryColor(r));
+  } else drawHeadGroup(buf, r);
   outlinePass(buf);
   return buf;
 }
