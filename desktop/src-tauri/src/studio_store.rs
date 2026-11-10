@@ -16,7 +16,7 @@ use tauri::AppHandle;
 
 use crate::office_desk::{hive_shared_dir, write_list};
 
-fn now_ms() -> u64 {
+pub(crate) fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
@@ -110,13 +110,13 @@ pub async fn studio_workflow_delete(app: AppHandle, id: String) -> Result<(), St
 
 // ─── Codebases ──────────────────────────────────────────────────────────────
 
-fn codebases_dir(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn codebases_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(hive_shared_dir(app).ok_or("the Office is not set up")?.join("codebases"))
 }
 
 /// `git`, without a console window flashing up on Windows, and never asking
 /// for a password in a terminal no one sees.
-fn git(args: &[&str], cwd: Option<&Path>) -> Result<String, String> {
+pub(crate) fn git(args: &[&str], cwd: Option<&Path>) -> Result<String, String> {
     let mut cmd = Command::new("git");
     cmd.args(args).env("GIT_TERMINAL_PROMPT", "0");
     if let Some(cwd) = cwd {
@@ -144,7 +144,7 @@ fn git(args: &[&str], cwd: Option<&Path>) -> Result<String, String> {
 
 /// A GitHub repo as `(clone url, owner/name)`: `owner/name`, or its
 /// github.com address (with or without `.git`, or a path after it).
-fn github_repo(input: &str) -> Option<(String, String)> {
+pub(crate) fn github_repo(input: &str) -> Option<(String, String)> {
     let text = input.trim().trim_end_matches('/');
     let rest = text
         .strip_prefix("https://github.com/")
@@ -177,6 +177,10 @@ fn describe(dir: &Path, item: &Value) -> Value {
         item["branch"] = json!(git(&["rev-parse", "--abbrev-ref", "HEAD"], Some(&path)).ok());
     }
     item["notesPath"] = json!(notes.to_string_lossy());
+    let memory = crate::codebase_workspace::memory_path(dir, &id);
+    item["memoryPath"] = json!(memory.to_string_lossy());
+    item["graphPath"] = json!(crate::codebase_workspace::graph_dir(&path).join("graph.json").to_string_lossy());
+    item["hasGraph"] = json!(crate::codebase_workspace::graph_dir(&path).join("graph.json").is_file());
     item["hasNotes"] = json!(notes.is_file());
     item
 }
@@ -244,12 +248,13 @@ pub async fn codebase_add(app: AppHandle, source: String) -> Result<Value, Strin
             "pulledAt": now_ms(),
         })
     };
+    crate::codebase_workspace::ensure_memory(&dir, entry["id"].as_str().unwrap_or(""));
     list.push(entry.clone());
     write_list(&index, &list)?;
     Ok(describe(&dir, &entry))
 }
 
-fn find_codebase(app: &AppHandle, id: &str) -> Result<(PathBuf, Vec<Value>, usize), String> {
+pub(crate) fn find_codebase(app: &AppHandle, id: &str) -> Result<(PathBuf, Vec<Value>, usize), String> {
     let dir = codebases_dir(app)?;
     let list = read_list(&dir.join("index.json"));
     let at = list
@@ -297,6 +302,10 @@ pub async fn codebase_remove(app: AppHandle, id: String) -> Result<(), String> {
     let notes = dir.join(format!("{id}.design.md"));
     if notes.is_file() {
         let _ = trash::delete(&notes);
+    }
+    let memory = crate::codebase_workspace::memory_path(&dir, &id);
+    if memory.is_file() {
+        let _ = trash::delete(&memory);
     }
     write_list(&dir.join("index.json"), &list)
 }

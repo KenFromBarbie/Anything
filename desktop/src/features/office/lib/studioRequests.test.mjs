@@ -5,8 +5,12 @@ import {
   MAKE_KINDS,
   appRequest,
   changeRequest,
+  codebaseIssueRequest,
+  codebaseLeadRequest,
   codebaseLearnRequest,
+  codebasePrReviewRequest,
   codebaseRequest,
+  codebaseTriageRequest,
   makeRequest,
   workflowRequest,
 } from "./studioRequests.ts";
@@ -92,4 +96,38 @@ test("all Studio work goes down the office and is reviewed on the way back", () 
     assert.match(text, /floor workers/);
   }
   assert.match(changeRequest({ id: "a1", title: "Lamp" }, "x"), /--version-of a1/);
+});
+
+const mapped = {
+  ...codebase,
+  memoryPath: "C:/hive/shared/codebases/acme-site.memory.md",
+  graphPath: "C:/hive/shared/codebases/acme-site/graphify-out/graph.json",
+  hasGraph: true,
+};
+
+test("codebase work reads the memory, uses the code map and stays off GitHub", () => {
+  const text = codebaseRequest(mapped, "add dark mode");
+  assert.match(text, /acme-site\.memory\.md: read it before you start/);
+  assert.match(text, /graphify query "<question>" --graph "C:\/hive\/shared\/codebases\/acme-site\/graphify-out\/graph\.json"/);
+  assert.match(text, /Don't push, comment, review on GitHub or open pull requests unless/);
+  assert.doesNotMatch(text, /gh pr create/);
+  assert.match(codebaseRequest(mapped, "x", { draftPr: true }), /gh pr create --draft/);
+  assert.match(codebaseRequest({ ...mapped, hasGraph: false }, "x"), /no code map yet; .*graphify update "C:\/hive/);
+  assert.doesNotMatch(codebaseRequest({ ...mapped, source: "local", url: undefined }, "x"), /gh issue view/);
+});
+
+test("issues, reviews, triage and the codebase lead go through the office", () => {
+  const fix = codebaseIssueRequest(mapped, { number: 12, title: "Crash on save" });
+  assert.match(fix, /fix GitHub issue #12, "Crash on save"/);
+  assert.match(fix, /anything\/issue-12/);
+  assert.doesNotMatch(fix, /Fixes #12/);
+  assert.match(codebaseIssueRequest(mapped, { number: 12, title: "x" }, { draftPr: true }), /Fixes #12/);
+  const review = codebasePrReviewRequest(mapped, { number: 7, title: "New header" });
+  assert.match(review, /gh pr diff 7/);
+  assert.match(review, /Don't post the review on GitHub/);
+  assert.match(codebaseTriageRequest(mapped), /Don't label, comment on or close/);
+  assert.match(codebaseLeadRequest(mapped), /Make one executive its lead/);
+  for (const text of [fix, review, codebaseTriageRequest(mapped), codebaseLeadRequest(mapped)]) {
+    assert.match(text, /the CEO gives it to the executive/);
+  }
 });

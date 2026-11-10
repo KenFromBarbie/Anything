@@ -46,6 +46,7 @@ mod updater;
 mod office;
 mod office_desk;
 mod studio_store;
+mod codebase_workspace;
 mod components;
 mod persona_catalog;
 mod prevent_sleep;
@@ -635,6 +636,14 @@ pub fn run() {
             studio_store::codebase_pull,
             studio_store::codebase_open,
             studio_store::codebase_remove,
+            codebase_workspace::codebase_git,
+            codebase_workspace::codebase_github,
+            codebase_workspace::codebase_memory,
+            codebase_workspace::codebase_memory_save,
+            codebase_workspace::codebase_graph,
+            codebase_workspace::codebase_graph_build,
+            codebase_workspace::codebase_graph_open,
+            codebase_workspace::codebase_set_managed,
             components::component_status,
             components::component_install,
             office_desk::office_vault,
