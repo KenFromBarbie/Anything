@@ -1158,6 +1158,31 @@ export function OfficeFloor() {
       });
       charLayer.addChild(boardG);
 
+      // The CEO sits behind the desk, facing the room, and the sprite is
+      // taller than a tile: drawn over the desk, they looked sat on it. The
+      // desk's two rows are copied into the character layer, sorted by the
+      // desk's bottom edge, so they cover whoever sits behind it and not
+      // whoever walks in front.
+      {
+        const ceo = mapRenderer.getSpawnPoint('desk-ceo');
+        const ts = mapRenderer.tileSize;
+        if (ceo) {
+          for (let y = ceo.y + 1; y <= ceo.y + 2; y++) {
+            for (let x = ceo.x - 1; x <= ceo.x + 1; x++) {
+              for (const layer of ['furniture-below', 'furniture-above']) {
+                const gid = mapRenderer.gidAt(layer, x, y);
+                // Not the visitor's chair in front of the desk.
+                if (!gid || (layer === 'furniture-below' && x === ceo.x && y === ceo.y + 2)) continue;
+                const tile = mapRenderer.tileSprite(gid, x, y);
+                tile.zIndex = (ceo.y + 3) * ts;
+                tile.eventMode = 'none';
+                charLayer.addChild(tile);
+              }
+            }
+          }
+        }
+      }
+
       // Cubicle panels between neighbouring desks (the generated office's
       // `partitions` layer): a thin wall on the line between two desks, drawn
       // in depth order so people in front of it overlap it.

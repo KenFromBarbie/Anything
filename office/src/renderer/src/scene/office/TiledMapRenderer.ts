@@ -220,7 +220,7 @@ export class TiledMapRenderer {
   }
 
   /** An unflipped tile's sprite at (x, y). */
-  private tileSprite(tileId: number, x: number, y: number): Sprite {
+  tileSprite(tileId: number, x: number, y: number): Sprite {
     const { tileset, texture } = this.resolveTileset(tileId)!;
     const cols = tileset.columns ?? 16;
     const tw = tileset.tilewidth ?? this.tileSize;
