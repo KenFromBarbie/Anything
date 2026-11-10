@@ -7,7 +7,7 @@
 // sheets are no longer used for the cast. See assets/ATTRIBUTION.md.
 
 import { Texture } from 'pixi.js';
-import { paintPortrait, sceneFrameBufs, SCENE_W, SCENE_H } from './portraitArt';
+import { paintPortrait, sceneFrameBufs, SCENE_W, SCENE_H, type LookRole } from './portraitArt';
 
 export type OfficeCharacterName =
   | 'michael' | 'jim' | 'pam' | 'dwight' | 'kevin' | 'angela'
@@ -52,7 +52,16 @@ export function hexToNumber(hex: string): number {
 }
 
 // ─── scene frames ────────────────────────────────────────────────────────────
-const frameCache = new Map<OfficeCharacterName, Texture[][]>();
+const frameCache = new Map<string, Texture[][]>();
+
+/** An agent's look: generated from its id like a generative NFT collection
+ *  (see generateRecipe in portraitArt.ts), so every agent is one of a kind
+ *  and always looks the same. The CEO is in a suit and tie; executives lean
+ *  to smart dress. */
+export function lookFor(agent: { id: string; isGod?: boolean; staff?: boolean }): string {
+  const role: LookRole = agent.isGod ? 'ceo' : agent.staff ? 'exec' : 'floor';
+  return `gen:${role}:${agent.id}`;
+}
 
 function bufToTexture(buf: Uint8ClampedArray): Texture {
   const canvas = document.createElement('canvas');
@@ -73,7 +82,7 @@ function bufToTexture(buf: Uint8ClampedArray): Texture {
  * and a back view (up — agents seated facing their desk show their back). The
  * three walk frames are stand / step-left / step-right.
  */
-export async function getCastFrames(name: OfficeCharacterName): Promise<Texture[][]> {
+export async function getCastFrames(name: string): Promise<Texture[][]> {
   const cached = frameCache.get(name);
   if (cached) return cached;
   const { front, back } = sceneFrameBufs(name);
@@ -93,7 +102,7 @@ export async function getCastFrames(name: OfficeCharacterName): Promise<Texture[
  */
 export async function paintCastPortrait(
   ctx: CanvasRenderingContext2D,
-  name: OfficeCharacterName,
+  name: string,
   scale = 2,
 ): Promise<void> {
   paintPortrait(ctx, name, scale);

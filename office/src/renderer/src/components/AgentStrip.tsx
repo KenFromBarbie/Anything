@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AgentCard } from './AgentCard';
+import { lookFor } from '@/scene/office/cast';
 import { PixelButton } from './PixelButton';
 import { Icon } from './Icon';
 import { useStore, type Agent } from '@/store/store';
@@ -110,7 +111,7 @@ export function AgentStrip({ config }: AgentStripProps) {
           <AgentCard
             draggable
             name={a.name}
-            character={a.character}
+            character={lookFor(a)}
             accent={a.accent}
             status={a.status}
             ptyId={a.ptyId}

@@ -230,7 +230,7 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
           boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden', flexShrink: 0
         }}>
-          <SpritePortrait character={agent.character} scale={1} />
+          <SpritePortrait agent={agent} scale={1} />
         </div>
         {/* Title + subtitle truncate; the control cluster never shrinks. At
             sidebar width the old header wrapped its 24-char display-font title
@@ -620,7 +620,7 @@ function FloorTab({ seed }: { seed: { text: string; seq: number } }) {
                 boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
                 display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden', flexShrink: 0
               }}>
-                <SpritePortrait character={a.character} scale={1} />
+                <SpritePortrait agent={a} scale={1} />
               </div>
               <button
                 onClick={() => select(a.id)}
@@ -963,7 +963,7 @@ function ArchivedSection() {
             boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
             display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden', flexShrink: 0
           }}>
-            <SpritePortrait character={a.character} scale={1} />
+            <SpritePortrait agent={a} scale={1} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: 'var(--cth-font-ui)', fontSize: 12, color: 'var(--cth-ink-700)' }}>{a.name}</div>

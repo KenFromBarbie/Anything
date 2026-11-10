@@ -12,7 +12,8 @@ import { AgentNameEditor } from './AgentNameEditor';
 
 export interface AgentCardProps {
   name: string;
-  character: OfficeCharacterName;
+  /** A look key: a cast name or a generated `gen:…` (see lookFor). */
+  character: string;
   accent: AccentColorName;
   status: StatusKind;
   /** This agent's pty, if it has one. Only used to notice that the USER has

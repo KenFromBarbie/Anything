@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react';
-import { paintCastPortrait, type OfficeCharacterName } from '@/scene/office/cast';
+import { lookFor, paintCastPortrait } from '@/scene/office/cast';
 import { PORTRAIT_W, PORTRAIT_H } from '@/scene/office/portraitArt';
 
 const FRAME_W = PORTRAIT_W;
 const FRAME_H = PORTRAIT_H;
 
 export interface SpritePortraitProps {
-  character: OfficeCharacterName;
+  /** A look key (a cast name or a generated `gen:…`), or pass `agent`. */
+  character?: string;
+  /** The agent whose generated look to draw (wins over `character`). */
+  agent?: { id: string; isGod?: boolean; staff?: boolean };
   /** Pixels per source pixel. Whole numbers are exact; half-steps (1.5, 2.5)
    *  double every other row, which pixel art survives. The blit runs with
    *  smoothing off, so nothing here is ever interpolated. */
@@ -16,11 +19,13 @@ export interface SpritePortraitProps {
 
 /** Static standing portrait of an Office cast member (recolored LimeZu sprite). */
 export function SpritePortrait({
-  character,
+  character: named,
+  agent,
   scale = 2,
   background = 'transparent'
 }: SpritePortraitProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const character = agent ? lookFor(agent) : named ?? 'jim';
 
   useEffect(() => {
     const canvas = canvasRef.current;

@@ -13,7 +13,8 @@ import { findMeetSeats, inChair, nearestReachable, reachableFrom, type MeetSeat 
 import { Character, paintCup } from './Character';
 import { DeskScreen } from './DeskScreen';
 import { MessageEnvelope, type MessageAct } from './MessageEnvelope';
-import { hexToNumber, DEFAULT_CHARACTER } from './cast';
+import { hexToNumber, DEFAULT_CHARACTER, lookFor } from './cast';
+import { lookShirt } from './portraitArt';
 import { pickSoloLine, pickExchange, type BreakSpot } from './cafeteriaLines';
 import { colors } from '@/design/tokens';
 import { loadTheme, resolveThemeMap, themeTilesetUrls } from './themeLoader';
@@ -1568,8 +1569,13 @@ export function OfficeFloor() {
       (app as any).__taskBoardPoll = taskBoardPoll;
 
       const addCharacter = async (agent: Agent) => {
-        const charName = theme.cast.byName[agent.character] ? agent.character : theme.cast.defaultCharacter;
-        const member = theme.cast.byName[charName];
+        // The office theme's people are generated per agent; other themes
+        // keep their cast.
+        const generated = theme.id === 'office';
+        const charName = generated
+          ? lookFor(agent)
+          : theme.cast.byName[agent.character] ? agent.character : theme.cast.defaultCharacter;
+        const shirt = generated ? lookShirt(charName) : theme.cast.byName[charName].shirt;
         const seatIndex = claimSeat(agent);
         const seatTile: Tile = (seatIndex != null ? seatTiles[seatIndex] : undefined)
           ?? mapRenderer.getSpawnPoint('entrance')
@@ -1589,7 +1595,7 @@ export function OfficeFloor() {
           seatTile,
           seatDirection: facingForSeat(seatTile),
           spawnTile: entrance, // walk in from the office door
-          glowColor: hexNum(colors.accent[agent.accent]) ?? hexToNumber(member.shirt),
+          glowColor: hexNum(colors.accent[agent.accent]) ?? hexToNumber(shirt),
           onClick: (id) => {
             // The app's background floor only reports the click (its
             // selection is the main frame's, copied in).

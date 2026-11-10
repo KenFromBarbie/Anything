@@ -472,6 +472,126 @@ interface Recipe {
   lashes?: boolean;
   /** Heavier build: chubby cheeks, a double chin, and a wider torso. */
   heavy?: boolean;
+  /** Generated characters' extras (see generateRecipe). */
+  accessory?: Accessory;
+}
+
+type Accessory = 'headphones' | 'earring' | 'shades';
+
+/** Accessories drawn over the finished head (front view). */
+function drawAccessory(buf: Buf, kind: Accessory, color: RGB): void {
+  const [hi, base, sh] = shades(color);
+  if (kind === 'headphones') {
+    // A band over the crown and a cup over each ear.
+    for (let x = HX0; x <= HX1; x++) set(buf, x, 1, base);
+    set(buf, HX0 - 1, 2, base); set(buf, HX1 + 1, 2, base);
+    for (let y = 3; y < 8; y++) { set(buf, HX0 - 2, y, sh); set(buf, HX1 + 2, y, sh); }
+    rect(buf, HX0 - 2, 8, HX0 - 1, 11, base); rect(buf, HX1 + 1, 8, HX1 + 2, 11, base);
+    set(buf, HX0 - 2, 8, hi); set(buf, HX1 + 2, 8, hi);
+  } else if (kind === 'earring') {
+    set(buf, HX0 - 1, 12, [232, 196, 78]); set(buf, HX1 + 1, 12, [232, 196, 78]);
+  } else if (kind === 'shades') {
+    const lens: RGB = [28, 26, 34];
+    rect(buf, 4, 8, 7, 10, lens); rect(buf, 9, 8, 12, 10, lens);
+    set(buf, 8, 8, lens); set(buf, 5, 8, [96, 104, 120]); set(buf, 10, 8, [96, 104, 120]);
+  }
+}
+
+// ─── generated characters ───────────────────────────────────────────────────
+// Like a generative NFT collection: each character is a stack of traits
+// (skin, hair, outfit, face, extras) drawn by weight, so common traits are
+// common and a few are rare. The seed (an agent's id) makes it repeatable:
+// the same agent always looks the same, and no two look alike by design.
+
+/** A small seeded PRNG (mulberry32 over an FNV-1a hash of the seed). */
+function rng(seed: string): () => number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  let a = h >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+type Weighted<T> = [T, number][];
+function pick<T>(r: () => number, table: Weighted<T>): T {
+  const total = table.reduce((n, [, w]) => n + w, 0);
+  let x = r() * total;
+  for (const [v, w] of table) { if ((x -= w) < 0) return v; }
+  return table[table.length - 1][0];
+}
+
+const HAIR_COLORS: Weighted<RGB> = [
+  [[28, 22, 18], 18], [[58, 42, 28], 18], [[92, 60, 34], 14], [[120, 76, 42], 10],
+  [[186, 154, 90], 8], [[154, 82, 46], 6], [[170, 166, 156], 5],
+  // dyed: the rare ones
+  [[70, 110, 200], 2], [[214, 92, 160], 2], [[80, 170, 110], 1.5], [[236, 236, 240], 1], [[150, 90, 210], 1],
+];
+const CLOTH_COLORS: Weighted<RGB> = [
+  [[58, 63, 74], 10], [[172, 196, 224], 9], [[110, 140, 180], 8], [[150, 146, 170], 7], [[122, 60, 74], 6],
+  [[156, 175, 136], 7], [[184, 155, 62], 5], [[176, 65, 58], 5], [[236, 174, 192], 5], [[212, 90, 158], 3],
+  [[90, 150, 150], 5], [[230, 200, 120], 4], [[60, 60, 64], 6], [[240, 236, 228], 6], [[96, 70, 140], 3],
+];
+const TIE_COLORS: RGB[] = [[170, 58, 58], [40, 40, 50], [120, 130, 150], [120, 82, 46], [60, 90, 150], [150, 120, 40]];
+
+/** Who a generated character is for: the CEO always wears a suit and tie;
+ *  executives lean to smart dress; everyone else is anything goes. */
+export type LookRole = 'ceo' | 'exec' | 'floor';
+
+export function generateRecipe(seed: string, role: LookRole = 'floor'): Recipe {
+  const r = rng(seed);
+  const lashes = r() < 0.45;
+  const hair = pick<HairStyle>(r, lashes
+    ? [['styleFrame', 30], ['styleBun', 18], ['styleCurly', 14], ['styleMessy', 14], ['styleShort', 8], ['styleFloppy', 6], ['styleSpiky', 3]]
+    : [['styleShort', 26], ['styleFloppy', 18], ['styleMessy', 12], ['styleSpiky', 10], ['styleCurly', 8], ['styleRecede', 9], ['styleBald', 8], ['styleFrame', 3]]);
+  const hairargs: HairArgs = {
+    part: r() < 0.5 ? 'L' : 'R',
+    recede: hair === 'styleShort' && r() < 0.15 ? 1 : 0,
+    length: 14 + Math.floor(r() * 7),
+    vol: 1 + Math.floor(r() * 2),
+  };
+  const cloth: Cloth = role === 'ceo' ? 'suit' : pick<Cloth>(r, role === 'exec'
+    ? [['suit', 35], ['dressshirt', 35], ['sweater', 10], ['cardigan', 10], ['blouse', lashes ? 10 : 0]]
+    : [['dressshirt', 22], ['polo', 20], ['sweater', 16], ['cardigan', 14], ['blouse', lashes ? 18 : 2], ['suit', 8]]);
+  const c1 = role === 'ceo' ? pick<RGB>(r, [[[58, 63, 74], 3], [[40, 40, 50], 2], [[60, 70, 100], 1]]) : pick(r, CLOTH_COLORS);
+  const c2 = cloth === 'cardigan' ? pick<RGB>(r, [[[244, 242, 238], 3], [[235, 233, 226], 2], [[172, 196, 224], 1]])
+    : cloth === 'polo' ? shades(c1)[2] : undefined;
+  const tie = role === 'ceo' || (cloth === 'suit' && r() < 0.8) || (cloth === 'dressshirt' && r() < 0.4)
+    ? TIE_COLORS[Math.floor(r() * TIE_COLORS.length)] : undefined;
+  const facial = lashes ? undefined : pick<Facial | undefined>(r, [[undefined, 70], ['stubble', 12], ['mustacheSm', 7], ['goatee', 6], ['mustache', 5]]);
+  const accessory = pick<Accessory | undefined>(r, [[undefined, 82], ['headphones', 8], ['earring', 7], ['shades', 3]]);
+  return {
+    skin: pick(r, [['light', 34], ['tan', 26], ['brown', 22], ['dark', 18]]),
+    hairc: pick(r, HAIR_COLORS),
+    hair, hairargs, cloth, c1, c2, tie,
+    brow: pick<Brow>(r, [['flat', 40], ['soft', 25], ['raised', 20], ['angry', 15]]),
+    mouth: pick<Mouth>(r, [['smile', 45], ['neutral', 35], ['grin', 12], ['frown', 8]]),
+    blush: lashes && r() < 0.5,
+    lashes,
+    facial,
+    glasses: accessory !== 'shades' && r() < 0.22,
+    heavy: r() < 0.14,
+    accessory,
+  };
+}
+
+/** A look's key: a cast name, or `gen:<role>:<seed>` for a generated one. */
+function recipeFor(name: string): Recipe {
+  if (name.startsWith('gen:')) {
+    const [, role, ...rest] = name.split(':');
+    return generateRecipe(rest.join(':'), (role as LookRole) || 'floor');
+  }
+  return RECIPES[name as OfficeCharacterName] ?? RECIPES.jim;
+}
+
+/** The main colour of a look's outfit (#rrggbb), for its selection glow. */
+export function lookShirt(name: string): string {
+  const c = recipeFor(name).c1;
+  return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
 // Puff the lower face into round cheeks + a double chin so a character reads as
@@ -517,6 +637,7 @@ function drawHeadGroup(buf: Buf, r: Recipe): void {
   if (r.facial) drawFacial(buf, r.facial, r.hairc);
   HAIR_FNS[r.hair](buf, r.hairc, skinBase, r.hairargs ?? {});
   if (r.glasses) drawGlasses(buf);
+  if (r.accessory) drawAccessory(buf, r.accessory, r.accessory === 'headphones' ? [60, 62, 74] : r.c1);
 }
 
 function defaultPants(r: Recipe): RGB {
@@ -547,13 +668,13 @@ function composeScene(r: Recipe, phase: number, back: boolean): Buf {
 }
 
 // ─── public render ───────────────────────────────────────────────────────────
-const bufCache = new Map<OfficeCharacterName, Buf>();
-const sceneCache = new Map<OfficeCharacterName, SceneFrames>();
+const bufCache = new Map<string, Buf>();
+const sceneCache = new Map<string, SceneFrames>();
 
-function getBuf(name: OfficeCharacterName): Buf {
+function getBuf(name: string): Buf {
   let buf = bufCache.get(name);
   if (!buf) {
-    buf = compose(RECIPES[name] ?? RECIPES.jim);
+    buf = compose(recipeFor(name));
     bufCache.set(name, buf);
   }
   return buf;
@@ -562,10 +683,10 @@ function getBuf(name: OfficeCharacterName): Buf {
 export interface SceneFrames { front: Buf[]; back: Buf[]; }
 
 /** Walk-phase frames (stand, step-L, step-R) for the in-scene sprite, front + back. */
-export function sceneFrameBufs(name: OfficeCharacterName): SceneFrames {
+export function sceneFrameBufs(name: string): SceneFrames {
   let frames = sceneCache.get(name);
   if (!frames) {
-    const r = RECIPES[name] ?? RECIPES.jim;
+    const r = recipeFor(name);
     frames = {
       front: [composeScene(r, 0, false), composeScene(r, 1, false), composeScene(r, 2, false)],
       back: [composeScene(r, 0, true), composeScene(r, 1, true), composeScene(r, 2, true)],
@@ -576,7 +697,7 @@ export function sceneFrameBufs(name: OfficeCharacterName): SceneFrames {
 }
 
 /** Paint a character's procedural portrait onto `ctx`, nearest-neighbor at `scale`. */
-export function paintPortrait(ctx: CanvasRenderingContext2D, name: OfficeCharacterName, scale = 2): void {
+export function paintPortrait(ctx: CanvasRenderingContext2D, name: string, scale = 2): void {
   const buf = getBuf(name);
   // Stage at 1× on an offscreen canvas, then blit scaled with smoothing off.
   const stage = document.createElement('canvas');
