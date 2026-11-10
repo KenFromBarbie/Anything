@@ -2610,6 +2610,9 @@ ipcMain.handle('pty:spawn', async (evt, opts: AgentSpawnOptions) => {
 
 /** Below this much free memory no agent is started (see spawnAgentCore). */
 const MIN_FREE_MEMORY_FOR_SPAWN = 1.2 * 2 ** 30;
+/** The CEO (god) runs the floor: without it nothing the owner asks is picked
+ *  up, so it may start on much less (it is one process, and it starts first). */
+const MIN_FREE_MEMORY_FOR_GOD = 0.4 * 2 ** 30;
 
 /** Core agent-spawn logic — provider inference, the missing-CLI installer
  *  short-circuit, git-worktree isolation, hive provisioning, model/resume flags,
@@ -2631,11 +2634,11 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   // nearly out of memory took it down (a restore of 21 agents left 0.7 GB), so
   // below the floor a spawn is refused with a reason the floor shows.
   const free = freemem();
-  if (free < MIN_FREE_MEMORY_FOR_SPAWN) {
-    return {
-      ok: false,
-      error: `not enough free memory to start another agent (${(free / 2 ** 30).toFixed(1)} GB free; needs ${(MIN_FREE_MEMORY_FOR_SPAWN / 2 ** 30).toFixed(1)} GB)`
-    };
+  const floor = opts.hive?.isGod ? MIN_FREE_MEMORY_FOR_GOD : MIN_FREE_MEMORY_FOR_SPAWN;
+  if (free < floor) {
+    const error = `not enough free memory to start another agent (${(free / 2 ** 30).toFixed(1)} GB free; needs ${(floor / 2 ** 30).toFixed(1)} GB)`;
+    console.warn(`[spawn] refused ${opts.hive?.id ?? opts.id}: ${error}`);
+    return { ok: false, error };
   }
   opts.cwd = expandTilde(opts.cwd);
   if (opts.hive) opts.hive = { ...opts.hive, cwd: expandTilde(opts.hive.cwd) };

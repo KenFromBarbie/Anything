@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore, type Agent, type QueuedMessage, type StationKind, type ToolKind } from '@/store/store';
 import {
   buildSpawnCommand,
@@ -317,6 +317,8 @@ export function useHive(config: HarnessConfig | null): void {
   // In-flight spawn guard so a re-render / StrictMode double-mount can't spawn
   // Michael twice (the window between the listPtys check and spawnPty is racy).
   const godSpawning = useRef(false);
+  /** Bumped to try starting the CEO again after a failed start. */
+  const [godRetry, setGodRetry] = useState(0);
   // Per-agent timestamp until which auto-typers (inbox-wake #3, queue-drain #4)
   // must leave the agent alone — set while its boot sequence is typing so nothing
   // collides with /remote-control + the orientation prompt.
@@ -417,7 +419,15 @@ export function useHive(config: HarnessConfig | null): void {
         hive: { id: GOD_ID, name: godName, provider: godProvider, cwd: config.harnessHome!, isGod: true, role: 'orchestrator (god)' }
       });
       if (cancelled) { godSpawning.current = false; return; }
-      if (!res.ok) { godSpawning.current = false; useStore.getState().setGodStatus('failed'); return; }
+      if (!res.ok) {
+        // Never leave the floor without its CEO: everything the owner asks
+        // goes to it. Try again shortly (e.g. once memory frees up).
+        godSpawning.current = false;
+        useStore.getState().setGodStatus('failed');
+        console.warn(`[god] could not start the CEO: ${res.error ?? 'unknown error'}; retrying in 20s`);
+        setTimeout(() => setGodRetry((n) => n + 1), 20_000);
+        return;
+      }
       const god: Agent = {
         id: GOD_ID,
         name: godName,
@@ -472,7 +482,7 @@ export function useHive(config: HarnessConfig | null): void {
       })();
     }, 1200);
     return () => { cancelled = true; clearTimeout(t); };
-  }, [config?.onboardingComplete, config?.harnessHome]);
+  }, [config?.onboardingComplete, config?.harnessHome, godRetry]);
 
   // 2) Drive avatars from real hook events emitted by each agent's shim.
   useEffect(() => {

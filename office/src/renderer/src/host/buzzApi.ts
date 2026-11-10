@@ -382,10 +382,25 @@ const ops: Record<string, Op> = {
   // ── One agent, as its panel's controls do ──────────────────────────────────
 
   /** Queue a message for the agent, as from its queue composer. */
-  'agent.message': (a) => {
+  'agent.message': async (a) => {
     const agent = liveAgent(a.id);
     const body = text(a.text, 16000);
     if (!body) throw new Error('write a message');
+    // The queue only reaches a running terminal. A CEO that isn't running
+    // (failed to start, restarting) gets it in its inbox instead, which it
+    // reads as soon as it's up; anyone else not running is an error, not a
+    // message silently parked forever.
+    const running = agent.ptyId
+      ? (await window.cth.listPtys().catch(() => [])).some((p) => p.id === agent.ptyId)
+      : false;
+    if (!running) {
+      if (agent.isGod) {
+        await window.cth.hiveSend({ to: 'god', act: 'request', subject: 'From the owner', body }, 'human');
+        void window.cth.trackMessageSent('composer');
+        return true;
+      }
+      throw new Error(`${agent.name} isn't running; restore them first`);
+    }
     useStore.getState().enqueueMessage(agent.id, body);
     void window.cth.trackMessageSent('composer');
     return true;
