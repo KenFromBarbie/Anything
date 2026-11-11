@@ -66,6 +66,8 @@ interface CharacterOptions {
   /** Direction faced while seated. Default 'down' so the face is toward the user. */
   seatDirection?: Direction;
   onClick?: (agentId: string) => void;
+  /** Pointer over the avatar (screen position), or left it (null). */
+  onHover?: (agentId: string, at: { x: number; y: number } | null) => void;
 }
 
 export class Character {
@@ -107,6 +109,7 @@ export class Character {
   private statusGlyph: StatusGlyph = 'none';
   private glyphElapsed = 0;
   private onClick?: (agentId: string) => void;
+  private onHover?: (agentId: string, at: { x: number; y: number } | null) => void;
 
   // ── Office-life effects (cheer / coffee / watering) ────────────────────────
   /** Effect layer riding on the sprite: confetti, the carried cup, droplets. */
@@ -134,6 +137,7 @@ export class Character {
     this.deskTile = options.seatTile;
     this.seatDirection = options.seatDirection ?? 'down';
     this.onClick = options.onClick;
+    this.onHover = options.onHover;
 
     // Appear at the spawn tile (the door) and walk in from there.
     const start = options.spawnTile ?? this.deskTile;
@@ -500,6 +504,9 @@ export class Character {
       e.stopPropagation();
       this.onClick?.(this.agentId);
     });
+    this.sprite.container.on('pointerover', (e) => this.onHover?.(this.agentId, { x: e.clientX, y: e.clientY }));
+    this.sprite.container.on('pointermove', (e) => this.onHover?.(this.agentId, { x: e.clientX, y: e.clientY }));
+    this.sprite.container.on('pointerout', () => this.onHover?.(this.agentId, null));
   }
 
   show(parent: Container): void {

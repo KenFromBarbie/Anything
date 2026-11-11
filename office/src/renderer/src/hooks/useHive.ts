@@ -484,6 +484,12 @@ export function useHive(config: HarnessConfig | null): void {
     return () => { cancelled = true; clearTimeout(t); };
   }, [config?.onboardingComplete, config?.harnessHome, godRetry]);
 
+  // Presence (what each agent is doing), pushed by the main process.
+  useEffect(() => {
+    void window.cth.getHivePresence?.().then((p) => p && useStore.getState().setPresence(p)).catch(() => {});
+    return window.cth.onHivePresence?.((p) => useStore.getState().setPresence(p));
+  }, []);
+
   // 2) Drive avatars from real hook events emitted by each agent's shim.
   useEffect(() => {
     return window.cth.onHiveHookEvent((e) => {

@@ -467,6 +467,53 @@ pub async fn office_artifact_save_file(
         .unwrap_or(entry))
 }
 
+/// What agents said about the office's tools (`buzz-feedback`), newest last.
+#[tauri::command]
+pub async fn office_tool_feedback(app: AppHandle) -> Result<Vec<Value>, String> {
+    let shared = hive_shared_dir(&app).ok_or("the Office is not set up")?;
+    let file = shared.parent().ok_or("the Office is not set up")?.join("feedback").join("tool-feedback.jsonl");
+    let Ok(text) = std::fs::read_to_string(&file) else {
+        return Ok(Vec::new());
+    };
+    let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+    let start = lines.len().saturating_sub(500);
+    Ok(lines[start..].iter().filter_map(|l| serde_json::from_str::<Value>(l).ok()).collect())
+}
+
+/// Let the app show a file an agent is working on (Create's "Live now"):
+/// only inside the Office's own folder (its hive and shared workspace). Its
+/// folder becomes loadable (a site's pages and assets), and its size and
+/// modified time come back so the view refreshes when it changes.
+#[tauri::command]
+pub async fn office_live_file(app: AppHandle, path: String) -> Result<Value, String> {
+    let shared = hive_shared_dir(&app).ok_or("the Office is not set up")?;
+    let home = shared
+        .parent()
+        .and_then(|h| h.parent())
+        .ok_or("the Office is not set up")?
+        .to_path_buf();
+    let home = std::fs::canonicalize(&home).map_err(|e| e.to_string())?;
+    let file = std::fs::canonicalize(PathBuf::from(&path)).map_err(|_| "that file isn't there (any more)".to_string())?;
+    if !file.starts_with(&home) || !file.is_file() {
+        return Err("only the Office's own work can be shown live".into());
+    }
+    // Both spellings (the canonical one starts with \?\ on Windows).
+    for dir in [file.parent().map(|d| d.to_path_buf()), PathBuf::from(&path).parent().map(|d| d.to_path_buf())]
+        .into_iter()
+        .flatten()
+    {
+        let _ = app.asset_protocol_scope().allow_directory(&dir, true);
+    }
+    let meta = std::fs::metadata(&file).map_err(|e| e.to_string())?;
+    let mtime = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or_default();
+    Ok(json!({ "path": path, "mtime": mtime, "size": meta.len() }))
+}
+
 /// Copy a picture, video or sound the owner picked for the Video editor into
 /// the office's shared `artifacts/_media` folder (which the app can play from
 /// and agents can read), and return where it is now.

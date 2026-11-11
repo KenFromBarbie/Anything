@@ -158,6 +158,19 @@ export type OfficeAgent = {
   /** Messages waiting to be typed into the agent's terminal. */
   queue: { id: string; text: string; ts: number }[];
   toolCalls: number;
+  /** What it's doing, Discord-style (from the Office's hook stream). */
+  presence?: AgentPresence | null;
+};
+
+export type AgentPresence = {
+  activity: string;
+  detail: string;
+  since: number;
+  lastAt: number;
+  idleSince: number | null;
+  steps: { ts: number; text: string }[];
+  latest: { path: string; kind: "model" | "image" | "video" | "site" | "pdf" | "editor" | "text"; mtime: number } | null;
+  dirs: string[];
 };
 
 /** An agent from the last session, waiting to be restored. */

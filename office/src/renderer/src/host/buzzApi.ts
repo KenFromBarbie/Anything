@@ -107,7 +107,7 @@ async function resolveOpenQuestion(
 /** The agent fields Buzz's Agents page shows. */
 type QueueItem = { id: string; text: string; ts: number };
 
-export function agentSummary(a: Agent, extra: { queue?: QueueItem[]; toolCalls?: number } = {}) {
+export function agentSummary(a: Agent, extra: { queue?: QueueItem[]; toolCalls?: number; presence?: unknown } = {}) {
   return {
     id: a.id,
     name: a.name,
@@ -127,7 +127,8 @@ export function agentSummary(a: Agent, extra: { queue?: QueueItem[]; toolCalls?:
     project: a.project ?? '',
     onHold: !!a.onHold,
     queue: extra.queue ?? [],
-    toolCalls: extra.toolCalls ?? 0
+    toolCalls: extra.toolCalls ?? 0,
+    presence: extra.presence ?? null
   };
 }
 
@@ -142,7 +143,8 @@ function snapshotOf(s: ReturnType<typeof useStore.getState>) {
     agents: s.agents.map((a) =>
       agentSummary(a, {
         queue: (s.messageQueues[a.id] ?? []).map((m) => ({ id: m.id, text: m.text, ts: m.ts })),
-        toolCalls: s.toolCounts[a.id] ?? 0
+        toolCalls: s.toolCounts[a.id] ?? 0,
+        presence: s.presence[a.id] ?? null
       })
     ),
     selectedId: s.selectedId,

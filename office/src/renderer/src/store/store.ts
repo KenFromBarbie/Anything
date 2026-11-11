@@ -221,6 +221,9 @@ interface State {
    *  shown in the command center (interactive sessions don't expose billed $). */
   toolCounts: Record<string, number>;
   bumpToolCount: (id: string) => void;
+  /** What each agent is doing (from the main process). */
+  presence: Record<string, import('../../../shared/presence').Presence>;
+  setPresence: (p: Record<string, import('../../../shared/presence').Presence>) => void;
   setGodStatus: (status: GodStatus) => void;
   select: (id: string) => void;
   updateAgent: (id: string, patch: Partial<Agent>) => void;
@@ -713,6 +716,8 @@ export const useStore = create<State>((set, get) => ({
   godStatus: 'booting',
   messageQueues: initialQueues,
   toolCounts: {},
+  presence: {},
+  setPresence: (presence) => set({ presence }),
   bumpToolCount: (id) =>
     set((s) => ({ toolCounts: { ...s.toolCounts, [id]: (s.toolCounts[id] ?? 0) + 1 } })),
   setGodStatus: (status) => set({ godStatus: status }),

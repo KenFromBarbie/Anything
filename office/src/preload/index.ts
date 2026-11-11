@@ -888,6 +888,13 @@ const api = {
   hiveSend: (msg: Partial<HiveMessage>, from?: string): Promise<{ ok: boolean; error?: string; message?: HiveMessage }> =>
     ipcRenderer.invoke('hive:send', msg, from),
 
+  /** What each agent is doing (Discord-style presence) and its newest output. */
+  getHivePresence: (): Promise<Record<string, import('../shared/presence').Presence>> => ipcRenderer.invoke('hive:presence'),
+  onHivePresence: (cb: (all: Record<string, import('../shared/presence').Presence>) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: Record<string, import('../shared/presence').Presence>) => cb(payload);
+    ipcRenderer.on('hive:presence', listener);
+    return () => ipcRenderer.removeListener('hive:presence', listener);
+  },
   onHiveHookEvent: (
     cb: (e: HookEvent) => void
   ): (() => void) => {

@@ -630,6 +630,8 @@ pub fn run() {
             office_desk::office_artifact_save_file,
             office_desk::office_export_file,
             office_desk::office_media_import,
+            office_desk::office_live_file,
+            office_desk::office_tool_feedback,
             office_desk::office_artifact_delete,
             studio_store::studio_workflows,
             studio_store::studio_workflow_save,

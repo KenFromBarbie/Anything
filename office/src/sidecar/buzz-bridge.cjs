@@ -509,6 +509,14 @@ ${global}
       'Never publish a localhost address: the server behind it stops when you do (or the app restarts), and the owner is left with a dead link. Publish the site’s folder with --dir; the app serves it itself.',
       'A 3D model: publish one binary .glb (materials and colours inside it, centred at the origin, Y up, under about 20 MB); the app shows it in a 3D viewer the owner can turn and zoom, and plays its animations. .obj and .stl work too, without materials.',
       '',
+      '## Tool feedback (tell the office what to fix)',
+      `Before you use one of the office's tools (buzz-show, buzz-post, buzz-history, buzz-browse, buzz-composio, simkit, the app's editor formats), read its section in ${join(root, 'feedback', 'FEEDBACK.md')} if it exists: a known problem may already have a workaround.`,
+      'After you have used one for real work, say how it went, in one line each time something was wrong, confusing, slow or missing (and now and then when it simply worked):',
+      '',
+      `    ${this.feedbackCommand()} --tool <name> --rating works|rough|broken --what "<what happened>" --fix "<what would have helped>"`,
+      '',
+      'Be specific (the command, the input, the error, what you expected). The owner and the office read this to fix and improve the tools; it is not a place for task status.',
+      '',
       '## The owner\'s apps (Composio)',
       'When the owner has turned Composio on (Settings → Integrations), you can use the apps they connected there: Gmail, Google Calendar, GitHub, Slack, Notion, Linear and many more. You never see or need their key; the office adds it.',
       '',
@@ -1423,6 +1431,9 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
   browseCommand() {
     return `"${String(this.browseWrapperPath ?? 'buzz-browse').replace(/\\/g, '/')}"`;
   }
+  feedbackCommand() {
+    return `"${String(this.feedbackWrapperPath ?? 'buzz-feedback').replace(/\\/g, '/')}"`;
+  }
   composioCommand() {
     return `"${String(this.composioWrapperPath ?? 'buzz-composio').replace(/\\/g, '/')}"`;
   }
@@ -1701,6 +1712,7 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
     this.showWrapperPath = this.writeWrapper(config, 'buzz-show', '--show');
     this.browseWrapperPath = this.writeWrapper(config, 'buzz-browse', '--browse');
     this.composioWrapperPath = this.writeWrapper(config, 'buzz-composio', '', 'md-composio.cjs');
+    this.feedbackWrapperPath = this.writeWrapper(config, 'buzz-feedback', '', 'md-feedback.cjs');
   }
 
   /** Launcher agents call (`buzz-reply`, `buzz-post`, `buzz-history`); runs the

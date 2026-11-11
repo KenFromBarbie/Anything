@@ -50,6 +50,8 @@ interface HookPayload {
 }
 
 export class HookServer {
+  /** Observer of tool calls with their input (presence). */
+  onToolUse?: (agentId: string, event: string, tool: string, input: unknown) => void;
   private server: Server | null = null;
   /** agentId → the live session's transcript file, learned from hook payloads.
    *  Lets the harness read per-agent telemetry (e.g. current context size)
@@ -228,6 +230,11 @@ export class HookServer {
         });
       }
       return {};
+    }
+
+    // Presence (what each agent is doing, for the app's live view).
+    if (agentId && (event === 'PreToolUse' || event === 'PostToolUse' || event === 'Stop')) {
+      try { this.onToolUse?.(agentId, event, p.tool_name ?? '', p.tool_input); } catch { /* best-effort */ }
     }
 
     // Feed the breaker its hook-derived loop signal: a tool that actually ran.

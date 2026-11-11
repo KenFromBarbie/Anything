@@ -17,6 +17,7 @@ import { hexToNumber, DEFAULT_CHARACTER, lookFor } from './cast';
 import { lookShirt } from './portraitArt';
 import { pickSoloLine, pickExchange, type BreakSpot } from './cafeteriaLines';
 import { colors } from '@/design/tokens';
+import { sinceLabel } from '../../../../shared/presence';
 import { loadTheme, resolveThemeMap, themeTilesetUrls } from './themeLoader';
 import { officeThemeFor } from './themeRegistry';
 import { aspectBucket, officeLayoutKey, type Headcount, type OfficeLayoutPrefs } from './modularOffice';
@@ -180,6 +181,7 @@ function firstWords(prompt: string | undefined, maxWords = 6, maxChars = 42): st
 export function OfficeFloor() {
   const { t, i18n } = useTranslation();
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
   const appRef = useRef<Application | null>(null);
   const mountIdRef = useRef(0);
   // Bumped when the WebGL context is evicted; a dep of the effect below, so the
@@ -1636,6 +1638,7 @@ export function OfficeFloor() {
           seatDirection: facingForSeat(seatTile),
           spawnTile: entrance, // walk in from the office door
           glowColor: hexNum(colors.accent[agent.accent]) ?? hexToNumber(shirt),
+          onHover: (id, at) => setHover(at ? { id, ...at } : null),
           onClick: (id) => {
             // The app's background floor only reports the click (its
             // selection is the main frame's, copied in).
@@ -2083,16 +2086,64 @@ export function OfficeFloor() {
   }, [officeTheme, layoutKey, glGeneration, i18n.language]);
 
   return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div
+        ref={hostRef}
+        style={{
+          width: '100%', height: '100%',
+          boxShadow: 'var(--cth-panel-border)',
+          overflow: 'hidden',
+          imageRendering: 'pixelated',
+          background: hex(colors.ink[900]),
+        }}
+      />
+      {hover ? <PresenceCard at={hover} id={hover.id} /> : null}
+    </div>
+  );
+}
+
+/** Discord-style: hover an agent to see what it's doing and for how long. */
+function PresenceCard({ id, at }: { id: string; at: { x: number; y: number } }) {
+  const agent = useStore((s) => s.agents.find((a) => a.id === id));
+  const p = useStore((s) => s.presence[id]);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!agent) return null;
+  const working = agent.status === 'working' && p && !p.idleSince;
+  const file = p?.latest?.path.replace(/\\/g, '/').split('/').pop();
+  return (
     <div
-      ref={hostRef}
       style={{
-        width: '100%', height: '100%',
-        boxShadow: 'var(--cth-panel-border)',
-        overflow: 'hidden',
-        imageRendering: 'pixelated',
-        background: hex(colors.ink[900]),
+        position: 'fixed', left: Math.min(at.x + 14, window.innerWidth - 270), top: Math.max(8, at.y - 120),
+        width: 256, pointerEvents: 'none', zIndex: 50,
+        background: '#111214', color: '#dbdee1', borderRadius: 8, padding: '10px 12px',
+        boxShadow: '0 8px 24px rgba(0,0,0,.45)', fontFamily: 'system-ui, sans-serif', fontSize: 12, lineHeight: 1.35,
       }}
-    />
+    >
+      <div style={{ fontWeight: 700, fontSize: 14, color: '#fff' }}>{agent.name}</div>
+      {p ? (
+        <div style={{ marginTop: 6 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.04em', color: working ? '#23a55a' : '#949ba4', textTransform: 'uppercase' }}>
+            {working ? p.activity : `Idle · was ${p.activity.toLowerCase()}`}
+          </div>
+          {p.detail ? <div style={{ color: '#fff', fontWeight: 600, marginTop: 2 }}>{p.detail}</div> : null}
+          {file ? <div style={{ color: '#b5bac1' }}>{file}</div> : null}
+          <div style={{ color: '#949ba4', marginTop: 2 }}>
+            {working ? sinceLabel(p.since) : sinceLabel(p.idleSince ?? p.lastAt).replace('for ', '') + ' ago'}
+          </div>
+          {working && p.steps.length ? (
+            <div style={{ color: '#b5bac1', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {p.steps[p.steps.length - 1].text}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div style={{ color: '#949ba4', marginTop: 4 }}>{agent.status === 'working' ? (agent.action || 'Working') : 'Idle'}</div>
+      )}
+    </div>
   );
 }
 

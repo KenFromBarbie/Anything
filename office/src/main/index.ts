@@ -5,6 +5,7 @@ import {
   unlinkSync, mkdirSync, renameSync, createWriteStream, copyFileSync, lstatSync,
   readlinkSync, symlinkSync
 } from 'node:fs';
+import { promises as fsp, type Dirent } from 'node:fs';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { join, resolve, sep, basename, dirname, isAbsolute } from 'node:path';
 import { freemem, homedir } from 'node:os';
@@ -28,6 +29,7 @@ import { linkWorktreeDeps, unlinkWorktreeDeps } from './worktreeDeps';
 import { HiveManager, type AgentMeta, type HiveMessage, type HiveTask } from './hive';
 import { HookServer } from './hooks';
 import { CircuitBreaker, type BreakerInput } from './breaker';
+import { liveKindOf, PresenceTracker, type PresenceFile } from '../shared/presence';
 import { CumulativeSampleGate, type UsageProvider } from './usage';
 import { MemoryManager } from './memory';
 import { KnowledgeManager } from './knowledge';
@@ -311,6 +313,55 @@ const hookServer = new HookServer(
   standingGoalFromRoster,
   (agentId, event, message) => workerWake.noteHook(agentId, event, message)
 );
+// ─── Presence: what each agent is doing, and the newest thing it made ───────
+const presence = new PresenceTracker();
+let presenceTimer: NodeJS.Timeout | null = null;
+function broadcastPresence(): void {
+  if (presenceTimer) return;
+  presenceTimer = setTimeout(() => {
+    presenceTimer = null;
+    try { liveWebContents()?.send('hive:presence', presence.all()); } catch { /* no window */ }
+  }, 400);
+}
+/** A script may have written a .glb / .png / .html: look in the folders the
+ *  agent has been working in for the newest such file. */
+async function scanOutputs(agentId: string): Promise<void> {
+  const p = presence.get(agentId);
+  if (!p?.dirs.length) return;
+  const since = p.since - 60_000;
+  let best: PresenceFile | null = null;
+  const look = async (dir: string, depth: number): Promise<void> => {
+    let entries: Dirent[];
+    try { entries = await fsp.readdir(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries.slice(0, 300)) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) {
+        if (depth > 0 && !e.name.startsWith('.') && e.name !== 'node_modules') await look(full, depth - 1);
+        continue;
+      }
+      const kind = liveKindOf(e.name);
+      if (!kind || kind === 'text') continue;
+      try {
+        const st = await fsp.stat(full);
+        if (st.mtimeMs < since || st.size === 0) continue;
+        if (!best || st.mtimeMs > best.mtime) best = { path: full, kind, mtime: st.mtimeMs };
+      } catch { /* gone */ }
+    }
+  };
+  for (const d of p.dirs.slice(0, 4)) await look(d, 1);
+  if (best) presence.produced(agentId, best);
+}
+hookServer.onToolUse = (agentId, event, tool, input) => {
+  if (event === 'PreToolUse') presence.tool(agentId, tool, input);
+  else if (event === 'Stop') presence.idle(agentId);
+  else if (event === 'PostToolUse' && /^(bash|powershell)$/i.test(tool)) {
+    void scanOutputs(agentId).then(broadcastPresence);
+    return;
+  }
+  broadcastPresence();
+};
+ipcMain.handle('hive:presence', () => presence.all());
+
 const memory = new MemoryManager(
   () => readConfig().harnessHome,
   () => { const c = readConfig(); return { enabled: c.semanticMemory !== false, model: c.embeddingModel ?? 'minilm' }; }

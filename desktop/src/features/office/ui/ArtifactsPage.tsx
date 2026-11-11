@@ -52,6 +52,7 @@ import { editorKindOf } from "@/features/office/editors/formats";
 
 import { Codebases } from "./Codebases";
 import { ImageQuickEdit } from "./ImageQuickEdit";
+import { LiveNow } from "./LiveNow";
 import { AskForChanges, StudioMake } from "./StudioMake";
 import { ThemedFrame } from "./ThemedFrame";
 import { PageHeader } from "@/shared/ui/PageHeader";
@@ -288,6 +289,7 @@ export function ArtifactsPage({
         <>
           {embedded ? (
             <>
+              <LiveNow />
               <StudioMake artifacts={items} onOpenArtifact={setOpenId} />
               <Codebases />
             </>
