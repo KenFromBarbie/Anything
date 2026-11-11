@@ -5,6 +5,7 @@ import { Box, Clapperboard, FileText, Globe, ImageIcon, Radio, X } from "lucide-
 import { EditorFileView } from "@/features/office/editors/EditorFiles";
 import { useOpenAgentDm } from "@/features/office/lib/agentDm";
 import { type AgentPresence, type OfficeAgent, useOfficeAgents } from "@/features/office/lib/officeLink";
+import { foldDiff, lineDiff } from "@/features/office/lib/lineDiff";
 import { cn } from "@/shared/lib/cn";
 
 const ModelViewer = React.lazy(async () => ({ default: (await import("./ModelViewer")).ModelViewer }));
@@ -150,6 +151,12 @@ function LiveCard({ agent, onWatch, onMessage }: { agent: LiveAgent; onWatch: ()
             <div className="mt-0.5 flex items-center gap-1 text-xs tabular-nums text-[#3ba55d]">
               <Radio className="h-3 w-3" />
               {clock(p.since, now)}
+              {p.changes?.count ? (
+                <span className="ml-2 font-mono text-[11px]">
+                  <span className="text-[#3ba55d]">+{p.changes.added}</span> <span className="text-[#ed4245]">−{p.changes.removed}</span>
+                  <span className="text-white/50"> · {p.changes.files} file{p.changes.files === 1 ? "" : "s"}</span>
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
@@ -211,6 +218,7 @@ function TextThumb({ src }: { src: string }) {
  *  they're doing beside it. */
 function LiveWatch({ agent, onClose }: { agent: LiveAgent; onClose: () => void }) {
   const p = agent.presence;
+  const [view, setView] = React.useState<"live" | "changes">("live");
   const now = useNow(15_000);
   const file = useLiveFile(p.latest?.path);
   const working = isLive(agent, now);
@@ -255,12 +263,20 @@ function LiveWatch({ agent, onClose }: { agent: LiveAgent; onClose: () => void }
             <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-bold uppercase", working ? "bg-red-600" : "bg-white/20")}>{working ? "Live" : "Paused"}</span>
             <span className="font-semibold">{agent.name}</span>
             <span className="text-white/60">· {p.activity}{p.detail ? ` · ${p.detail}` : ""}</span>
+            <div className="ml-3 flex rounded-md bg-white/10 p-0.5 text-xs">
+              <button className={cn("rounded px-2 py-0.5", view === "live" ? "bg-white/20 text-white" : "text-white/60")} onClick={() => setView("live")} type="button">
+                Live view
+              </button>
+              <button className={cn("rounded px-2 py-0.5", view === "changes" ? "bg-white/20 text-white" : "text-white/60")} onClick={() => setView("changes")} type="button">
+                Changes{p.changes?.count ? ` (${p.changes.count})` : ""}
+              </button>
+            </div>
             <span className="ml-auto truncate text-xs text-white/50">{name}</span>
             <button aria-label="Stop watching" className="rounded p-1 text-white/70 hover:bg-white/10 hover:text-white" onClick={onClose} type="button">
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="relative min-h-0 flex-1">{stage}</div>
+          <div className="relative min-h-0 flex-1">{view === "changes" ? <ChangesFeed changes={p.changes ?? null} roots={p.dirs} /> : stage}</div>
         </div>
         <aside className="flex w-72 shrink-0 flex-col border-l border-white/10 text-white">
           <div className="border-b border-white/10 p-4">
@@ -279,6 +295,107 @@ function LiveWatch({ agent, onClose }: { agent: LiveAgent; onClose: () => void }
           </ol>
         </aside>
       </div>
+    </div>
+  );
+}
+
+type Change = { id: string; ts: number; tool: string; path: string; op: "created" | "edited" | "written" | "updated"; hunks: { old: string; new: string; line?: number }[]; added: number; removed: number; truncated?: boolean };
+
+/** Everything the agent changed, newest first: pick a change to see its diff. */
+function ChangesFeed({ changes, roots }: { changes: Presence["changes"] | null; roots: string[] }) {
+  const f = useLiveFile(changes?.file);
+  const [list, setList] = React.useState<Change[]>([]);
+  const [sel, setSel] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!changes?.file || !f || f.error) return;
+    let alive = true;
+    fetch(`${convertFileSrc(changes.file)}?v=${f.mtime}`)
+      .then((r) => r.text())
+      .then((t) => {
+        if (!alive) return;
+        const rows: Change[] = [];
+        for (const line of t.split("\n")) {
+          if (!line.trim()) continue;
+          try {
+            rows.push(JSON.parse(line) as Change);
+          } catch {
+            /* a half-written line */
+          }
+        }
+        setList(rows.reverse());
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [changes?.file, f]);
+  const rel = (path: string) => {
+    const p = path.replace(/\\/g, "/");
+    for (const r of roots) {
+      const root = r.replace(/\\/g, "/").replace(/\/+$/, "");
+      if (p.toLowerCase().startsWith(`${root.toLowerCase()}/`)) return p.slice(root.length + 1);
+    }
+    return p.split("/").slice(-3).join("/");
+  };
+  if (!changes?.count && !list.length) {
+    return <div className="flex h-full items-center justify-center p-8 text-center text-sm text-white/50">No file changes yet. Every file this agent writes or edits shows up here with what changed.</div>;
+  }
+  const picked = list.find((c) => c.id === sel) ?? list[0] ?? null;
+  const OP: Record<Change["op"], string> = { created: "Created", edited: "Edited", written: "Rewrote", updated: "Updated" };
+  return (
+    <div className="flex h-full min-h-0">
+      <ol className="w-72 shrink-0 overflow-y-auto border-r border-white/10 py-1 text-xs">
+        {list.map((c) => (
+          <li key={c.id}>
+            <button className={cn("flex w-full flex-col gap-0.5 px-3 py-1.5 text-left", c.id === picked?.id ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5")} onClick={() => setSel(c.id)} type="button">
+              <span className="flex items-center gap-2">
+                <span className="truncate font-mono">{rel(c.path).split("/").pop()}</span>
+                <span className="ml-auto shrink-0 font-mono text-[11px]">
+                  {c.added ? <span className="text-[#3ba55d]">+{c.added}</span> : null} {c.removed ? <span className="text-[#ed4245]">−{c.removed}</span> : null}
+                </span>
+              </span>
+              <span className="flex gap-2 text-[10.5px] text-white/40">
+                <span>{OP[c.op]}</span>
+                <span className="truncate">{rel(c.path)}</span>
+                <span className="ml-auto shrink-0">{new Date(c.ts).toLocaleTimeString()}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      <div className="min-w-0 flex-1 overflow-auto bg-[#0d1117] font-mono text-[12px] leading-[1.55]">
+        {picked ? (
+          <>
+            <div className="sticky top-0 border-b border-white/10 bg-[#161b22] px-3 py-1.5 text-[11px] text-white/60">
+              {OP[picked.op]} {rel(picked.path)} · {new Date(picked.ts).toLocaleString()}
+            </div>
+            {picked.hunks.length ? (
+              picked.hunks.map((h, i) => <Hunk first={h.line ?? 1} key={i} newText={h.new} oldText={h.old} whole={picked.op !== "edited"} />)
+            ) : (
+              <p className="p-4 font-sans text-sm text-white/50">{picked.truncated ? "This file is too large (or not text) to show its contents." : "A script wrote this file, so there is no before and after to compare. Open Live view to see it."}</p>
+            )}
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function Hunk({ oldText, newText, first, whole }: { oldText: string; newText: string; first: number; whole: boolean }) {
+  const rows = React.useMemo(() => foldDiff(lineDiff(oldText, newText), 3), [oldText, newText]);
+  return (
+    <div className="border-b border-white/10 py-1">
+      {rows.slice(0, 1500).map((l, i) =>
+        l === null ? (
+          <div className="bg-[#161b22] px-3 py-0.5 text-[11px] text-white/40" key={i}>⋯</div>
+        ) : (
+          <div className={cn("flex whitespace-pre", l.kind === "add" && "bg-[#2ea043]/15", l.kind === "remove" && "bg-[#f85149]/15")} key={i}>
+            <span className="w-12 shrink-0 select-none pr-2 text-right text-white/25">{(whole ? 0 : first - 1) + l.n}</span>
+            <span className={cn("w-4 shrink-0 select-none", l.kind === "add" ? "text-[#3fb950]" : l.kind === "remove" ? "text-[#f85149]" : "text-transparent")}>{l.kind === "add" ? "+" : l.kind === "remove" ? "−" : " "}</span>
+            <span className={cn("pr-4", l.kind === "add" ? "text-[#aff5b4]" : l.kind === "remove" ? "text-[#ffdcd7]" : "text-white/80")}>{l.text || " "}</span>
+          </div>
+        ),
+      )}
     </div>
   );
 }

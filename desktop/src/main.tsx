@@ -1,4 +1,5 @@
 import React from "react";
+import { DataHomeWarning } from "@/app/DataHomeWarning";
 import ReactDOM from "react-dom/client";
 import { App } from "@/app/App";
 import { RootErrorBoundary } from "@/app/RootErrorBoundary";
@@ -102,6 +103,7 @@ function renderApp() {
                     <App />
                     <NostrBindConsentDialog />
                     <Toaster />
+                    <DataHomeWarning />
                   </PoofBurstProvider>
                 </EmojiBurstProvider>
               </TooltipProvider>

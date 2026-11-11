@@ -30,6 +30,7 @@ import { HiveManager, type AgentMeta, type HiveMessage, type HiveTask } from './
 import { HookServer } from './hooks';
 import { CircuitBreaker, type BreakerInput } from './breaker';
 import { liveKindOf, PresenceTracker, type PresenceFile } from '../shared/presence';
+import { ChangeTracker } from './changes';
 import { CumulativeSampleGate, type UsageProvider } from './usage';
 import { MemoryManager } from './memory';
 import { KnowledgeManager } from './knowledge';
@@ -315,12 +316,20 @@ const hookServer = new HookServer(
 );
 // ─── Presence: what each agent is doing, and the newest thing it made ───────
 const presence = new PresenceTracker();
+/** What each agent changed, file by file (the app's change viewer). */
+const changeLog = new ChangeTracker(() => hive.root());
+/** Presence as the app gets it: with each agent's change summary. */
+function presenceOut(): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [id, p] of Object.entries(presence.all())) out[id] = { ...p, changes: changeLog.summaryOf(id) };
+  return out;
+}
 let presenceTimer: NodeJS.Timeout | null = null;
 function broadcastPresence(): void {
   if (presenceTimer) return;
   presenceTimer = setTimeout(() => {
     presenceTimer = null;
-    try { liveWebContents()?.send('hive:presence', presence.all()); } catch { /* no window */ }
+    try { liveWebContents()?.send('hive:presence', presenceOut()); } catch { /* no window */ }
   }, 400);
 }
 /** A script may have written a .glb / .png / .html: look in the folders the
@@ -352,6 +361,8 @@ async function scanOutputs(agentId: string): Promise<void> {
   if (best) presence.produced(agentId, best);
 }
 hookServer.onToolUse = (agentId, event, tool, input) => {
+  // Record file edits (before/after) for the change viewer.
+  void changeLog.handle(agentId, event, tool, input).then((recorded) => { if (recorded) broadcastPresence(); }).catch(() => undefined);
   if (event === 'PreToolUse') presence.tool(agentId, tool, input);
   else if (event === 'Stop') presence.idle(agentId);
   else if (event === 'PostToolUse' && /^(bash|powershell)$/i.test(tool)) {
@@ -360,7 +371,7 @@ hookServer.onToolUse = (agentId, event, tool, input) => {
   }
   broadcastPresence();
 };
-ipcMain.handle('hive:presence', () => presence.all());
+ipcMain.handle('hive:presence', () => presenceOut());
 
 const memory = new MemoryManager(
   () => readConfig().harnessHome,

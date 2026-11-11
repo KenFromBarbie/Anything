@@ -62,6 +62,7 @@ mod templates;
 mod terminal_runtime;
 mod title_bar;
 mod server_planner;
+mod data_home;
 mod local_state_backup;
 mod hosting_kit;
 mod hosting_media;
@@ -252,6 +253,7 @@ pub fn run() {
         .manage(terminal_runtime::TerminalSessions::default())
         .manage(archive::sync::ArchiveSyncState::default())
         .manage(office::OfficeState::default())
+        .manage(data_home::DataHomeState::default())
         .manage(local_servers::LocalServers::default())
         .manage(hosting_kit::HostingServices::default())
         .manage(native_relay_client::NativeRelayClient::default())
@@ -266,6 +268,8 @@ pub fn run() {
             // Usage caps and freezes for the AI accounts (Settings → AI accounts).
             ai_accounts::guard::start(app_handle.clone());
             // Servers on this computer start with the app.
+            // Before anything is started or created: is this the usual data folder?
+            data_home::check(&app_handle);
             local_servers::start_all(&app_handle);
             // Windows: the app draws its own title bar (WindowControls).
             #[cfg(target_os = "windows")]
@@ -571,6 +575,8 @@ pub fn run() {
             server_planner::server_plan,
             local_state_backup::local_state_backup_save,
             local_state_backup::local_state_backup_load,
+            data_home::data_home_status,
+            data_home::data_home_accept,
             server_planner::server_pick_files,
             server_planner::server_attach_files,
             notion::notion_status,

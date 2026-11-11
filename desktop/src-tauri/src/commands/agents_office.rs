@@ -262,6 +262,9 @@ pub(crate) async fn ensure_office_agent(
         });
     }
 
+    // No CEO record here. If this start is looking at the wrong data folder
+    // (see data_home), that is why: don't mint a second CEO over it.
+    crate::data_home::refuse_minting(app)?;
     let keys = match import_secret_hex {
         Some(hex) => Keys::parse(&hex).map_err(|e| format!("office agent key invalid: {e}"))?,
         None => Keys::generate(),
@@ -406,6 +409,7 @@ pub(crate) async fn ensure_office_workers(
                     (keys, auth_tag, record.name.clone())
                 }
                 None => {
+                    crate::data_home::refuse_minting(app)?;
                     let keys = Keys::generate();
                     let private_key_nsec = keys
                         .secret_key()

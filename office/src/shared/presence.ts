@@ -59,6 +59,8 @@ export interface Presence {
   latest: PresenceFile | null;
   /** Folders it has been writing in (newest first). */
   dirs: string[];
+  /** What it changed so far: the change log file and totals (added by main). */
+  changes?: { file: string; count: number; added: number; removed: number; files: number; lastAt: number } | null;
 }
 
 /** A strong activity replaces the current one; a weak one (reading,

@@ -171,6 +171,8 @@ export type AgentPresence = {
   steps: { ts: number; text: string }[];
   latest: { path: string; kind: "model" | "image" | "video" | "site" | "pdf" | "editor" | "text"; mtime: number } | null;
   dirs: string[];
+  /** What it changed so far: its change log file (JSON lines) and totals. */
+  changes?: { file: string; count: number; added: number; removed: number; files: number; lastAt: number } | null;
 };
 
 /** An agent from the last session, waiting to be restored. */
