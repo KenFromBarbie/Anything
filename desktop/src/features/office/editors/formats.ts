@@ -4,9 +4,10 @@
 
 import { blankImage, IMAGE_SPEC, type ImageFile, parseImage } from "./imageFormat";
 import { blankModel, MODEL_SPEC, type ModelFile, parseModel } from "./modelFormat";
+import { blankSite, parseSite, SITE_SPEC, type SiteFile } from "./siteFormat";
 import { blankVideo, parseVideo, VIDEO_SPEC, type VideoFile } from "./videoFormat";
 
-export type EditorKind = "doc" | "slides" | "sheet" | "image" | "video" | "model";
+export type EditorKind = "doc" | "slides" | "sheet" | "image" | "video" | "model" | "site";
 
 export type DocFile = {
   type: "doc";
@@ -46,7 +47,7 @@ export type SheetFile = {
   charts: SheetChart[];
 };
 
-export type EditorFile = DocFile | SlidesFile | SheetFile | ImageFile | VideoFile | ModelFile;
+export type EditorFile = DocFile | SlidesFile | SheetFile | ImageFile | VideoFile | ModelFile | SiteFile;
 
 export const EXT: Record<EditorKind, string> = {
   doc: ".doc.json",
@@ -55,6 +56,7 @@ export const EXT: Record<EditorKind, string> = {
   image: ".image.json",
   video: ".video.json",
   model: ".model.json",
+  site: ".site.json",
 };
 
 export const APP: Record<EditorKind, { name: string; color: string; noun: string }> = {
@@ -64,6 +66,7 @@ export const APP: Record<EditorKind, { name: string; color: string; noun: string
   image: { name: "Image", color: "#2F7FE8", noun: "image" },
   video: { name: "Video", color: "#9B5DE5", noun: "video" },
   model: { name: "3D", color: "#E8873A", noun: "3D scene" },
+  site: { name: "Site", color: "#14A39A", noun: "website" },
 };
 
 /** Which editor a saved file belongs to, from its name. */
@@ -76,6 +79,7 @@ export function editorKindOf(path: string | undefined | null): EditorKind | null
   if (p.endsWith(EXT.image)) return "image";
   if (p.endsWith(EXT.video)) return "video";
   if (p.endsWith(EXT.model)) return "model";
+  if (p.endsWith(EXT.site)) return "site";
   return null;
 }
 
@@ -83,6 +87,7 @@ export function blankFile(kind: EditorKind): EditorFile {
   if (kind === "image") return blankImage();
   if (kind === "video") return blankVideo();
   if (kind === "model") return blankModel();
+  if (kind === "site") return blankSite();
   if (kind === "doc") return { type: "doc", version: 1, html: "<p></p>" };
   if (kind === "slides") {
     return {
@@ -100,6 +105,7 @@ export function parseFile(kind: EditorKind, value: unknown): EditorFile {
   if (kind === "image") return parseImage(value);
   if (kind === "video") return parseVideo(value);
   if (kind === "model") return parseModel(value);
+  if (kind === "site") return parseSite(value);
   const v = (value ?? {}) as Record<string, unknown>;
   if (kind === "doc") {
     return { type: "doc", version: 1, html: typeof v.html === "string" ? v.html : "<p></p>" };
@@ -525,6 +531,7 @@ export const FORMAT_SPEC: Record<EditorKind, string> = {
   image: IMAGE_SPEC,
   video: VIDEO_SPEC,
   model: MODEL_SPEC,
+  site: SITE_SPEC,
   doc: 'JSON: {"type":"doc","version":1,"html":"<h1>…</h1><p>…</p>"}. The html uses h1–h3, p, ul/ol/li, blockquote, strong, em, u, s, a, img (https or data: URLs), hr, and inline styles for colour, background-color, font-size, font-family and text-align.',
   slides:
     'JSON: {"type":"slides","version":1,"theme":"office|dark|ocean|sunset|forest","slides":[{"layout":"title|content|section|two|blank","title":"…","body":"one point per line","right":"second column (two only)","notes":"speaker notes"}]}. Keep each slide to a title and 3–6 short points.',

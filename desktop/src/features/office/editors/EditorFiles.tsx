@@ -30,6 +30,8 @@ import {
   usedBounds,
 } from "./formats";
 import { SheetEditor } from "./SheetEditor";
+import { SiteEditor } from "./SiteEditor";
+import { pageHtml, type SiteFile } from "./siteFormat";
 import { SLIDE_W, SlideView, useFitScale } from "./SlideView";
 import { SlidesEditor } from "./SlidesEditor";
 import { WordEditor } from "./WordEditor";
@@ -45,6 +47,7 @@ export function EditorHost() {
   if (open.kind === "image") return <ImageEditor file={open.file as ImageFile} key={key} {...props} />;
   if (open.kind === "video") return <VideoEditor file={open.file as VideoFile} key={key} {...props} />;
   if (open.kind === "model") return <ModelEditor file={open.file as ModelFile} key={key} {...props} />;
+  if (open.kind === "site") return <SiteEditor file={open.file as SiteFile} key={key} {...props} />;
   return <SheetEditor file={open.file as SheetFile} key={key} {...props} />;
 }
 
@@ -94,6 +97,8 @@ export function EditorFileView({ item, thumb = false }: { item: Item; thumb?: bo
       <VideoPreview project={file} thumb={thumb} />
     ) : file.type === "model" ? (
       <ModelPreview scene={file} thumb={thumb} />
+    ) : file.type === "site" ? (
+      <SitePreview site={file} thumb={thumb} />
     ) : (
       <SheetPreview sheet={file} thumb={thumb} />
     );
@@ -153,6 +158,58 @@ function ImagePreview({ image, thumb }: { image: ImageFile; thumb: boolean }) {
         className="max-h-[75vh] max-w-full shadow-[0_2px_8px_rgba(0,0,0,0.25)] [background:repeating-conic-gradient(#ddd_0_25%,#fff_0_50%)_0_0/16px_16px]"
         src={src}
       />
+    </div>
+  );
+}
+
+/** A saved site: its home page (a small, inert picture on a card; the
+ *  real page, with links between pages working, in the viewer). */
+function SitePreview({ site, thumb }: { site: SiteFile; thumb: boolean }) {
+  const [pageId, setPageId] = React.useState(site.pages[0].id);
+  const page = site.pages.find((p) => p.id === pageId) ?? site.pages[0];
+  const frame = React.useRef<HTMLIFrameElement>(null);
+  React.useEffect(() => {
+    if (thumb) return;
+    const on = (e: MessageEvent) => {
+      if (e.source !== frame.current?.contentWindow) return;
+      const m = e.data as { __site?: number; slug?: string } | null;
+      const p = m?.__site === 1 ? site.pages.find((x) => x.slug === m.slug) : null;
+      if (p) setPageId(p.id);
+    };
+    window.addEventListener("message", on);
+    return () => window.removeEventListener("message", on);
+  }, [site, thumb]);
+  const nav = `<script>document.addEventListener("click",function(e){var a=e.target.closest&&e.target.closest("a[href]");if(!a)return;var h=a.getAttribute("href");if(/^[a-z0-9-]+\\.html$/i.test(h)){e.preventDefault();parent.postMessage({__site:1,slug:h.replace(/\\.html$/i,"")},"*")}});document.addEventListener("submit",function(e){e.preventDefault()});</script>`;
+  const html = pageHtml(site, page).replace("</body>", `${thumb ? "" : nav}</body>`);
+  if (thumb) {
+    return (
+      <iframe
+        className="pointer-events-none absolute left-0 top-0 h-[400%] w-[400%] origin-top-left border-0 bg-white"
+        sandbox=""
+        srcDoc={html}
+        style={{ transform: "scale(0.25)" }}
+        tabIndex={-1}
+        title="Site"
+      />
+    );
+  }
+  return (
+    <div className="flex h-full min-h-[70vh] flex-col">
+      {site.pages.length > 1 ? (
+        <div className="flex gap-1 px-4 pt-3">
+          {site.pages.map((p) => (
+            <button
+              className={p.id === page.id ? "rounded bg-[#14A39A] px-2.5 py-1 text-xs text-white" : "rounded px-2.5 py-1 text-xs text-muted-foreground hover:bg-black/5 dark:hover:bg-white/10"}
+              key={p.id}
+              onClick={() => setPageId(p.id)}
+              type="button"
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <iframe className="m-4 min-h-0 flex-1 rounded border-0 bg-white shadow" ref={frame} sandbox="allow-scripts" srcDoc={html} title={page.name} />
     </div>
   );
 }

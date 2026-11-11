@@ -84,6 +84,7 @@ const EDITOR_FOR: Partial<Record<MakeKind, EditorKind>> = {
   image: "image",
   video: "video",
   model: "model",
+  site: "site",
 };
 import { AddCodebaseDialog } from "./Codebases";
 
