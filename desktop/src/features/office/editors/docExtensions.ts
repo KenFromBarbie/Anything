@@ -1,4 +1,5 @@
 import { Extension, Mark, mergeAttributes, Node } from "@tiptap/core";
+import { TableKit } from "@tiptap/extension-table";
 import StarterKit from "@tiptap/starter-kit";
 
 // ─── the few formatting extensions StarterKit doesn't have ─────────────────
@@ -66,5 +67,11 @@ const Image = Node.create({
  *  Parsing through this schema is also what keeps an agent's HTML safe:
  *  anything it doesn't know (scripts, event handlers) is dropped. */
 export function docExtensions() {
-  return [StarterKit.configure({ link: { openOnClick: false } }), TextAlign, TextStyle, Image];
+  return [
+    StarterKit.configure({ link: { openOnClick: false } }),
+    TextAlign,
+    TextStyle,
+    Image,
+    TableKit.configure({ table: { resizable: true } }),
+  ];
 }

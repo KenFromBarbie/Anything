@@ -20,6 +20,7 @@ import {
   Quote,
   Redo2,
   Strikethrough,
+  Table as TableIcon,
   Underline,
   Undo2,
 } from "lucide-react";
@@ -111,6 +112,7 @@ export function WordEditor({
         size: (style.fontSize as string | null)?.replace("pt", "") ?? "11",
         words: text.trim() ? text.trim().split(/\s+/).length : 0,
         chars: text.length,
+        table: e.isActive("table"),
         canUndo: e.can().undo(),
         canRedo: e.can().redo(),
       };
@@ -247,6 +249,14 @@ export function WordEditor({
       <RibbonGroup label="Illustrations">
         <RibbonButton big icon={ImagePlus} label="Picture" onClick={() => imageInput.current?.click()} />
       </RibbonGroup>
+      <RibbonGroup label="Tables">
+        <RibbonButton
+          big
+          icon={TableIcon}
+          label="Table"
+          onClick={() => c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+        />
+      </RibbonGroup>
       <RibbonGroup label="Links">
         <RibbonButton active={st.link} big icon={Link2} label="Link" onClick={link} />
       </RibbonGroup>
@@ -259,6 +269,36 @@ export function WordEditor({
           label="Date"
           onClick={() => c().insertContent(new Date().toLocaleDateString(undefined, { dateStyle: "long" })).run()}
         />
+      </RibbonGroup>
+    </>
+  );
+
+  const tableTools = (
+    <>
+      <RibbonGroup label="Rows & Columns">
+        {[
+          ["Insert Above", () => c().addRowBefore().run()],
+          ["Insert Below", () => c().addRowAfter().run()],
+          ["Insert Left", () => c().addColumnBefore().run()],
+          ["Insert Right", () => c().addColumnAfter().run()],
+        ].map(([label, run]) => (
+          <button className="h-[3.4rem] rounded px-2 text-[11px] hover:bg-black/5 dark:hover:bg-white/10" key={label as string} onClick={run as () => void} onMouseDown={(e) => e.preventDefault()} type="button">
+            {label as string}
+          </button>
+        ))}
+      </RibbonGroup>
+      <RibbonGroup label="Delete & Merge">
+        {[
+          ["Delete Row", () => c().deleteRow().run()],
+          ["Delete Column", () => c().deleteColumn().run()],
+          ["Merge / Split", () => c().mergeOrSplit().run()],
+          ["Header Row", () => c().toggleHeaderRow().run()],
+          ["Delete Table", () => c().deleteTable().run()],
+        ].map(([label, run]) => (
+          <button className="h-[3.4rem] rounded px-2 text-[11px] hover:bg-black/5 dark:hover:bg-white/10" key={label as string} onClick={run as () => void} onMouseDown={(e) => e.preventDefault()} type="button">
+            {label as string}
+          </button>
+        ))}
       </RibbonGroup>
     </>
   );
@@ -313,6 +353,8 @@ export function WordEditor({
       tabs={[
         { id: "home", label: "Home", content: home },
         { id: "insert", label: "Insert", content: insert },
+        // Word's contextual tab: only while the cursor is in a table.
+        ...(st.table ? [{ id: "table", label: "Table Layout", content: tableTools }] : []),
         { id: "view", label: "View", content: view },
       ]}
       title={title}

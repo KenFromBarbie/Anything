@@ -17,6 +17,7 @@ import { cn } from "@/shared/lib/cn";
 import { closeEditor, exportFile, saveToCreate } from "./editorStore";
 import { type Slide, type SlideLayout, type SlidesFile, type SlidesTheme, slidesToHtml, THEMES } from "./formats";
 import { OfficeShell, RibbonButton, RibbonGroup } from "./OfficeShell";
+import { slidesToPptx } from "./pptx";
 import { editorRequest } from "./requests";
 import { SLIDE_H, SLIDE_W, SlideView, useFitScale } from "./SlideView";
 
@@ -180,6 +181,13 @@ export function SlidesEditor({
       dirty={dirty}
       isNew={!saved}
       exports={[
+        {
+          label: "Export as PowerPoint (.pptx)",
+          run: () =>
+            void slidesToPptx(title, deck)
+              .then((data) => exportFile(`${title || "Untitled"}.pptx`, data, "pptx", "PowerPoint presentation", true))
+              .catch((e) => toast.error(String(e))),
+        },
         {
           label: "Export as a presentation (.html)",
           run: () => void exportFile(`${title || "Untitled"}.html`, slidesToHtml(title, deck), "html", "Presentation").catch((e) => toast.error(String(e))),

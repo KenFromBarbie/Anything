@@ -422,13 +422,17 @@ pub async fn office_artifact_save_file(
     let ok_name = file_name
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || "-_. ".contains(c))
-        && [".doc.json", ".slides.json", ".sheet.json"].iter().any(|e| file_name.ends_with(e))
+        && [
+            ".doc.json", ".slides.json", ".sheet.json", ".image.json", ".video.json", ".model.json", ".site.json",
+        ]
+        .iter()
+        .any(|e| file_name.ends_with(e))
         && !file_name.contains("..");
     if !ok_name {
         return Err("that isn't an editor file name".into());
     }
-    if text.len() > 20 * 1024 * 1024 {
-        return Err("it's too big to save (20 MB at most)".into());
+    if text.len() > 80 * 1024 * 1024 {
+        return Err("it's too big to save (80 MB at most)".into());
     }
     serde_json::from_str::<Value>(&text).map_err(|e| format!("not valid JSON: {e}"))?;
     let dir = artifacts_dir(&app).ok_or("the Office is not set up")?;
@@ -463,18 +467,35 @@ pub async fn office_artifact_save_file(
         .unwrap_or(entry))
 }
 
-/// Write an editor's export (.doc, .html, .csv, .md, .txt) where the owner
-/// chose in the save dialog.
+/// Write an editor's export where the owner chose in the save dialog: text
+/// (.doc, .html, .csv, .md, .txt, .svg) or, with `base64`, a binary file
+/// (.pptx, .png, .jpg, .webp, .webm, .mp4, .glb, .stl, .zip).
 #[tauri::command]
-pub async fn office_export_file(path: String, text: String) -> Result<(), String> {
+pub async fn office_export_file(path: String, text: String, base64: Option<bool>) -> Result<(), String> {
+    use base64::Engine as _;
     let path = PathBuf::from(path);
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase())
         .unwrap_or_default();
-    if !["doc", "html", "htm", "csv", "md", "txt"].contains(&ext.as_str()) || !path.is_absolute() {
-        return Err("export to a .doc, .html, .csv, .md or .txt file".into());
+    const TEXT: &[&str] = &["doc", "html", "htm", "csv", "md", "txt", "svg"];
+    const BINARY: &[&str] = &["pptx", "png", "jpg", "jpeg", "webp", "webm", "mp4", "glb", "stl", "zip"];
+    if !path.is_absolute() {
+        return Err("choose where to save it".into());
+    }
+    if base64.unwrap_or(false) {
+        if !BINARY.contains(&ext.as_str()) {
+            return Err(format!("can't export a .{ext} file"));
+        }
+        let data = text.split_once(";base64,").map(|(_, d)| d).unwrap_or(&text);
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(data.trim())
+            .map_err(|e| format!("not valid data: {e}"))?;
+        return std::fs::write(&path, bytes).map_err(|e| format!("couldn't save it: {e}"));
+    }
+    if !TEXT.contains(&ext.as_str()) {
+        return Err(format!("can't export a .{ext} file"));
     }
     std::fs::write(&path, text.as_bytes()).map_err(|e| format!("couldn't save it: {e}"))
 }

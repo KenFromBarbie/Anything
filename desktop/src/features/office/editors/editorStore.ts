@@ -59,10 +59,17 @@ export async function saveToCreate(
 }
 
 /** Save a file where the owner picks (an export). */
-export async function exportFile(defaultName: string, text: string, ext: string, label: string) {
+export async function exportFile(
+  defaultName: string,
+  text: string,
+  ext: string,
+  label: string,
+  /** `text` is base64 (or a data: URL) of a binary file. */
+  binary = false,
+) {
   const { save } = await import("@tauri-apps/plugin-dialog");
   const path = await save({ defaultPath: defaultName, filters: [{ name: label, extensions: [ext] }] });
   if (typeof path !== "string") return false;
-  await invoke("office_export_file", { path, text });
+  await invoke("office_export_file", { path, text, base64: binary });
   return true;
 }
