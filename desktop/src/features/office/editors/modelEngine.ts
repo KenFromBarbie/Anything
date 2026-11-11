@@ -12,6 +12,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 
+import { curveSamples, surfaceGeometry } from "./cad";
 import { hullGeometry, trianglesOfObject, type Tris } from "./marine";
 import { mediaUrl } from "./videoEngine";
 import {
@@ -27,6 +28,9 @@ import {
 const D2R = Math.PI / 180;
 
 export type GizmoMode = "translate" | "rotate" | "scale";
+export type View = "perspective" | "top" | "front" | "right";
+/** The construction plane each view draws on (its normal axis). */
+export const VIEW_PLANE: Record<View, "x" | "y" | "z"> = { perspective: "y", top: "y", front: "z", right: "x" };
 export type Shading = "solid" | "material" | "wireframe";
 
 type Loaded = { root: THREE.Object3D; clips: THREE.AnimationClip[] };
@@ -90,7 +94,14 @@ function materialOf(o: SceneObject, shading: Shading): THREE.Material {
 export class ModelScene {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
-  readonly camera: THREE.PerspectiveCamera;
+  readonly camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
+  readonly viewKind: View;
+  /** Grid snap step for picked points (0 = off). */
+  snap = 0.1;
+  /** A command wants points: clicks give points instead of picking. */
+  onPoint: ((p: Vec3) => void) | null = null;
+  onHoverPoint: ((p: Vec3 | null) => void) | null = null;
+  private preview: THREE.Line | null = null;
   readonly orbit: OrbitControls;
   readonly gizmo: TransformControls;
   private file: ModelFile;
@@ -113,9 +124,10 @@ export class ModelScene {
   onTransform: (id: string, pose: { position: Vec3; rotation: Vec3; scale: Vec3 }, done: boolean) => void = () => {};
   onPick: (id: string | null) => void = () => {};
 
-  constructor(host: HTMLElement, file: ModelFile) {
+  constructor(host: HTMLElement, file: ModelFile, view: View = "perspective") {
     this.host = host;
     this.file = file;
+    this.viewKind = view;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
     this.renderer.shadowMap.enabled = true;
@@ -127,12 +139,28 @@ export class ModelScene {
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-    this.camera = new THREE.PerspectiveCamera(40, 1, 0.01, 2000);
-    this.camera.position.set(6, 4.5, 7);
+    if (view === "perspective") {
+      this.camera = new THREE.PerspectiveCamera(40, 1, 0.01, 2000);
+      this.camera.position.set(6, 4.5, 7);
+    } else {
+      this.camera = new THREE.OrthographicCamera(-5, 5, 5, -5, -1000, 1000);
+      if (view === "top") {
+        this.camera.position.set(0, 100, 0);
+        this.camera.up.set(0, 0, -1);
+      } else if (view === "front") this.camera.position.set(0, 0, 100);
+      else this.camera.position.set(100, 0, 0);
+      this.camera.zoom = 0.6;
+    }
     this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
-    this.orbit.target.set(0, 0.5, 0);
+    this.orbit.target.set(0, view === "perspective" ? 0.5 : 0, 0);
     this.orbit.enableDamping = true;
-    this.orbit.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
+    if (view === "perspective") {
+      this.orbit.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN };
+    } else {
+      // Rhino's flat views: drag pans, wheel zooms, no orbit.
+      this.orbit.enableRotate = false;
+      this.orbit.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN };
+    }
 
     this.hemi = new THREE.HemisphereLight("#ffffff", "#444444", 0.6);
     this.scene.add(this.hemi);
@@ -181,7 +209,15 @@ export class ModelScene {
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
       down = null;
       if (moved > 4 || this.gizmo.dragging) return;
+      if (this.onPoint) {
+        const p = this.pointAt(e.clientX, e.clientY);
+        if (p) this.onPoint(p);
+        return;
+      }
       this.onPick(this.pick(e.clientX, e.clientY));
+    });
+    this.renderer.domElement.addEventListener("pointermove", (e) => {
+      if (this.onHoverPoint) this.onHoverPoint(this.pointAt(e.clientX, e.clientY));
     });
 
     this.ro = new ResizeObserver(() => this.resize());
@@ -201,8 +237,44 @@ export class ModelScene {
     const w = Math.max(1, this.host.clientWidth);
     const h = Math.max(1, this.host.clientHeight);
     this.renderer.setSize(w, h);
-    this.camera.aspect = w / h;
+    if (this.camera instanceof THREE.PerspectiveCamera) this.camera.aspect = w / h;
+    else {
+      const half = 5;
+      this.camera.left = (-half * w) / h;
+      this.camera.right = (half * w) / h;
+      this.camera.top = half;
+      this.camera.bottom = -half;
+    }
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Where the pointer meets this view's construction plane (snapped). */
+  pointAt(clientX: number, clientY: number): Vec3 | null {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), this.camera);
+    const axis = VIEW_PLANE[this.viewKind];
+    const n = axis === "y" ? new THREE.Vector3(0, 1, 0) : axis === "z" ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+    const hit = ray.ray.intersectPlane(new THREE.Plane(n, 0), new THREE.Vector3());
+    if (!hit) return null;
+    const s = this.snap;
+    const q = (v: number) => (s > 0 ? Math.round(v / s) * s : v);
+    return [q(hit.x), q(hit.y), q(hit.z)].map((v) => Math.round(v * 1e6) / 1e6) as Vec3;
+  }
+
+  /** A rubber-band line while drawing. */
+  setPreview(points: Vec3[] | null) {
+    if (this.preview) {
+      this.scene.remove(this.preview);
+      this.preview.geometry.dispose();
+      this.preview = null;
+    }
+    if (!points || points.length < 2) return;
+    const g = new THREE.BufferGeometry().setFromPoints(points.map((p) => new THREE.Vector3(...p)));
+    this.preview = new THREE.Line(g, new THREE.LineDashedMaterial({ color: "#ffd75e", dashSize: 0.08, gapSize: 0.05, depthTest: false }));
+    this.preview.computeLineDistances();
+    this.preview.renderOrder = 5;
+    this.scene.add(this.preview);
   }
 
   private emitTransform(done: boolean) {
@@ -225,6 +297,7 @@ export class ModelScene {
     const r = this.renderer.domElement.getBoundingClientRect();
     const ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), this.camera);
+    ray.params.Line = { threshold: this.camera instanceof THREE.OrthographicCamera ? 0.08 / this.camera.zoom : 0.06 };
     const roots = [...this.nodes.values()].filter((n) => n.visible);
     const hit = ray.intersectObjects(roots, true)[0];
     if (!hit) return null;
@@ -259,7 +332,9 @@ export class ModelScene {
       }
     }
     for (const o of file.objects) {
-      const sig = JSON.stringify([o.kind, o.params, o.material, o.src, o.array, o.hull, this.shading]);
+      // A surface rebuilds when the curves it was made from change (history).
+      const refs = o.surface ? o.surface.curves.map((id) => file.objects.find((x) => x.id === id)).map((c) => (c ? [c.curve, c.position, c.rotation, c.scale] : null)) : null;
+      const sig = JSON.stringify([o.kind, o.params, o.material, o.src, o.array, o.hull, o.curve, o.surface, refs, this.shading]);
       if (this.sigs.get(o.id) !== sig) {
         this.nodes.get(o.id)?.parent?.remove(this.nodes.get(o.id) as THREE.Object3D);
         const node = this.build(o);
@@ -285,6 +360,20 @@ export class ModelScene {
     const one = (): THREE.Object3D | null => {
       if (o.kind === "empty") return null;
       if (o.kind === "import") return null;
+      if (o.kind === "curve" && o.curve) {
+        const g = new THREE.BufferGeometry().setFromPoints(curveSamples(o.curve));
+        return new THREE.Line(g, new THREE.LineBasicMaterial({ color: o.material?.color && o.material.color !== DEFAULT_MATERIAL.color ? o.material.color : "#f0f0f0" }));
+      }
+      if (o.kind === "surface" && o.surface) {
+        const sg = surfaceGeometry(o.surface, this.file);
+        if (!sg) return null;
+        const mat = materialOf(o, this.shading) as THREE.MeshStandardMaterial;
+        mat.side = THREE.DoubleSide;
+        const mesh = new THREE.Mesh(sg, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        return mesh;
+      }
       const g = geometryOf(o);
       if (!g) return null;
       const mesh = new THREE.Mesh(g, materialOf(o, this.shading));
@@ -402,6 +491,15 @@ export class ModelScene {
     const c = box.getCenter(new THREE.Vector3());
     const r = Math.max(0.2, box.getSize(new THREE.Vector3()).length() / 2);
     const dir = this.camera.position.clone().sub(this.orbit.target).normalize();
+    if (this.camera instanceof THREE.OrthographicCamera) {
+      // keep the flat view's direction; fit by zoom
+      const shift = c.clone().sub(this.orbit.target);
+      this.orbit.target.copy(c);
+      this.camera.position.add(shift);
+      this.camera.zoom = Math.max(0.01, 5 / (r * 1.15));
+      this.camera.updateProjectionMatrix();
+      return;
+    }
     const dist = r / Math.sin((this.camera.fov * D2R) / 2);
     this.orbit.target.copy(c);
     this.camera.position.copy(c.clone().add(dir.multiplyScalar(dist * 1.1)));

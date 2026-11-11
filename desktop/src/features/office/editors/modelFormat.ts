@@ -1,10 +1,12 @@
+import type { CurveDef, SurfaceDef } from "./cad";
+
 // The 3D editor's scene file (.model.json): objects (primitives and imported
 // models) with transforms, materials, keyframes and physics, like a small
 // Blender scene. Imported models stay files; the scene points at them.
 
 export const PRIMITIVES = ["box", "sphere", "cylinder", "cone", "torus", "plane", "capsule", "icosphere"] as const;
 export type Primitive = (typeof PRIMITIVES)[number];
-export type ObjectKind = Primitive | "import" | "empty" | "hull";
+export type ObjectKind = Primitive | "import" | "empty" | "hull" | "curve" | "surface";
 
 /** A parametric hull (the Marine workspace). */
 export type HullShape = {
@@ -71,6 +73,9 @@ export type SceneObject = {
   keys?: ObjKey[];
   /** kind "hull": its shape. */
   hull?: HullShape;
+  /** kind "curve" / "surface" (Rhino-style modeling, with history). */
+  curve?: CurveDef;
+  surface?: SurfaceDef;
   /** Its mass (kg) for weights & hydrostatics, and its centre of gravity
    *  (defaults to the middle of the object). */
   mass?: number;
@@ -159,7 +164,7 @@ export function parseModel(value: unknown): ModelFile {
   const base = blankModel();
   const w = (v.world ?? {}) as Record<string, unknown>;
   const objects: SceneObject[] = [];
-  const kinds = [...PRIMITIVES, "import", "empty", "hull"] as string[];
+  const kinds = [...PRIMITIVES, "import", "empty", "hull", "curve", "surface"] as string[];
   for (const raw of Array.isArray(v.objects) ? v.objects : []) {
     const o = (raw ?? {}) as Record<string, unknown>;
     const kind = (kinds.includes(String(o.kind)) ? o.kind : "box") as ObjectKind;
@@ -193,6 +198,8 @@ export function parseModel(value: unknown): ModelFile {
       },
       ...(kind === "import" ? { src: String(o.src) } : {}),
       ...(kind === "hull" ? { hull: parseHull(o.hull) } : {}),
+      ...(kind === "curve" ? { curve: parseCurve(o.curve) } : {}),
+      ...(kind === "surface" ? { surface: parseSurface(o.surface) } : {}),
       ...(o.mass != null && num(o.mass, 0, 0, 1e9) > 0 ? { mass: num(o.mass, 0, 0, 1e9) } : {}),
       ...(o.cg != null ? { cg: vec(o.cg, [0, 0, 0]) } : {}),
       ...(arr ? { array: { count: Math.round(num(arr.count, 1, 1, 200)), offset: vec(arr.offset, [1.2, 0, 0]) } } : {}),
@@ -254,6 +261,33 @@ export const DEFAULT_HULL_SHAPE: HullShape = {
   bilge: 2.5,
 };
 
+function parseCurve(v: unknown): CurveDef {
+  const c = (v ?? {}) as Record<string, unknown>;
+  const type = (["polyline", "interp", "circle", "rect"].includes(String(c.type)) ? c.type : "polyline") as CurveDef["type"];
+  const points = (Array.isArray(c.points) ? c.points : []).slice(0, 2000).map((p) => vec(p, [0, 0, 0]));
+  return {
+    type,
+    points: points.length ? points : [[0, 0, 0], [1, 0, 0]],
+    ...(c.closed === true ? { closed: true } : {}),
+    ...(c.plane === "x" || c.plane === "z" || c.plane === "y" ? { plane: c.plane } : {}),
+  };
+}
+
+function parseSurface(v: unknown): SurfaceDef {
+  const s = (v ?? {}) as Record<string, unknown>;
+  const op = (["extrude", "revolve", "loft", "pipe"].includes(String(s.op)) ? s.op : "extrude") as SurfaceDef["op"];
+  return {
+    op,
+    curves: Array.isArray(s.curves) ? s.curves.map(String).slice(0, 200) : [],
+    ...(s.direction != null ? { direction: vec(s.direction, [0, 1, 0]) } : {}),
+    ...(s.angle != null ? { angle: num(s.angle, 360, -360, 360) } : {}),
+    ...(s.axis != null ? { axis: vec(s.axis, [0, 1, 0]) } : {}),
+    ...(s.axisPoint != null ? { axisPoint: vec(s.axisPoint, [0, 0, 0]) } : {}),
+    ...(s.radius != null ? { radius: num(s.radius, 0.05, 0.0001, 1000) } : {}),
+    ...(s.cap != null ? { cap: s.cap !== false } : {}),
+  };
+}
+
 function parseHull(v: unknown): HullShape {
   const h = (v ?? {}) as Record<string, unknown>;
   const d = DEFAULT_HULL_SHAPE;
@@ -300,4 +334,4 @@ export function poseAt(o: SceneObject, f: number): { position: Vec3; rotation: V
 }
 
 export const MODEL_SPEC =
-  'JSON: {"type":"model","version":1,"fps":24,"frameStart":1,"frameEnd":120,"world":{"background":"#3a3a3a","sun":45,"ambient":0.6,"ground":false,"grid":true},"objects":[…]}. Units are metres, Y is up. An object: {"id","name","kind":"box|sphere|icosphere|cylinder|cone|torus|plane|capsule|import|empty","parent":"<id> (optional)","visible":true,"position":[x,y,z],"rotation":[deg,deg,deg],"scale":[1,1,1],"params":{"width","height","depth","radius","radiusTop","tube","segments"},"material":{"color":"#hex","metalness":0–1,"roughness":0–1,"opacity":0–1,"emissive":"#hex"},"array":{"count":4,"offset":[1.2,0,0]} (optional),"keys":[{"f":1,"position":[…],"rotation":[…],"scale":[…]}] (optional keyframes)}. For anything made elsewhere (simkit results, Blender, three.js), copy the .glb into the shared workspace\'s artifacts/_media folder and add {"kind":"import","src":"<its absolute path>"}; its own animation plays. A boat hull can be {"kind":"hull","hull":{"type":"planing|round","length","beam","depth","deadriseAft","deadriseFwd","transom":0–1,"entry":1–4,"keelRise":0–1,"sheerRise","flare","bilge"}} (transom at x=0, bow at +x, z to starboard), and any object can carry "mass" (kg) and "cg":[x,y,z] for the Marine workspace: weights, hydrostatics, stability and resistance. Keep separate parts as separate objects so the owner can keep editing them.';
+  'JSON: {"type":"model","version":1,"fps":24,"frameStart":1,"frameEnd":120,"world":{"background":"#3a3a3a","sun":45,"ambient":0.6,"ground":false,"grid":true},"objects":[…]}. Units are metres, Y is up. An object: {"id","name","kind":"box|sphere|icosphere|cylinder|cone|torus|plane|capsule|import|empty","parent":"<id> (optional)","visible":true,"position":[x,y,z],"rotation":[deg,deg,deg],"scale":[1,1,1],"params":{"width","height","depth","radius","radiusTop","tube","segments"},"material":{"color":"#hex","metalness":0–1,"roughness":0–1,"opacity":0–1,"emissive":"#hex"},"array":{"count":4,"offset":[1.2,0,0]} (optional),"keys":[{"f":1,"position":[…],"rotation":[…],"scale":[…]}] (optional keyframes)}. For anything made elsewhere (simkit results, Blender, three.js), copy the .glb into the shared workspace\'s artifacts/_media folder and add {"kind":"import","src":"<its absolute path>"}; its own animation plays. A boat hull can be {"kind":"hull","hull":{"type":"planing|round","length","beam","depth","deadriseAft","deadriseFwd","transom":0–1,"entry":1–4,"keelRise":0–1,"sheerRise","flare","bilge"}} (transom at x=0, bow at +x, z to starboard), and any object can carry "mass" (kg) and "cg":[x,y,z] for the Marine workspace: weights, hydrostatics, stability and resistance. Curves: {"kind":"curve","curve":{"type":"polyline|interp|circle|rect","points":[[x,y,z],…],"closed":false,"plane":"y"}} (circle: [centre, a point on it]; rect: two corners). Surfaces built from curves keep their history: {"kind":"surface","surface":{"op":"extrude|revolve|loft|pipe","curves":["<curve id>",…],"direction":[0,1,0],"angle":360,"axis":[0,1,0],"axisPoint":[0,0,0],"radius":0.05,"cap":true}}. Keep separate parts as separate objects so the owner can keep editing them.';

@@ -24,6 +24,17 @@ import {
   SkipForward,
   Square,
   Wrench,
+  ArrowUpFromLine,
+  Cable,
+  Circle as CircleIcon,
+  Layers2,
+  LayoutGrid,
+  RectangleHorizontal,
+  RotateCw,
+  Ruler,
+  Slash,
+  Spline,
+  Waypoints,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,7 +44,9 @@ import { makeHow } from "@/features/office/lib/studioRequests";
 import { CreativeShell, isTyping, type Menu, Panel, Slider } from "./CreativeShell";
 import { closeEditor, exportFile, saveToCreate } from "./editorStore";
 import { toSix } from "./ImagePanels";
-import { bakeRigidBodies, type GizmoMode, ModelScene, type Shading } from "./modelEngine";
+import { curveSamples, meshArea } from "./cad";
+import { bakeRigidBodies, type GizmoMode, ModelScene, type Shading, type View, VIEW_PLANE } from "./modelEngine";
+import { type CmdCtx, type Command, COMMANDS, feed, startCommand } from "./rhino";
 import {
   DEFAULT_MATERIAL,
   defaultParams,
@@ -116,7 +129,6 @@ export function ModelEditor({
     setFrameState(f);
   };
   const [playing, setPlaying] = React.useState(false);
-  const host = React.useRef<HTMLDivElement>(null);
   const engine = React.useRef<ModelScene | null>(null);
 
   // ---- history ---------------------------------------------------------
@@ -146,12 +158,41 @@ export function ModelEditor({
   const updateObj = (id: string, patch: Partial<SceneObject>, label?: string) =>
     change({ ...modelRef.current, objects: modelRef.current.objects.map((o) => (o.id === id ? { ...o, ...patch } : o)) }, label);
 
-  // ---- viewport --------------------------------------------------------
-  // biome-ignore lint/correctness/useExhaustiveDependencies: create once
-  React.useEffect(() => {
-    if (!host.current) return;
-    const e = new ModelScene(host.current, modelRef.current);
-    e.onPick = (id) => setSel(id);
+  // ---- viewports (one, or Rhino's four) ---------------------------------
+  const engines = React.useRef(new Map<View, ModelScene>());
+  const all = (fn: (e: ModelScene) => void) => {
+    for (const e of engines.current.values()) fn(e);
+  };
+  const [four, setFour] = React.useState(false);
+  const [snap, setSnapState] = React.useState(0.1);
+  const snapRef = React.useRef(0.1);
+  // the running command (Rhino-style)
+  const [cmd, setCmdState] = React.useState<Command | null>(null);
+  const cmdRef = React.useRef<Command | null>(null);
+  const [, setCmdTick] = React.useState(0);
+  const [log, setLog] = React.useState<string[]>(["Type a command (Line, Circle, Extrude, Revolve, Loft, Box, Move, Volume …) or pick a tool."]);
+  const lastCmd = React.useRef<string | null>(null);
+  const cmdInput = React.useRef<HTMLInputElement>(null);
+  const hoverPlane = React.useRef<"x" | "y" | "z">("y");
+
+  const register = React.useCallback((view: View, e: ModelScene | null) => {
+    if (!e) {
+      engines.current.delete(view);
+      if (view === "perspective") engine.current = null;
+      return;
+    }
+    engines.current.set(view, e);
+    if (view === "perspective") engine.current = e;
+    e.snap = snapRef.current;
+    e.onPick = (id) => {
+      const c = cmdRef.current;
+      if (c?.picks) {
+        if (id) c.onPick?.(id);
+        afterCmd();
+        return;
+      }
+      setSel(id);
+    };
     e.onTransform = (id, pose, done) => {
       const o = modelRef.current.objects.find((x) => x.id === id);
       if (!o) return;
@@ -160,26 +201,116 @@ export function ModelEditor({
       const m = e.gizmo.mode;
       updateObj(id, next, done ? (m === "rotate" ? "Rotate" : m === "scale" ? "Scale" : "Move") : undefined);
     };
-    engine.current = e;
+    e.sync(modelRef.current);
     e.select(selRef.current);
+    e.setMode(modeRef.current);
+    wireCommand(e);
     requestAnimationFrame(() => e.focus());
-    return () => e.dispose();
+    // biome-ignore lint/correctness/useExhaustiveDependencies: refs only
   }, []);
+  const modeRef = React.useRef<GizmoMode>("translate");
+  modeRef.current = mode;
   React.useEffect(() => {
-    engine.current?.sync(model);
+    all((e) => e.sync(model));
   }, [model]);
   React.useEffect(() => {
-    engine.current?.select(sel);
+    all((e) => e.select(sel));
   }, [sel]);
   React.useEffect(() => {
-    engine.current?.setMode(mode);
+    all((e) => e.setMode(mode));
   }, [mode]);
   React.useEffect(() => {
-    engine.current?.setShading(shading);
+    all((e) => e.setShading(shading));
   }, [shading]);
   React.useEffect(() => {
-    engine.current?.setFrame(frame);
+    all((e) => e.setFrame(frame));
   }, [frame]);
+
+  // ---- commands --------------------------------------------------------
+  function wireCommand(e: ModelScene) {
+    const c = cmdRef.current;
+    const plane = VIEW_PLANE[e.viewKind];
+    e.onPoint = c && !c.done && !c.picks && c.onPoint ? (p) => {
+      c.onPoint?.(p, plane);
+      afterCmd();
+    } : null;
+    e.onHoverPoint = c && !c.done && !c.picks && c.onPoint ? (p) => {
+      hoverPlane.current = plane;
+      const pts = c.points;
+      if (!p || !pts.length) return all((x) => x.setPreview(null));
+      let path = [...pts, p];
+      if (c.name === "Rectangle") path = curveSamples({ type: "rect", points: [pts[0], p], plane }).map((v) => [v.x, v.y, v.z] as Vec3);
+      if (c.name === "Circle") path = curveSamples({ type: "circle", points: [pts[0], p], plane }).map((v) => [v.x, v.y, v.z] as Vec3);
+      all((x) => x.setPreview(path));
+    } : null;
+  }
+  function setCmd(c: Command | null) {
+    cmdRef.current = c;
+    setCmdState(c);
+    all((e) => {
+      e.setPreview(null);
+      wireCommand(e);
+    });
+  }
+  function afterCmd() {
+    const c = cmdRef.current;
+    if (c?.done) setCmd(null);
+    else setCmdTick((t) => t + 1);
+  }
+  const print = (line: string) => setLog((l) => [...l.slice(-40), line]);
+  const ctx: CmdCtx = {
+    model: () => modelRef.current,
+    selected: () => modelRef.current.objects.find((o) => o.id === selRef.current),
+    add: (kind, label, extra) => add(kind, label, extra),
+    update: (id, patch, label) => updateObj(id, patch, label),
+    remove: () => remove(),
+    duplicate: () => duplicate(),
+    select: (id) => setSel(id),
+    tris: (id) => engine.current?.trisOf(id) ?? null,
+    area: (id) => {
+      const n = engine.current?.trisOf(id);
+      if (!n) return 0;
+      let a = 0;
+      for (let k = 0; k < n.length; k += 9) {
+        const ux = n[k + 3] - n[k], uy = n[k + 4] - n[k + 1], uz = n[k + 5] - n[k + 2];
+        const vx = n[k + 6] - n[k], vy = n[k + 7] - n[k + 1], vz = n[k + 8] - n[k + 2];
+        a += Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2;
+      }
+      return a;
+    },
+    undo: () => restore(hi.current - 1),
+    redo: () => restore(hi.current + 1),
+    zoomAll: () => all((e) => e.focus()),
+    setLayout: (f) => setFour(f),
+    setSnap: (v) => {
+      snapRef.current = v;
+      setSnapState(v);
+      all((e) => {
+        e.snap = v;
+      });
+    },
+    snap: () => snapRef.current,
+    print,
+  };
+  const run = (text: string) => {
+    const t = text.trim();
+    const c = cmdRef.current;
+    if (c && !c.done) {
+      if (!t) {
+        c.onEnter?.();
+        if (!c.onEnter) c.done = true;
+      } else if (!feed(c, t, hoverPlane.current)) print(`${c.name}: "${t}" isn't a point or an option here.`);
+      afterCmd();
+      return;
+    }
+    const name = t || lastCmd.current;
+    if (!name) return;
+    lastCmd.current = name.split(/\s+/)[0];
+    print(`Command: ${name}`);
+    const next = startCommand(name, ctx);
+    if (next && !next.done) setCmd(next);
+  };
+  void meshArea;
 
   // playback
   React.useEffect(() => {
@@ -381,6 +512,11 @@ export function ModelEditor({
       if (mod && k === "z") return (e.preventDefault(), e.shiftKey ? restore(hi.current + 1) : restore(hi.current - 1));
       if (mod && k === "y") return (e.preventDefault(), restore(hi.current + 1));
       if (mod) return;
+      if (e.key === "Escape" && cmdRef.current) {
+        print(`${cmdRef.current.name} cancelled.`);
+        return setCmd(null);
+      }
+      if (e.key === "Enter") return (e.preventDefault(), cmdInput.current?.focus());
       if (e.code === "Numpad1") return engine.current?.view(e.ctrlKey ? "back" : "front");
       if (e.code === "Numpad3") return engine.current?.view("right");
       if (e.code === "Numpad7") return engine.current?.view("top");
@@ -585,6 +721,32 @@ export function ModelEditor({
                 </button>
               ))}
               <span className="my-1 h-px w-6 bg-white/10" />
+              {(
+                [
+                  ["Line", Slash],
+                  ["Polyline", Waypoints],
+                  ["Curve", Spline],
+                  ["Circle", CircleIcon],
+                  ["Rectangle", RectangleHorizontal],
+                  ["Extrude", ArrowUpFromLine],
+                  ["Revolve", RotateCw],
+                  ["Loft", Layers2],
+                  ["Pipe", Cable],
+                  ["Distance", Ruler],
+                ] as const
+              ).map(([name, Icon]) => (
+                <button
+                  aria-label={name}
+                  className={cn("flex h-8 w-8 items-center justify-center rounded", cmd?.name === name ? "bg-[#4772b3] text-white" : "text-[#c8c8c8] hover:bg-[#3a3a3a]")}
+                  key={name}
+                  onClick={() => run(name)}
+                  title={name}
+                  type="button"
+                >
+                  <Icon className="h-[18px] w-[18px]" />
+                </button>
+              ))}
+              <span className="my-1 h-px w-6 bg-white/10" />
               {[
                 { k: "box" as Primitive, icon: Box, l: "Cube" },
                 { k: "sphere" as Primitive, icon: Circle, l: "UV Sphere" },
@@ -600,11 +762,58 @@ export function ModelEditor({
           )}
 
           {/* 3D viewport */}
-          <div className="relative min-w-0 flex-1 bg-[#3a3a3a]">
-            <div className="absolute inset-0" ref={host} />
-            <div className="pointer-events-none absolute left-3 top-2 text-[11px] text-[#d0d0d0] drop-shadow">
-              <div>User Perspective</div>
-              <div className="text-[#a8a8a8]">{obj ? `(${frame}) ${obj.name}` : `(${frame})`}</div>
+          <div className="relative flex min-w-0 flex-1 flex-col bg-[#3a3a3a]">
+            <div className={cn("relative min-h-0 flex-1", four ? "grid grid-cols-2 grid-rows-2 gap-px bg-black/60" : "")}>
+              {four ? (
+                <>
+                  <Viewport label="Top" register={register} view="top" model={modelRef} />
+                  <Viewport label={`Perspective${obj ? ` · ${obj.name}` : ""}`} register={register} view="perspective" model={modelRef} />
+                  <Viewport label="Front" register={register} view="front" model={modelRef} />
+                  <Viewport label="Right" register={register} view="right" model={modelRef} />
+                </>
+              ) : (
+                <Viewport label={`User Perspective  (${frame})${obj ? ` ${obj.name}` : ""}`} register={register} view="perspective" model={modelRef} />
+              )}
+            </div>
+            {/* command line */}
+            <div className="shrink-0 border-t border-black/60 bg-[#232323] px-2 py-1 font-mono text-[11px]">
+              <div className="max-h-12 overflow-y-auto text-[#9a9a9a]">
+                {log.slice(-3).map((l, i) => (
+                  <div className="truncate" key={`${i}-${l}`}>
+                    {l}
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-[#ffd75e]">{cmd ? `${cmd.name}: ${cmd.prompt}` : "Command"}</span>
+                <input
+                  className="min-w-0 flex-1 rounded border border-black/60 bg-[#1a1a1a] px-1.5 py-0.5 text-[#e8e8e8] outline-none focus:border-[#4772b3]"
+                  list="rhino-commands"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      run((e.target as HTMLInputElement).value);
+                      (e.target as HTMLInputElement).value = "";
+                    } else if (e.key === "Escape") {
+                      if (cmdRef.current) print(`${cmdRef.current.name} cancelled.`);
+                      setCmd(null);
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  placeholder={cmd ? "x,y,z · @dx,dy,dz · a value · Enter to finish · Esc to cancel" : "Line, Circle, Extrude, Revolve, Loft, Box, Move, Volume … (Enter repeats the last)"}
+                  ref={cmdInput}
+                />
+                <datalist id="rhino-commands">
+                  {COMMANDS.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+                <button className={cn("rounded px-1.5 py-0.5", snap ? "bg-[#4772b3] text-white" : "bg-[#3a3a3a] text-[#bdbdbd]")} onClick={() => ctx.setSnap(snap ? 0 : 0.1)} title="Grid snap" type="button">
+                  Snap {snap ? `${snap} m` : "off"}
+                </button>
+                <button className={cn("flex items-center gap-1 rounded px-1.5 py-0.5", four ? "bg-[#4772b3] text-white" : "bg-[#3a3a3a] text-[#bdbdbd]")} onClick={() => setFour((v) => !v)} title="Four views (Top, Perspective, Front, Right)" type="button">
+                  <LayoutGrid className="h-3 w-3" /> 4 views
+                </button>
+              </div>
             </div>
             <div className="absolute right-2 top-2 flex gap-0.5 rounded bg-[#2b2b2b]/90 p-0.5">
               {(["solid", "material", "wireframe"] as Shading[]).map((s) => (
@@ -618,7 +827,7 @@ export function ModelEditor({
                 </button>
               ))}
             </div>
-            <div className="absolute bottom-2 right-2 flex gap-0.5 rounded bg-[#2b2b2b]/90 p-0.5 text-[11px]">
+            <div className={cn("absolute right-2 flex gap-0.5 rounded bg-[#2b2b2b]/90 p-0.5 text-[11px]", four ? "hidden" : "bottom-[4.25rem]")}>
               {(["front", "right", "top"] as const).map((v) => (
                 <button className="rounded px-2 py-0.5 capitalize text-[#c8c8c8] hover:bg-[#3a3a3a]" key={v} onClick={() => engine.current?.view(v)} type="button">
                   {v}
@@ -1395,4 +1604,34 @@ function garmentPreview(s: Record<string, string | number>): SceneObject[] {
     }
   }
   return out;
+}
+
+/** One 3D view (perspective, or Rhino's flat Top / Front / Right). */
+function Viewport({
+  view,
+  label,
+  register,
+  model,
+}: {
+  view: View;
+  label: string;
+  register: (v: View, e: ModelScene | null) => void;
+  model: React.MutableRefObject<ModelFile>;
+}) {
+  const host = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!host.current) return;
+    const e = new ModelScene(host.current, model.current, view);
+    register(view, e);
+    return () => {
+      register(view, null);
+      e.dispose();
+    };
+  }, [view, register, model]);
+  return (
+    <div className="relative h-full min-h-0 min-w-0">
+      <div className="absolute inset-0" ref={host} />
+      <div className="pointer-events-none absolute left-2 top-1 text-[11px] text-[#d0d0d0] drop-shadow">{label}</div>
+    </div>
+  );
 }
