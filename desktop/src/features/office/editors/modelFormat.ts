@@ -4,7 +4,23 @@
 
 export const PRIMITIVES = ["box", "sphere", "cylinder", "cone", "torus", "plane", "capsule", "icosphere"] as const;
 export type Primitive = (typeof PRIMITIVES)[number];
-export type ObjectKind = Primitive | "import" | "empty";
+export type ObjectKind = Primitive | "import" | "empty" | "hull";
+
+/** A parametric hull (the Marine workspace). */
+export type HullShape = {
+  type: "planing" | "round";
+  length: number;
+  beam: number;
+  depth: number;
+  deadriseAft: number;
+  deadriseFwd: number;
+  transom: number;
+  entry: number;
+  keelRise: number;
+  sheerRise: number;
+  flare: number;
+  bilge: number;
+};
 
 export type Vec3 = [number, number, number];
 
@@ -53,6 +69,12 @@ export type SceneObject = {
   physics?: { type: "active" | "passive"; mass: number; bounce: number; friction: number };
   /** Keyframes (frames). */
   keys?: ObjKey[];
+  /** kind "hull": its shape. */
+  hull?: HullShape;
+  /** Its mass (kg) for weights & hydrostatics, and its centre of gravity
+   *  (defaults to the middle of the object). */
+  mass?: number;
+  cg?: Vec3;
 };
 
 export type ModelFile = {
@@ -137,7 +159,7 @@ export function parseModel(value: unknown): ModelFile {
   const base = blankModel();
   const w = (v.world ?? {}) as Record<string, unknown>;
   const objects: SceneObject[] = [];
-  const kinds = [...PRIMITIVES, "import", "empty"] as string[];
+  const kinds = [...PRIMITIVES, "import", "empty", "hull"] as string[];
   for (const raw of Array.isArray(v.objects) ? v.objects : []) {
     const o = (raw ?? {}) as Record<string, unknown>;
     const kind = (kinds.includes(String(o.kind)) ? o.kind : "box") as ObjectKind;
@@ -170,6 +192,9 @@ export function parseModel(value: unknown): ModelFile {
         ...(m.flat === true ? { flat: true } : {}),
       },
       ...(kind === "import" ? { src: String(o.src) } : {}),
+      ...(kind === "hull" ? { hull: parseHull(o.hull) } : {}),
+      ...(o.mass != null && num(o.mass, 0, 0, 1e9) > 0 ? { mass: num(o.mass, 0, 0, 1e9) } : {}),
+      ...(o.cg != null ? { cg: vec(o.cg, [0, 0, 0]) } : {}),
       ...(arr ? { array: { count: Math.round(num(arr.count, 1, 1, 200)), offset: vec(arr.offset, [1.2, 0, 0]) } } : {}),
       ...(ph
         ? {
@@ -214,6 +239,40 @@ export function parseModel(value: unknown): ModelFile {
   };
 }
 
+export const DEFAULT_HULL_SHAPE: HullShape = {
+  type: "planing",
+  length: 6,
+  beam: 2.2,
+  depth: 1.1,
+  deadriseAft: 16,
+  deadriseFwd: 40,
+  transom: 0.9,
+  entry: 1.8,
+  keelRise: 0.55,
+  sheerRise: 0.25,
+  flare: 12,
+  bilge: 2.5,
+};
+
+function parseHull(v: unknown): HullShape {
+  const h = (v ?? {}) as Record<string, unknown>;
+  const d = DEFAULT_HULL_SHAPE;
+  return {
+    type: h.type === "round" ? "round" : "planing",
+    length: num(h.length, d.length, 0.5, 500),
+    beam: num(h.beam, d.beam, 0.1, 100),
+    depth: num(h.depth, d.depth, 0.1, 60),
+    deadriseAft: num(h.deadriseAft, d.deadriseAft, 0, 45),
+    deadriseFwd: num(h.deadriseFwd, d.deadriseFwd, 0, 70),
+    transom: num(h.transom, d.transom, 0.05, 1),
+    entry: num(h.entry, d.entry, 1.05, 5),
+    keelRise: num(h.keelRise, d.keelRise, 0, 1),
+    sheerRise: num(h.sheerRise, d.sheerRise, 0, 20),
+    flare: num(h.flare, d.flare, 0, 40),
+    bilge: num(h.bilge, d.bilge, 2, 10),
+  };
+}
+
 /** An object's transform at frame `f` (keyframes, linear). */
 export function poseAt(o: SceneObject, f: number): { position: Vec3; rotation: Vec3; scale: Vec3 } {
   const out = { position: o.position, rotation: o.rotation, scale: o.scale };
@@ -241,4 +300,4 @@ export function poseAt(o: SceneObject, f: number): { position: Vec3; rotation: V
 }
 
 export const MODEL_SPEC =
-  'JSON: {"type":"model","version":1,"fps":24,"frameStart":1,"frameEnd":120,"world":{"background":"#3a3a3a","sun":45,"ambient":0.6,"ground":false,"grid":true},"objects":[…]}. Units are metres, Y is up. An object: {"id","name","kind":"box|sphere|icosphere|cylinder|cone|torus|plane|capsule|import|empty","parent":"<id> (optional)","visible":true,"position":[x,y,z],"rotation":[deg,deg,deg],"scale":[1,1,1],"params":{"width","height","depth","radius","radiusTop","tube","segments"},"material":{"color":"#hex","metalness":0–1,"roughness":0–1,"opacity":0–1,"emissive":"#hex"},"array":{"count":4,"offset":[1.2,0,0]} (optional),"keys":[{"f":1,"position":[…],"rotation":[…],"scale":[…]}] (optional keyframes)}. For anything made elsewhere (simkit results, Blender, three.js), copy the .glb into the shared workspace\'s artifacts/_media folder and add {"kind":"import","src":"<its absolute path>"}; its own animation plays. Keep separate parts as separate objects so the owner can keep editing them.';
+  'JSON: {"type":"model","version":1,"fps":24,"frameStart":1,"frameEnd":120,"world":{"background":"#3a3a3a","sun":45,"ambient":0.6,"ground":false,"grid":true},"objects":[…]}. Units are metres, Y is up. An object: {"id","name","kind":"box|sphere|icosphere|cylinder|cone|torus|plane|capsule|import|empty","parent":"<id> (optional)","visible":true,"position":[x,y,z],"rotation":[deg,deg,deg],"scale":[1,1,1],"params":{"width","height","depth","radius","radiusTop","tube","segments"},"material":{"color":"#hex","metalness":0–1,"roughness":0–1,"opacity":0–1,"emissive":"#hex"},"array":{"count":4,"offset":[1.2,0,0]} (optional),"keys":[{"f":1,"position":[…],"rotation":[…],"scale":[…]}] (optional keyframes)}. For anything made elsewhere (simkit results, Blender, three.js), copy the .glb into the shared workspace\'s artifacts/_media folder and add {"kind":"import","src":"<its absolute path>"}; its own animation plays. A boat hull can be {"kind":"hull","hull":{"type":"planing|round","length","beam","depth","deadriseAft","deadriseFwd","transom":0–1,"entry":1–4,"keelRise":0–1,"sheerRise","flare","bilge"}} (transom at x=0, bow at +x, z to starboard), and any object can carry "mass" (kg) and "cg":[x,y,z] for the Marine workspace: weights, hydrostatics, stability and resistance. Keep separate parts as separate objects so the owner can keep editing them.';

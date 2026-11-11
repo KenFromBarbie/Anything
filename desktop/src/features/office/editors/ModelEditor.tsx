@@ -48,10 +48,11 @@ import {
   type SceneObject,
   type Vec3,
 } from "./modelFormat";
+import { type MarineApi, MarinePanel } from "./MarinePanel";
 import { editorRequest } from "./requests";
 
-type Workspace = "Layout" | "Animation" | "Clothing" | "Simulation";
-const WORKSPACES: Workspace[] = ["Layout", "Animation", "Clothing", "Simulation"];
+type Workspace = "Layout" | "Animation" | "Marine" | "Clothing" | "Simulation";
+const WORKSPACES: Workspace[] = ["Layout", "Animation", "Marine", "Clothing", "Simulation"];
 type PropTab = "object" | "modifiers" | "material" | "shape" | "physics" | "world";
 
 const ADD: { kind: Primitive; label: string }[] = [
@@ -205,6 +206,19 @@ export function ModelEditor({
   }, [playing]);
 
   const obj = model.objects.find((o) => o.id === sel);
+  const marineApi = React.useMemo<MarineApi>(
+    () => ({
+      tris: (id) => engine.current?.trisOf(id) ?? null,
+      centre: (id) => {
+        const b = engine.current?.boundsOf(id);
+        if (!b || b.isEmpty()) return null;
+        const c = b.getCenter(b.min.clone());
+        return [c.x, c.y, c.z];
+      },
+      water: (w) => engine.current?.setWater(w),
+    }),
+    [],
+  );
 
   // ---- objects ---------------------------------------------------------
   const nameFor = (base: string) => {
@@ -515,7 +529,20 @@ export function ModelEditor({
     >
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1">
-          {workspace === "Clothing" ? (
+          {workspace === "Marine" ? (
+            <MarinePanel
+              api={marineApi}
+              commit={commit}
+              model={model}
+              onAddHull={(h) => {
+                add("hull", "Hull", { hull: h, params: undefined, position: [0, 0, 0], material: { color: "#e8e8e8", metalness: 0, roughness: 0.45, opacity: 1 } });
+                requestAnimationFrame(() => engine.current?.focus());
+              }}
+              onHull={(id, h) => updateObj(id, { hull: h })}
+              onMass={(id, mass, cg) => updateObj(id, { mass, cg })}
+              selected={obj}
+            />
+          ) : workspace === "Clothing" ? (
             <ClothingPanel onAsk={askOffice} onBuild={(objs, label) => replaceGroup(objs, label)} study={model.studies?.clothing} />
           ) : workspace === "Simulation" ? (
             <SimulationPanel

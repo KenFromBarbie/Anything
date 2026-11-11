@@ -12,8 +12,10 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 
+import { hullGeometry, trianglesOfObject, type Tris } from "./marine";
 import { mediaUrl } from "./videoEngine";
 import {
+  DEFAULT_HULL_SHAPE,
   DEFAULT_MATERIAL,
   type ModelFile,
   type ObjKey,
@@ -52,6 +54,8 @@ export function geometryOf(o: SceneObject): THREE.BufferGeometry | null {
     }
     case "capsule":
       return new THREE.CapsuleGeometry(p.radius ?? 0.3, p.height ?? 1, 8, seg);
+    case "hull":
+      return hullGeometry(o.hull ?? DEFAULT_HULL_SHAPE);
     default:
       return null;
   }
@@ -255,7 +259,7 @@ export class ModelScene {
       }
     }
     for (const o of file.objects) {
-      const sig = JSON.stringify([o.kind, o.params, o.material, o.src, o.array, this.shading]);
+      const sig = JSON.stringify([o.kind, o.params, o.material, o.src, o.array, o.hull, this.shading]);
       if (this.sigs.get(o.id) !== sig) {
         this.nodes.get(o.id)?.parent?.remove(this.nodes.get(o.id) as THREE.Object3D);
         const node = this.build(o);
@@ -417,6 +421,35 @@ export class ModelScene {
     };
     const [x, y, z] = v[which];
     this.camera.position.set(t.x + x * d, t.y + y * d, t.z + z * d);
+  }
+
+  /** An object's surface in world space (for hydrostatics). */
+  trisOf(id: string): Tris | null {
+    const n = this.nodes.get(id);
+    return n ? trianglesOfObject(n) : null;
+  }
+
+  private water: THREE.Group | null = null;
+  /** Show the floating waterline: horizontal in the floating frame, so tilted
+   *  back by the heel and trim here. */
+  setWater(w: { y: number; about: Vec3; heel: number; trim: number } | null) {
+    if (this.water) {
+      this.scene.remove(this.water);
+      this.water = null;
+    }
+    if (!w) return;
+    const g = new THREE.Group();
+    g.position.set(...w.about);
+    g.rotation.set((-w.heel * Math.PI) / 180, 0, (w.trim * Math.PI) / 180, "XYZ");
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: "#2b7bd6", transparent: true, opacity: 0.35, roughness: 0.2, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    plane.position.y = w.y - w.about[1];
+    plane.renderOrder = 2;
+    g.add(plane);
+    this.water = g;
+    this.scene.add(g);
   }
 
   /** The node's world-space bounding box at the current frame. */
