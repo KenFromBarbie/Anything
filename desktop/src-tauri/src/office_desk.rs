@@ -311,8 +311,50 @@ fn stored_artifacts(dir: &std::path::Path) -> Vec<Value> {
 fn allow_artifacts(app: &AppHandle) {
     if let Some(dir) = artifacts_dir(app) {
         let _ = std::fs::create_dir_all(&dir);
-        let _ = app.asset_protocol_scope().allow_directory(&dir, true);
+        allow_dir(app, &dir);
     }
+}
+
+/// Let the webview load files under `dir`. When the app runs inside a
+/// packaged host (e.g. started from the Claude desktop app, an MSIX package),
+/// Windows redirects AppData writes into the package's private copy: the
+/// folder resolves to its usual path but the files in it resolve to the copy
+/// (`...\Packages\<pkg>\LocalCache\Roaming\...`), and the asset protocol
+/// checks the resolved path. So the copy is allowed too.
+fn allow_dir(app: &AppHandle, dir: &std::path::Path) {
+    let scope = app.asset_protocol_scope();
+    let _ = scope.allow_directory(dir, true);
+    if let Some(twin) = physical_twin(dir) {
+        let _ = scope.allow_directory(&twin, true);
+    }
+}
+
+/// Where the files under `dir` really are, when that differs from `dir`
+/// (found from one file inside it, at most two levels down).
+fn physical_twin(dir: &std::path::Path) -> Option<PathBuf> {
+    fn first_file(dir: &std::path::Path, depth: usize) -> Option<PathBuf> {
+        let entries = std::fs::read_dir(dir).ok()?;
+        let mut dirs = Vec::new();
+        for entry in entries.flatten().take(64) {
+            let path = entry.path();
+            if path.is_file() {
+                return Some(path);
+            }
+            if depth > 0 && path.is_dir() {
+                dirs.push(path);
+            }
+        }
+        dirs.into_iter().find_map(|d| first_file(&d, depth - 1))
+    }
+    let file = first_file(dir, 2)?;
+    let rel = file.strip_prefix(dir).ok()?;
+    let real = std::fs::canonicalize(&file).ok()?;
+    let mut twin = real.clone();
+    for _ in rel.components() {
+        twin = twin.parent()?.to_path_buf();
+    }
+    let same = std::fs::canonicalize(dir).map(|d| d == twin).unwrap_or(false);
+    (!same).then_some(twin)
 }
 
 /// A stored relative path (`<id>/<name>`) inside the artifacts folder, or None.
@@ -769,7 +811,7 @@ pub async fn office_vault(app: AppHandle) -> Result<Value, String> {
         return Ok(json!({ "exists": false, "path": vault }));
     }
     let out = vault.join("graphify-out");
-    let _ = app.asset_protocol_scope().allow_directory(&out, true);
+    allow_dir(&app, &out);
     let graph = out.join("graph.html");
     let built = std::fs::metadata(&graph)
         .and_then(|m| m.modified())

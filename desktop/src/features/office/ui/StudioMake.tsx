@@ -86,6 +86,8 @@ const EDITOR_FOR: Partial<Record<MakeKind, EditorKind>> = {
   model: "model",
   site: "site",
 };
+import { CodeApp } from "@/features/code/CodeApp";
+
 import { AddCodebaseDialog } from "./Codebases";
 
 const TILES: Record<MakeKind, { icon: LucideIcon; tone: string }> = {
@@ -322,6 +324,7 @@ export function StudioMake({
   });
 
   const [linkingCode, setLinkingCode] = React.useState(false);
+  const [coding, setCoding] = React.useState(false);
   const selectedKind =
     chosen?.type === "kind"
       ? MAKE_KINDS.find((k) => k.kind === chosen.kind)
@@ -331,6 +334,7 @@ export function StudioMake({
   return (
     <section className="flex flex-col gap-3" data-testid="studio-make">
       <AddCodebaseDialog onOpenChange={setLinkingCode} open={linkingCode} />
+      {coding ? <CodeApp onClose={() => setCoding(false)} /> : null}
       <SubsectionLabel>Make something new</SubsectionLabel>
       <div className="flex flex-wrap gap-3">
         {/* Clothing and Simulation live inside the 3D editor (its workspaces). */}
@@ -357,11 +361,11 @@ export function StudioMake({
             testId={`studio-make-${k}`}
           />
         ))}
-        {/* Link a codebase (GitHub or a folder) to build and run it. */}
+        {/* Code: a coding agent working in a codebase (link one inside). */}
         <Tile
           icon={FolderGit2}
           label="Code"
-          onClick={() => setLinkingCode(true)}
+          onClick={() => setCoding(true)}
           testId="codebase-add"
           tone="bg-indigo-700/80 text-indigo-50"
         />
