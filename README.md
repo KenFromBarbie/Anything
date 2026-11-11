@@ -28,6 +28,26 @@
 - **Research**: projects as folders. Describe a project (and attach files) and
   Michael researches it in its own chat, saving what he finds into the folder.
   Pin projects and give them covers.
+- **Create**: the app's own editors, each saving an editable file agents can
+  also write. Document, Slides and Sheet (Office-style, with Word, PowerPoint
+  and CSV export); Image (layers, brushes, filters); Video (timeline,
+  keyframes, MP4 export); Site (a visual multi-page site builder with
+  breakpoints, exported as static HTML); and 3D, with workspaces for modeling
+  (curves and surfaces with history, a command line, four views), animation,
+  Robotics (joints, inverse kinematics, robot programs with reach and collision
+  checks), Structure (frame stress analysis), Inspect (mass properties, section
+  view), Print (a slicer with path preview and G-code), Marine (hydrostatics,
+  stability, resistance), Clothing and Simulation. "Ask the CEO" in any editor
+  hands the file to the Office.
+- **Code**: a coding agent (Claude Code or another harness) working in a linked
+  codebase, with every tool call drawn as its own card and every changed file
+  shown with its diff.
+- **Live now**: watch agents at work, Discord-style: what each is doing, in
+  which tool, for how long, with a live view of what they're making. Hover an
+  agent on the Office floor for the same card. Agents also leave feedback on the
+  Office's tools, listed in Create.
+- **Screen share**: share a screen or window in a call or meeting; agents in
+  the call can look at what you're showing.
 - **Studio** (optional): local creative tools (image editor, 3D stage, video
   editor, frame extractor, storyboard, moodboard), with nothing that spends AI
   credits. Not included in the installers: install it from the Studio page or
