@@ -467,6 +467,61 @@ pub async fn office_artifact_save_file(
         .unwrap_or(entry))
 }
 
+/// Copy a picture, video or sound the owner picked for the Video editor into
+/// the office's shared `artifacts/_media` folder (which the app can play from
+/// and agents can read), and return where it is now.
+#[tauri::command]
+pub async fn office_media_import(app: AppHandle, path: String) -> Result<Value, String> {
+    let from = PathBuf::from(&path);
+    if !from.is_absolute() || !from.is_file() {
+        return Err("that file isn't there".into());
+    }
+    let ext = from
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    const OK: &[&str] = &[
+        "mp4", "webm", "mov", "m4v", "mkv", "mp3", "wav", "ogg", "oga", "m4a", "aac", "flac", "png", "jpg", "jpeg",
+        "webp", "gif",
+    ];
+    if !OK.contains(&ext.as_str()) {
+        return Err(format!("can't use a .{ext} file (videos, sounds and pictures only)"));
+    }
+    let size = std::fs::metadata(&from).map_err(|e| e.to_string())?.len();
+    if size > 8 * 1024 * 1024 * 1024 {
+        return Err("that file is too big (8 GB at most)".into());
+    }
+    let dir = artifacts_dir(&app).ok_or("the Office is not set up")?.join("_media");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    allow_artifacts(&app);
+    let stem: String = from
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("media")
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || "-_ ".contains(c) { c } else { '_' })
+        .take(60)
+        .collect();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or_default();
+    let to = dir.join(format!("{now:x}-{}.{ext}", stem.trim()));
+    std::fs::copy(&from, &to).map_err(|e| format!("couldn't copy it: {e}"))?;
+    let kind = match ext.as_str() {
+        "mp3" | "wav" | "ogg" | "oga" | "m4a" | "aac" | "flac" => "audio",
+        "png" | "jpg" | "jpeg" | "webp" | "gif" => "image",
+        _ => "video",
+    };
+    Ok(json!({
+        "path": to.to_string_lossy(),
+        "name": from.file_name().and_then(|n| n.to_str()).unwrap_or("media"),
+        "kind": kind,
+        "size": size,
+    }))
+}
+
 /// Write an editor's export where the owner chose in the save dialog: text
 /// (.doc, .html, .csv, .md, .txt, .svg) or, with `base64`, a binary file
 /// (.pptx, .png, .jpg, .webp, .webm, .mp4, .glb, .stl, .zip).

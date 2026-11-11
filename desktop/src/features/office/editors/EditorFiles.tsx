@@ -7,6 +7,9 @@ import { ChartView } from "./ChartView";
 import { ImageEditor } from "./ImageEditor";
 import { renderImageFile } from "./imageEngine";
 import type { ImageFile } from "./imageFormat";
+import { VideoEditor } from "./VideoEditor";
+import { VideoEngine } from "./videoEngine";
+import { projectDuration, timecode, type VideoFile } from "./videoFormat";
 import { docExtensions } from "./docExtensions";
 import { openEditor, useOpenEditor } from "./editorStore";
 import {
@@ -37,6 +40,7 @@ export function EditorHost() {
   if (open.kind === "doc") return <WordEditor file={open.file as DocFile} key={key} {...props} />;
   if (open.kind === "slides") return <SlidesEditor file={open.file as SlidesFile} key={key} {...props} />;
   if (open.kind === "image") return <ImageEditor file={open.file as ImageFile} key={key} {...props} />;
+  if (open.kind === "video") return <VideoEditor file={open.file as VideoFile} key={key} {...props} />;
   return <SheetEditor file={open.file as SheetFile} key={key} {...props} />;
 }
 
@@ -82,6 +86,8 @@ export function EditorFileView({ item, thumb = false }: { item: Item; thumb?: bo
       <SlidesPreview deck={file} thumb={thumb} />
     ) : file.type === "image" ? (
       <ImagePreview image={file} thumb={thumb} />
+    ) : file.type === "video" ? (
+      <VideoPreview project={file} thumb={thumb} />
     ) : (
       <SheetPreview sheet={file} thumb={thumb} />
     );
@@ -141,6 +147,73 @@ function ImagePreview({ image, thumb }: { image: ImageFile; thumb: boolean }) {
         className="max-h-[75vh] max-w-full shadow-[0_2px_8px_rgba(0,0,0,0.25)] [background:repeating-conic-gradient(#ddd_0_25%,#fff_0_50%)_0_0/16px_16px]"
         src={src}
       />
+    </div>
+  );
+}
+
+function VideoPreview({ project, thumb }: { project: VideoFile; thumb: boolean }) {
+  const canvas = React.useRef<HTMLCanvasElement>(null);
+  const engine = React.useRef<VideoEngine | null>(null);
+  const [time, setTime] = React.useState(0);
+  const [playing, setPlaying] = React.useState(false);
+  const duration = projectDuration(project);
+  React.useEffect(() => {
+    if (thumb || !canvas.current) return;
+    const e = new VideoEngine(canvas.current, project);
+    e.onTime = setTime;
+    e.onStop = () => setPlaying(false);
+    engine.current = e;
+    e.seek(0);
+    return () => e.dispose();
+  }, [project, thumb]);
+  if (thumb) {
+    return project.preview ? (
+      <img alt="" className="absolute inset-0 h-full w-full object-cover" src={project.preview} />
+    ) : (
+      <div className="absolute inset-0 flex items-center justify-center bg-black text-xs text-white/60">Video project</div>
+    );
+  }
+  const toggle = () => {
+    const e = engine.current;
+    if (!e) return;
+    if (e.playing) {
+      e.pause();
+      setPlaying(false);
+    } else {
+      e.play(time);
+      setPlaying(true);
+    }
+  };
+  return (
+    <div className="flex flex-col items-center gap-2 px-6 pb-8">
+      <canvas
+        className="max-h-[70vh] max-w-full cursor-pointer bg-black shadow-[0_2px_8px_rgba(0,0,0,0.3)]"
+        onClick={toggle}
+        ref={canvas}
+        style={{ aspectRatio: `${project.width} / ${project.height}` }}
+      />
+      <div className="flex w-full max-w-3xl items-center gap-3 text-xs text-muted-foreground">
+        <button className="rounded bg-black/80 px-3 py-1 text-white" onClick={toggle} type="button">
+          {playing ? "Pause" : "Play"}
+        </button>
+        <input
+          className="flex-1"
+          max={duration || 0}
+          min={0}
+          onChange={(e) => {
+            const t = Number(e.target.value);
+            setTime(t);
+            if (engine.current?.playing) engine.current.play(t);
+            else engine.current?.seek(t);
+          }}
+          step={0.01}
+          type="range"
+          value={time}
+        />
+        <span className="font-mono">
+          {timecode(time, project.fps).slice(3, 8)} / {timecode(duration, project.fps).slice(3, 8)}
+        </span>
+      </div>
     </div>
   );
 }
