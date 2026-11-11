@@ -467,6 +467,49 @@ pub async fn office_artifact_save_file(
         .unwrap_or(entry))
 }
 
+/// The owner's screen share, for agents in the meeting: the latest frame is
+/// `<shared>/screen/latest.jpg` (a JPEG, base64 from the app), with the last
+/// 30 kept as `frame-<millis>.jpg`. `jpeg_base64` empty = sharing stopped
+/// (latest.jpg is removed so no one reads a stale screen). Returns the
+/// latest frame's path.
+#[tauri::command]
+pub async fn office_screen_frame(app: AppHandle, jpeg_base64: String) -> Result<String, String> {
+    use base64::Engine as _;
+    let dir = hive_shared_dir(&app).ok_or("the Office is not set up")?.join("screen");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let latest = dir.join("latest.jpg");
+    if jpeg_base64.is_empty() {
+        let _ = std::fs::remove_file(&latest);
+        return Ok(latest.to_string_lossy().into_owned());
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(jpeg_base64.trim())
+        .map_err(|e| format!("not a frame: {e}"))?;
+    if bytes.len() > 8_000_000 || !bytes.starts_with(&[0xFF, 0xD8]) {
+        return Err("not a JPEG frame".into());
+    }
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    std::fs::write(dir.join(format!("frame-{millis}.jpg")), &bytes).map_err(|e| e.to_string())?;
+    let tmp = dir.join("latest.jpg.tmp");
+    std::fs::write(&tmp, &bytes).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &latest).map_err(|e| e.to_string())?;
+    // Keep the last 30 frames.
+    let mut frames: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("frame-") && n.ends_with(".jpg")))
+        .collect();
+    frames.sort();
+    let extra = frames.len().saturating_sub(30);
+    for old in &frames[..extra] {
+        let _ = std::fs::remove_file(old);
+    }
+    Ok(latest.to_string_lossy().into_owned())
+}
+
 /// What agents said about the office's tools (`buzz-feedback`), newest last.
 #[tauri::command]
 pub async fn office_tool_feedback(app: AppHandle) -> Result<Vec<Value>, String> {

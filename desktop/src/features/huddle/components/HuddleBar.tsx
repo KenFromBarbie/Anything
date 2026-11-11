@@ -4,6 +4,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   Bot,
   Captions,
+  Monitor,
+  MonitorOff,
   PhoneOff,
   PictureInPicture,
   SmilePlus,
@@ -31,6 +33,12 @@ import { useHuddleParticipantRoster } from "../hooks/useHuddleParticipantRoster"
 import { AddAgentDialog, type AgentAddResult } from "./AddAgentDialog";
 import type { HuddleAgentVoiceSettings } from "./AgentVoiceMenu";
 import { MicControls, SpeakerControls } from "./MicControls";
+import { ScreenShareView } from "./ScreenShareView";
+import {
+  startScreenShare,
+  stopScreenShare,
+  useScreenShare,
+} from "../lib/screenShare";
 import { HuddleParticipantsControl } from "./ParticipantList";
 import { truncateNpub } from "@/shared/lib/pubkey";
 
@@ -170,6 +178,8 @@ export function HuddleBar({
     setSelectedOutputDevice,
   } = useHuddle();
   const { activeSpeakers, micLevel, speakerLevels } = useHuddleLevels();
+  const screenShare = useScreenShare();
+  const sharing = !!screenShare.stream;
   const customEmoji = useCustomEmoji();
   const identityQuery = useIdentityQuery();
   const profileQuery = useProfileQuery();
@@ -512,6 +522,7 @@ export function HuddleBar({
     stateGenerationRef.current += 1;
     locallyLeavingChannelRef.current = leavingChannelId;
     setIsLeaving(true);
+    await stopScreenShare();
     try {
       const backendClean = await leaveHuddle();
       if (backendClean) {
@@ -794,6 +805,32 @@ export function HuddleBar({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
+                aria-label={sharing ? "Stop sharing your screen" : "Share your screen"}
+                aria-pressed={sharing}
+                className={cn(
+                  "buzz-huddle-control-button h-12 w-12 shrink-0 rounded-md",
+                  sharing && "bg-[#3ba55d] text-white hover:bg-[#2d7d46]",
+                )}
+                onClick={() =>
+                  void (sharing
+                    ? stopScreenShare()
+                    : startScreenShare(barState?.ephemeral_channel_id ?? null))
+                }
+                size="icon"
+                type="button"
+                variant="secondary"
+              >
+                {sharing ? <MonitorOff className="h-4 w-4" /> : <Monitor className="h-4 w-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="buzz-huddle-tooltip" side="top">
+              {sharing ? "Stop sharing" : "Share your screen (agents in the call can see it)"}
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
                 aria-label="Add agent to call"
                 className="buzz-huddle-control-button h-12 w-12 shrink-0 rounded-md"
                 onClick={() => setShowAddAgent(true)}
@@ -846,6 +883,8 @@ export function HuddleBar({
           Leave
         </Button>
       </div>
+
+      <ScreenShareView />
 
       {/* Screen reader announcements for huddle state changes */}
       <output aria-live="polite" className="sr-only">

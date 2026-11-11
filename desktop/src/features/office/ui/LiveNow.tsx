@@ -3,6 +3,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { Box, Clapperboard, FileText, Globe, ImageIcon, Radio, X } from "lucide-react";
 
 import { EditorFileView } from "@/features/office/editors/EditorFiles";
+import { useOpenAgentDm } from "@/features/office/lib/agentDm";
 import { type AgentPresence, type OfficeAgent, useOfficeAgents } from "@/features/office/lib/officeLink";
 import { cn } from "@/shared/lib/cn";
 
@@ -70,6 +71,7 @@ export function LiveNow() {
   const { agents } = useOfficeAgents();
   const now = useNow();
   const [watching, setWatching] = React.useState<string | null>(null);
+  const dm = useOpenAgentDm();
   const live = (agents as LiveAgent[]).filter((a) => a.presence && isLive(a, now));
   const watched = (agents as LiveAgent[]).find((a) => a.id === watching && a.presence);
   return (
@@ -79,11 +81,11 @@ export function LiveNow() {
         <section className="space-y-2" data-testid="create-live-now">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-            Live now
+            Live now · {live.length} {live.length === 1 ? "agent" : "agents"} streaming
           </div>
           <div className="flex flex-wrap gap-3">
             {live.map((a) => (
-              <LiveCard agent={a} key={a.id} now={now} onWatch={() => setWatching(a.id)} />
+              <LiveCard agent={a} key={a.id} onMessage={() => void dm.open(a)} onWatch={() => setWatching(a.id)} />
             ))}
           </div>
         </section>
@@ -93,50 +95,116 @@ export function LiveNow() {
   );
 }
 
-function LiveCard({ agent, now, onWatch }: { agent: LiveAgent; now: number; onWatch: () => void }) {
+/** Elapsed time, Discord style: 21:01, 1:04:09. */
+export function clock(since: number, now = Date.now()): string {
+  const t = Math.max(0, Math.floor((now - since) / 1000));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = String(t % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${String(m).padStart(2, "0")}:${sec}`;
+}
+
+const KIND_APP: Record<LiveKind, { name: string; color: string }> = {
+  model: { name: "3D", color: "#E8873A" },
+  image: { name: "Image", color: "#2F7FE8" },
+  video: { name: "Video", color: "#9B5DE5" },
+  site: { name: "Site", color: "#14A39A" },
+  pdf: { name: "Document", color: "#185ABD" },
+  editor: { name: "Editor", color: "#185ABD" },
+  text: { name: "Code", color: "#5865F2" },
+};
+
+/** An agent at work, like a stream on Discord: their work live on top, then
+ *  a rich-presence card (what, in which tool, for how long). */
+function LiveCard({ agent, onWatch, onMessage }: { agent: LiveAgent; onWatch: () => void; onMessage: () => void }) {
   const p = agent.presence;
-  const Icon = p.latest ? KIND_ICON[p.latest.kind] : Radio;
+  const now = useNow(1000);
+  const kind = p.latest?.kind;
+  const Icon = kind ? KIND_ICON[kind] : Radio;
+  const app = kind ? KIND_APP[kind] : { name: "Terminal", color: "#5865F2" };
+  const file = p.latest ? p.latest.path.replace(/\\/g, "/").split("/").pop() : null;
+  const last = p.steps.at(-1)?.text;
   return (
-    <button
-      className="group w-64 overflow-hidden rounded-lg border border-border/70 bg-card text-left shadow-sm transition hover:border-red-500/60 hover:shadow-md"
-      onClick={onWatch}
-      title={`Watch ${agent.name}`}
-      type="button"
-    >
-      <div className="relative flex h-32 items-center justify-center overflow-hidden bg-[#1e1f22]">
-        {p.latest?.kind === "image" ? (
-          <LiveImage path={p.latest.path} />
-        ) : (
-          <Icon className="h-10 w-10 text-white/40 transition group-hover:scale-110 group-hover:text-white/70" />
-        )}
-        <span className="absolute left-2 top-2 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-          Live
-        </span>
-        <span className="absolute bottom-2 left-2 right-2 truncate text-[11px] text-white/80 drop-shadow">
-          {p.latest ? p.latest.path.replace(/\\/g, "/").split("/").pop() : p.steps.at(-1)?.text}
-        </span>
-      </div>
-      <div className="flex items-start gap-2 p-2.5">
-        <span className="mt-0.5 h-7 w-7 shrink-0 rounded-full text-center text-xs font-bold leading-7 text-white" style={{ background: agent.accent?.startsWith("#") ? agent.accent : "#5865f2" }}>
-          {agent.name.slice(0, 1)}
-        </span>
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold">{agent.name}</div>
-          <div className="truncate text-xs text-muted-foreground">
-            {p.activity}
-            {p.detail ? ` · ${p.detail}` : ""}
+    <div className="w-72 overflow-hidden rounded-lg bg-[#2b2d31] text-white shadow-md ring-1 ring-black/20" data-testid="live-card">
+      <button className="group relative block h-40 w-full overflow-hidden bg-[#1e1f22]" onClick={onWatch} title={`Watch ${agent.name}`} type="button">
+        <LiveThumb fallback={<Icon className="h-10 w-10 text-white/30" />} latest={p.latest ?? null} />
+        <span className="absolute left-2 top-2 rounded bg-[#ed4245] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">Live</span>
+        <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-sm font-semibold opacity-0 transition group-hover:opacity-100">Watch stream</span>
+      </button>
+      <div className="p-3">
+        <div className="mb-2 flex items-center justify-between text-xs font-semibold text-white/90">
+          <span className="truncate">{p.activity}</span>
+          <span className="flex items-center gap-1.5 text-[11px] font-normal text-white/60">
+            <span className="h-2 w-2 rounded-full" style={{ background: agent.accent?.startsWith("#") ? agent.accent : "#5865f2" }} />
+            {agent.name}
+          </span>
+        </div>
+        <div className="flex gap-3">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg" style={{ background: `${app.color}2e`, boxShadow: `inset 0 0 0 1.5px ${app.color}66` }}>
+            <Icon className="h-8 w-8" style={{ color: app.color }} />
           </div>
-          <div className="text-[11px] text-muted-foreground/80">{sinceLabel(p.since, now)}</div>
+          <div className="min-w-0 text-[13px] leading-snug">
+            <div className="truncate font-semibold">{p.detail || file || app.name}</div>
+            <div className="truncate text-white/75">{file && p.detail ? file : app.name}</div>
+            <div className="truncate text-white/60" title={last}>{last ?? "Starting…"}</div>
+            <div className="mt-0.5 flex items-center gap-1 text-xs tabular-nums text-[#3ba55d]">
+              <Radio className="h-3 w-3" />
+              {clock(p.since, now)}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-col gap-1.5">
+          <button className="h-8 rounded-md bg-[#4e5058] text-sm font-medium hover:bg-[#6d6f78]" onClick={onWatch} type="button">
+            Watch stream
+          </button>
+          <button className="h-8 rounded-md bg-[#4e5058] text-sm font-medium hover:bg-[#6d6f78]" onClick={onMessage} type="button">
+            Message {agent.name}
+          </button>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
-function LiveImage({ path }: { path: string }) {
-  const f = useLiveFile(path);
-  if (!f || f.error) return null;
-  return <img alt="" className="h-full w-full object-cover" src={`${convertFileSrc(path)}?v=${f.mtime}`} />;
+/** A small live picture of the agent's latest work, refreshed as it changes. */
+function LiveThumb({ latest, fallback }: { latest: Presence["latest"] | null; fallback: React.ReactNode }) {
+  const f = useLiveFile(latest?.path);
+  if (!latest || !f || f.error) return <div className="flex h-full items-center justify-center">{fallback}</div>;
+  const src = `${convertFileSrc(latest.path)}?v=${f.mtime}`;
+  const k = latest.kind;
+  if (k === "image") return <img alt="" className="h-full w-full object-cover" src={src} />;
+  // biome-ignore lint/a11y/useMediaCaption: a silent preview of work in progress
+  if (k === "video") return <video autoPlay className="h-full w-full object-cover" key={src} loop muted playsInline src={src} />;
+  if (k === "site" || k === "pdf") {
+    return <iframe className="pointer-events-none h-[400%] w-[400%] origin-top-left border-0 bg-white" key={src} sandbox="" src={src} style={{ transform: "scale(0.25)" }} tabIndex={-1} title="Live" />;
+  }
+  if (k === "editor") {
+    return (
+      <div className="pointer-events-none relative h-full w-full overflow-hidden bg-white" key={src}>
+        <EditorFileView item={{ id: `thumb-${latest.path}`, title: "", path: latest.path }} thumb />
+      </div>
+    );
+  }
+  if (k === "model") {
+    return (
+      <React.Suspense fallback={<div className="flex h-full items-center justify-center">{fallback}</div>}>
+        <ModelViewer className="pointer-events-none h-full w-full" key={src} path={latest.path} src={src} />
+      </React.Suspense>
+    );
+  }
+  return <TextThumb src={src} />;
+}
+
+/** The end of a text/code file, like a terminal. */
+function TextThumb({ src }: { src: string }) {
+  const [text, setText] = React.useState("");
+  React.useEffect(() => {
+    fetch(src)
+      .then((r) => r.text())
+      .then((t) => setText(t.split("\n").slice(-14).join("\n")))
+      .catch(() => {});
+  }, [src]);
+  return <pre className="h-full w-full overflow-hidden p-2 text-left font-mono text-[9px] leading-tight text-[#9ece6a]">{text}</pre>;
 }
 
 /** Watching an agent: their work, live, in the tool it belongs to, with what
