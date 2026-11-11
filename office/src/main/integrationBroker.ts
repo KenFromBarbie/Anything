@@ -187,7 +187,9 @@ export class IntegrationBroker {
     const query = m[3] ?? '';
 
     // 4) Authorize against this worker's capability.
-    if (!cap.allowedIds.has(integrationId)) {
+    // '*' = every integration the owner has enabled (checked live below), so an
+    // agent started before the owner turned one on can still use it.
+    if (!cap.allowedIds.has(integrationId) && !cap.allowedIds.has('*')) {
       return IntegrationBroker.sendError(res, 403, 'forbidden', 'integration not in this worker capability');
     }
     // 5) Resolve the record (still enabled?).

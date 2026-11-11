@@ -256,6 +256,20 @@ export const INTEGRATION_TEMPLATES: IntegrationTemplate[] = [
     secretHelp: 'Point baseUrl at any REST API. Choose how its credential is sent: Bearer token, a custom header, or none.',
     idSuggestion: 'my-api'
   },
+  {
+    // Composio: one key reaches the apps the owner connected in their Composio
+    // dashboard (Gmail, GitHub, Slack, Notion, …). Agents use it through the
+    // broker with `buzz-composio`; they never see the key.
+    kind: 'custom-rest',
+    label: 'Composio',
+    baseUrl: 'https://backend.composio.dev',
+    authType: 'header',
+    authHeader: 'x-api-key',
+    secretLabel: 'Composio API key',
+    secretHelp: 'Composio dashboard → Settings → API keys. Connect apps (Gmail, Slack, …) in the Composio dashboard; agents use them with buzz-composio and never see this key.',
+    docsUrl: 'https://docs.composio.dev/api-reference',
+    idSuggestion: 'composio'
+  },
 
   // ─── First-wave YC tools (Dwight, P2) ───────────────────────────────────────
   // Per-tool auth model + high-value endpoint catalog: hive/docs/integration-templates.md.

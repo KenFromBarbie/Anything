@@ -2650,6 +2650,13 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   const claudeProvider = isClaudeProvider(provider);
   opts.provider = provider;
   if (opts.hive) opts.hive = { ...opts.hive, provider };
+  // Every agent can reach the integrations the owner enabled (Composio, GitHub,
+  // …) through the loopback broker with a per-agent capability token (a handle,
+  // never a secret; revoked in teardownPty). Workers already carry their own.
+  if (integrationBroker.running() && !opts.env?.MD_BROKER_TOKEN) {
+    const token = integrationBroker.grant(opts.id, ['*']);
+    opts.env = { ...(opts.env ?? {}), MD_BROKER_URL: integrationBroker.url(), MD_BROKER_TOKEN: token };
+  }
   // Activation-funnel entry (v0.4.6): every spawn REQUEST, so (attempted − spawned)
   // measures the fallout the whole rebuild exists to see. Gated on !noAutoInstall so
   // the missing-CLI relaunch (the only re-entry, index.ts install-exit handler) does

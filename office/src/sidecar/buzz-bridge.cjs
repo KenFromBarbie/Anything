@@ -509,6 +509,15 @@ ${global}
       'Never publish a localhost address: the server behind it stops when you do (or the app restarts), and the owner is left with a dead link. Publish the site’s folder with --dir; the app serves it itself.',
       'A 3D model: publish one binary .glb (materials and colours inside it, centred at the origin, Y up, under about 20 MB); the app shows it in a 3D viewer the owner can turn and zoom, and plays its animations. .obj and .stl work too, without materials.',
       '',
+      '## The owner\'s apps (Composio)',
+      'When the owner has turned Composio on (Settings → Integrations), you can use the apps they connected there: Gmail, Google Calendar, GitHub, Slack, Notion, Linear and many more. You never see or need their key; the office adds it.',
+      '',
+      `    ${this.composioCommand()} apps                          (which apps are connected)`,
+      `    ${this.composioCommand()} search "<what to do>" [--app gmail]`,
+      `    ${this.composioCommand()} schema <TOOL_SLUG>            (its inputs)`,
+      `    ${this.composioCommand()} run <TOOL_SLUG> --args-file "<json file>"`,
+      'Read before you write: search and fetch first. Sending email or messages, posting, creating, changing or deleting anything in the owner\'s accounts happens only when the owner asked for exactly that; otherwise draft it and ask. If an app isn\'t connected, say which one and ask the owner to connect it in Composio; never ask for the key.',
+      '',
       ...(simkit
         ? [
           '## 3D, clothing and simulations (simkit)',
@@ -1414,6 +1423,9 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
   browseCommand() {
     return `"${String(this.browseWrapperPath ?? 'buzz-browse').replace(/\\/g, '/')}"`;
   }
+  composioCommand() {
+    return `"${String(this.composioWrapperPath ?? 'buzz-composio').replace(/\\/g, '/')}"`;
+  }
 
   /** --mention flags for office agents named as @Name in the text, so they are
    *  notified even where the CLI can't resolve the name uniquely. */
@@ -1688,14 +1700,15 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
     this.historyWrapperPath = this.writeWrapper(config, 'buzz-history', '--history');
     this.showWrapperPath = this.writeWrapper(config, 'buzz-show', '--show');
     this.browseWrapperPath = this.writeWrapper(config, 'buzz-browse', '--browse');
+    this.composioWrapperPath = this.writeWrapper(config, 'buzz-composio', '', 'md-composio.cjs');
   }
 
   /** Launcher agents call (`buzz-reply`, `buzz-post`, `buzz-history`); runs the
    *  helper on our runtime. */
-  writeWrapper(config, name, mode = '') {
+  writeWrapper(config, name, mode = '', script = 'md-buzz-reply.cjs') {
     const bin = join(this.userData, 'bin');
     fs.mkdirSync(bin, { recursive: true });
-    const helper = join(__dirname, 'md-buzz-reply.cjs');
+    const helper = join(__dirname, script);
     const flag = mode ? ` ${mode}` : '';
     if (process.platform === 'win32') {
       const p = join(bin, `${name}.cmd`);
