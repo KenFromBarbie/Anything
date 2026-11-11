@@ -73,6 +73,9 @@ export function restoreFromHost(ids?: readonly string[]): Promise<void> {
   return latestRestore(ids);
 }
 
+/** The outcome of the last restore ("restored 2 · 1 failed — …"), or null. */
+export const lastRestoreNote = (): string | null => note;
+
 /** How far the restore in flight is, or null. */
 export const restoreProgress = (): { done: number; total: number } | null => progress;
 

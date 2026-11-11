@@ -12,7 +12,7 @@
 import i18n from '@/i18n';
 import { useStore, type Agent } from '@/store/store';
 import { restartAgent } from '@/components/agentRestart';
-import { isRestoring, onRestoreChange, restoreFromHost, restoreProgress } from '@/hooks/useRestoreTeam';
+import { isRestoring, lastRestoreNote, onRestoreChange, restoreFromHost, restoreProgress } from '@/hooks/useRestoreTeam';
 import { openQuestion, parseTasks, type HiveTask, type HumanQA } from '@/components/TasksKanban';
 import { disposeTerminal } from '@/components/terminalPool';
 import { sectionOps } from '@/host/buzzSectionsApi';
@@ -160,7 +160,9 @@ const ops: Record<string, Op> = {
   'agents.restore': async (a) => {
     const ids = Array.isArray(a.ids) ? a.ids.map((x) => String(x)) : undefined;
     await restoreFromHost(ids);
-    return { ok: true };
+    // Say what happened (a refused spawn used to look like a dead button).
+    const note = lastRestoreNote();
+    return { ok: !note || !/failed/.test(note), note };
   },
 
   /** Customize office (the CEO's desk): how the floor is laid out. */

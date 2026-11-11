@@ -19,9 +19,21 @@ export function RestoreTeamButton() {
   if (restorable.length === 0 && !restoring) return null;
 
   const run = (op: string, args: Record<string, unknown>) => {
-    callOffice(op, args).catch((error: unknown) => {
-      toast.error(error instanceof Error ? error.message : String(error));
-    });
+    callOffice(op, args)
+      .then((result) => {
+        // The Office says why an agent didn't start (e.g. low memory).
+        const r = (result ?? {}) as { ok?: boolean; note?: string | null };
+        if (r.ok === false && r.note) {
+          toast.error(
+            /free memory/.test(r.note)
+              ? "Couldn't restore: the computer is low on memory (an agent needs about 1.2 GB free to start). Close some apps or agents and try again."
+              : `Couldn't restore everyone: ${r.note}`,
+          );
+        }
+      })
+      .catch((error: unknown) => {
+        toast.error(error instanceof Error ? error.message : String(error));
+      });
   };
 
   return (
