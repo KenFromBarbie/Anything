@@ -130,6 +130,11 @@ function codebaseLines(codebase: Codebase | null | undefined): string[] {
   ];
 }
 
+/** How a kind is made (for the editors' requests to the Office). */
+export function makeHow(kind: MakeKind): string {
+  return HOW[kind];
+}
+
 /** The owner asked for something new in the Studio. */
 export function makeRequest(
   kind: MakeKind,

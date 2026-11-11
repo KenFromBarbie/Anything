@@ -7,6 +7,9 @@ import { ChartView } from "./ChartView";
 import { ImageEditor } from "./ImageEditor";
 import { renderImageFile } from "./imageEngine";
 import type { ImageFile } from "./imageFormat";
+import { ModelEditor } from "./ModelEditor";
+import { ModelScene } from "./modelEngine";
+import type { ModelFile } from "./modelFormat";
 import { VideoEditor } from "./VideoEditor";
 import { VideoEngine } from "./videoEngine";
 import { projectDuration, timecode, type VideoFile } from "./videoFormat";
@@ -41,6 +44,7 @@ export function EditorHost() {
   if (open.kind === "slides") return <SlidesEditor file={open.file as SlidesFile} key={key} {...props} />;
   if (open.kind === "image") return <ImageEditor file={open.file as ImageFile} key={key} {...props} />;
   if (open.kind === "video") return <VideoEditor file={open.file as VideoFile} key={key} {...props} />;
+  if (open.kind === "model") return <ModelEditor file={open.file as ModelFile} key={key} {...props} />;
   return <SheetEditor file={open.file as SheetFile} key={key} {...props} />;
 }
 
@@ -88,6 +92,8 @@ export function EditorFileView({ item, thumb = false }: { item: Item; thumb?: bo
       <ImagePreview image={file} thumb={thumb} />
     ) : file.type === "video" ? (
       <VideoPreview project={file} thumb={thumb} />
+    ) : file.type === "model" ? (
+      <ModelPreview scene={file} thumb={thumb} />
     ) : (
       <SheetPreview sheet={file} thumb={thumb} />
     );
@@ -147,6 +153,51 @@ function ImagePreview({ image, thumb }: { image: ImageFile; thumb: boolean }) {
         className="max-h-[75vh] max-w-full shadow-[0_2px_8px_rgba(0,0,0,0.25)] [background:repeating-conic-gradient(#ddd_0_25%,#fff_0_50%)_0_0/16px_16px]"
         src={src}
       />
+    </div>
+  );
+}
+
+function ModelPreview({ scene, thumb }: { scene: ModelFile; thumb: boolean }) {
+  const host = React.useRef<HTMLDivElement>(null);
+  const [playing, setPlaying] = React.useState(false);
+  const engine = React.useRef<ModelScene | null>(null);
+  React.useEffect(() => {
+    if (thumb || !host.current) return;
+    const e = new ModelScene(host.current, scene);
+    e.gizmo.getHelper().visible = false;
+    e.gizmo.enabled = false;
+    engine.current = e;
+    requestAnimationFrame(() => e.focus());
+    return () => e.dispose();
+  }, [scene, thumb]);
+  React.useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const span = Math.max(1, scene.frameEnd - scene.frameStart);
+      engine.current?.setFrame(scene.frameStart + (((now - t0) / 1000) * scene.fps) % span);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, scene]);
+  if (thumb) {
+    return scene.preview ? (
+      <img alt="" className="absolute inset-0 h-full w-full object-cover" src={scene.preview} />
+    ) : (
+      <div className="absolute inset-0 flex items-center justify-center bg-[#3a3a3a] text-xs text-white/60">3D scene</div>
+    );
+  }
+  const animated = scene.objects.some((o) => o.keys?.length || o.kind === "import");
+  return (
+    <div className="relative mx-6 mb-8 h-[70vh] overflow-hidden rounded">
+      <div className="absolute inset-0" ref={host} />
+      {animated ? (
+        <button className="absolute bottom-3 left-3 rounded bg-black/70 px-3 py-1 text-xs text-white" onClick={() => setPlaying((p) => !p)} type="button">
+          {playing ? "Pause" : "Play animation"}
+        </button>
+      ) : null}
     </div>
   );
 }

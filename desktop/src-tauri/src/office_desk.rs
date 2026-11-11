@@ -483,10 +483,10 @@ pub async fn office_media_import(app: AppHandle, path: String) -> Result<Value, 
         .unwrap_or_default();
     const OK: &[&str] = &[
         "mp4", "webm", "mov", "m4v", "mkv", "mp3", "wav", "ogg", "oga", "m4a", "aac", "flac", "png", "jpg", "jpeg",
-        "webp", "gif",
+        "webp", "gif", "glb", "gltf", "obj", "stl",
     ];
     if !OK.contains(&ext.as_str()) {
-        return Err(format!("can't use a .{ext} file (videos, sounds and pictures only)"));
+        return Err(format!("can't use a .{ext} file (videos, sounds, pictures and 3D models only)"));
     }
     let size = std::fs::metadata(&from).map_err(|e| e.to_string())?.len();
     if size > 8 * 1024 * 1024 * 1024 {
@@ -512,6 +512,7 @@ pub async fn office_media_import(app: AppHandle, path: String) -> Result<Value, 
     let kind = match ext.as_str() {
         "mp3" | "wav" | "ogg" | "oga" | "m4a" | "aac" | "flac" => "audio",
         "png" | "jpg" | "jpeg" | "webp" | "gif" => "image",
+        "glb" | "gltf" | "obj" | "stl" => "model",
         _ => "video",
     };
     Ok(json!({

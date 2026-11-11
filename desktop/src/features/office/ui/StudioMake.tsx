@@ -83,6 +83,7 @@ const EDITOR_FOR: Partial<Record<MakeKind, EditorKind>> = {
   chart: "sheet",
   image: "image",
   video: "video",
+  model: "model",
 };
 import { AddCodebaseDialog } from "./Codebases";
 
@@ -331,7 +332,8 @@ export function StudioMake({
       <AddCodebaseDialog onOpenChange={setLinkingCode} open={linkingCode} />
       <SubsectionLabel>Make something new</SubsectionLabel>
       <div className="flex flex-wrap gap-3">
-        {MAKE_KINDS.map(({ kind: k, label }) => (
+        {/* Clothing and Simulation live inside the 3D editor (its workspaces). */}
+        {MAKE_KINDS.filter(({ kind: k }) => k !== "clothing" && k !== "simulation").map(({ kind: k, label }) => (
           <Tile
             {...TILES[k]}
             key={k}
