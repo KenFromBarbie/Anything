@@ -2,7 +2,9 @@
 // the files they save: one editable JSON file per thing, which Create draws,
 // the editor reopens, and agents can write new versions of.
 
-export type EditorKind = "doc" | "slides" | "sheet";
+import { blankImage, IMAGE_SPEC, type ImageFile, parseImage } from "./imageFormat";
+
+export type EditorKind = "doc" | "slides" | "sheet" | "image";
 
 export type DocFile = {
   type: "doc";
@@ -42,18 +44,20 @@ export type SheetFile = {
   charts: SheetChart[];
 };
 
-export type EditorFile = DocFile | SlidesFile | SheetFile;
+export type EditorFile = DocFile | SlidesFile | SheetFile | ImageFile;
 
 export const EXT: Record<EditorKind, string> = {
   doc: ".doc.json",
   slides: ".slides.json",
   sheet: ".sheet.json",
+  image: ".image.json",
 };
 
 export const APP: Record<EditorKind, { name: string; color: string; noun: string }> = {
   doc: { name: "Document", color: "#185ABD", noun: "document" },
   slides: { name: "Slides", color: "#C43E1C", noun: "presentation" },
   sheet: { name: "Sheet", color: "#107C41", noun: "workbook" },
+  image: { name: "Image", color: "#2F7FE8", noun: "image" },
 };
 
 /** Which editor a saved file belongs to, from its name. */
@@ -63,10 +67,12 @@ export function editorKindOf(path: string | undefined | null): EditorKind | null
   if (p.endsWith(EXT.doc)) return "doc";
   if (p.endsWith(EXT.slides)) return "slides";
   if (p.endsWith(EXT.sheet)) return "sheet";
+  if (p.endsWith(EXT.image)) return "image";
   return null;
 }
 
 export function blankFile(kind: EditorKind): EditorFile {
+  if (kind === "image") return blankImage();
   if (kind === "doc") return { type: "doc", version: 1, html: "<p></p>" };
   if (kind === "slides") {
     return {
@@ -81,6 +87,7 @@ export function blankFile(kind: EditorKind): EditorFile {
 
 /** Read a saved file, filling in what an agent may have left out. */
 export function parseFile(kind: EditorKind, value: unknown): EditorFile {
+  if (kind === "image") return parseImage(value);
   const v = (value ?? {}) as Record<string, unknown>;
   if (kind === "doc") {
     return { type: "doc", version: 1, html: typeof v.html === "string" ? v.html : "<p></p>" };
@@ -503,6 +510,7 @@ addEventListener("click",()=>show(i+1));show(0);
 
 /** How an agent writes each format (for requests to the Office). */
 export const FORMAT_SPEC: Record<EditorKind, string> = {
+  image: IMAGE_SPEC,
   doc: 'JSON: {"type":"doc","version":1,"html":"<h1>…</h1><p>…</p>"}. The html uses h1–h3, p, ul/ol/li, blockquote, strong, em, u, s, a, img (https or data: URLs), hr, and inline styles for colour, background-color, font-size, font-family and text-align.',
   slides:
     'JSON: {"type":"slides","version":1,"theme":"office|dark|ocean|sunset|forest","slides":[{"layout":"title|content|section|two|blank","title":"…","body":"one point per line","right":"second column (two only)","notes":"speaker notes"}]}. Keep each slide to a title and 3–6 short points.',

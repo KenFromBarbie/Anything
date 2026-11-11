@@ -4,6 +4,9 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { Pencil } from "lucide-react";
 
 import { ChartView } from "./ChartView";
+import { ImageEditor } from "./ImageEditor";
+import { renderImageFile } from "./imageEngine";
+import type { ImageFile } from "./imageFormat";
 import { docExtensions } from "./docExtensions";
 import { openEditor, useOpenEditor } from "./editorStore";
 import {
@@ -33,6 +36,7 @@ export function EditorHost() {
   const props = { title: open.title, series: open.series, path: open.path, artifactId: open.artifactId };
   if (open.kind === "doc") return <WordEditor file={open.file as DocFile} key={key} {...props} />;
   if (open.kind === "slides") return <SlidesEditor file={open.file as SlidesFile} key={key} {...props} />;
+  if (open.kind === "image") return <ImageEditor file={open.file as ImageFile} key={key} {...props} />;
   return <SheetEditor file={open.file as SheetFile} key={key} {...props} />;
 }
 
@@ -76,6 +80,8 @@ export function EditorFileView({ item, thumb = false }: { item: Item; thumb?: bo
       <DocPreview html={file.html} thumb={thumb} />
     ) : file.type === "slides" ? (
       <SlidesPreview deck={file} thumb={thumb} />
+    ) : file.type === "image" ? (
+      <ImagePreview image={file} thumb={thumb} />
     ) : (
       <SheetPreview sheet={file} thumb={thumb} />
     );
@@ -108,6 +114,33 @@ function DocPreview({ html, thumb }: { html: string; thumb: boolean }) {
           <EditorContent editor={editor} />
         </div>
       </div>
+    </div>
+  );
+}
+
+function ImagePreview({ image, thumb }: { image: ImageFile; thumb: boolean }) {
+  // The saved preview on a card; the full picture, flattened, in the viewer.
+  const [src, setSrc] = React.useState<string | null>(thumb ? (image.preview ?? null) : null);
+  React.useEffect(() => {
+    if (src) return;
+    let alive = true;
+    renderImageFile(image, thumb ? 480 : 0)
+      .then((c) => alive && setSrc(c.toDataURL("image/png")))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [image, thumb, src]);
+  if (!src) return null;
+  return thumb ? (
+    <img alt="" className="absolute inset-0 h-full w-full object-cover" src={src} />
+  ) : (
+    <div className="flex justify-center px-6 pb-8">
+      <img
+        alt=""
+        className="max-h-[75vh] max-w-full shadow-[0_2px_8px_rgba(0,0,0,0.25)] [background:repeating-conic-gradient(#ddd_0_25%,#fff_0_50%)_0_0/16px_16px]"
+        src={src}
+      />
     </div>
   );
 }

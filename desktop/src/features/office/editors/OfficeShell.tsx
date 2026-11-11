@@ -310,7 +310,7 @@ export function RibbonSelect({
 
 /** "Ask the CEO": the editor's assistant pane. What's asked goes to the CEO,
  *  who runs it through the Office; the result comes back as a new version. */
-function AskPane({
+export function AskPane({
   kind,
   onClose,
   placeholder,

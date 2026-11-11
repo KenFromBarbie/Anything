@@ -81,6 +81,7 @@ const EDITOR_FOR: Partial<Record<MakeKind, EditorKind>> = {
   document: "doc",
   slides: "slides",
   chart: "sheet",
+  image: "image",
 };
 import { AddCodebaseDialog } from "./Codebases";
 
