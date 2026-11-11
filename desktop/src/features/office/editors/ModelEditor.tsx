@@ -63,10 +63,11 @@ import {
 } from "./modelFormat";
 import { type CadApi, InspectPanel, RoboticsPanel, StructurePanel } from "./CadPanels";
 import { type MarineApi, MarinePanel } from "./MarinePanel";
+import { PrintPanel } from "./PrintPanel";
 import { editorRequest } from "./requests";
 
-type Workspace = "Layout" | "Animation" | "Robotics" | "Structure" | "Inspect" | "Marine" | "Clothing" | "Simulation";
-const WORKSPACES: Workspace[] = ["Layout", "Animation", "Robotics", "Structure", "Inspect", "Marine", "Clothing", "Simulation"];
+type Workspace = "Layout" | "Animation" | "Robotics" | "Structure" | "Inspect" | "Print" | "Marine" | "Clothing" | "Simulation";
+const WORKSPACES: Workspace[] = ["Layout", "Animation", "Robotics", "Structure", "Inspect", "Print", "Marine", "Clothing", "Simulation"];
 type PropTab = "object" | "modifiers" | "material" | "shape" | "physics" | "world";
 
 const ADD: { kind: Primitive; label: string }[] = [
@@ -691,7 +692,9 @@ export function ModelEditor({
     >
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1">
-          {workspace === "Robotics" || workspace === "Structure" || workspace === "Inspect" ? (
+          {workspace === "Print" ? (
+            <PrintPanel api={cadApi} change={change} model={model} onExportStl={() => void doExport("stl")} selected={obj} />
+          ) : workspace === "Robotics" || workspace === "Structure" || workspace === "Inspect" ? (
             (() => {
               const P = workspace === "Robotics" ? RoboticsPanel : workspace === "Structure" ? StructurePanel : InspectPanel;
               return (

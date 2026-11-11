@@ -1,6 +1,7 @@
 import type { CurveDef, SurfaceDef } from "./cad";
 import type { JointDef, RobotProgram } from "./robotics";
 import type { FrameStudy } from "./frameFea";
+import type { PrintSettings } from "./slicer";
 
 // The 3D editor's scene file (.model.json): objects (primitives and imported
 // models) with transforms, materials, keyframes and physics, like a small
@@ -104,6 +105,8 @@ export type ModelFile = {
     robot?: RobotProgram;
     /** The Structure workspace's frame analysis setup. */
     structure?: FrameStudy;
+    /** The Print workspace's slicer settings. */
+    print?: Partial<PrintSettings>;
   };
   preview?: string;
 };
