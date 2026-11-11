@@ -351,6 +351,7 @@ export class ModelScene {
     }
     this.setFrame(this.frame);
     this.select(this.selected && live.has(this.selected) ? this.selected : null);
+    if (this.sectionCut) this.setSection(this.sectionCut);
   }
 
   private build(o: SceneObject): THREE.Object3D {
@@ -528,6 +529,43 @@ export class ModelScene {
   }
 
   private water: THREE.Group | null = null;
+  private overlays = new Map<string, THREE.Object3D>();
+
+  /** A named helper drawn over the scene (robot paths, results…); null removes it. */
+  setOverlay(key: string, obj: THREE.Object3D | null) {
+    const old = this.overlays.get(key);
+    if (old) {
+      // Not disposed: in the four-view layout each view shows a copy that
+      // shares the same geometry.
+      this.scene.remove(old);
+      this.overlays.delete(key);
+    }
+    if (obj) {
+      this.overlays.set(key, obj);
+      this.scene.add(obj);
+    }
+  }
+
+  /** Section view: cut the model with a plane (normal axis, offset in m), or null. */
+  setSection(cut: { axis: "x" | "y" | "z"; at: number; flip?: boolean } | null) {
+    this.renderer.localClippingEnabled = !!cut;
+    const planes = cut
+      ? [new THREE.Plane(new THREE.Vector3(cut.axis === "x" ? 1 : 0, cut.axis === "y" ? 1 : 0, cut.axis === "z" ? 1 : 0).multiplyScalar(cut.flip ? 1 : -1), cut.flip ? -cut.at : cut.at)]
+      : [];
+    for (const n of this.nodes.values()) {
+      n.traverse((x) => {
+        const mat = (x as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+        for (const m of Array.isArray(mat) ? mat : mat ? [mat] : []) {
+          m.clippingPlanes = planes;
+          m.clipShadows = true;
+          if (cut) m.side = THREE.DoubleSide;
+          m.needsUpdate = true;
+        }
+      });
+    }
+    this.sectionCut = cut;
+  }
+  private sectionCut: { axis: "x" | "y" | "z"; at: number; flip?: boolean } | null = null;
   /** Show the floating waterline: horizontal in the floating frame, so tilted
    *  back by the heel and trim here. */
   setWater(w: { y: number; about: Vec3; heel: number; trim: number } | null) {

@@ -1,4 +1,6 @@
 import type { CurveDef, SurfaceDef } from "./cad";
+import type { JointDef, RobotProgram } from "./robotics";
+import type { FrameStudy } from "./frameFea";
 
 // The 3D editor's scene file (.model.json): objects (primitives and imported
 // models) with transforms, materials, keyframes and physics, like a small
@@ -80,6 +82,9 @@ export type SceneObject = {
    *  (defaults to the middle of the object). */
   mass?: number;
   cg?: Vec3;
+  /** A joint on this link (robots and mechanisms): it turns or slides about
+   *  an axis in its own frame, relative to its parent. */
+  joint?: JointDef;
 };
 
 export type ModelFile = {
@@ -92,7 +97,14 @@ export type ModelFile = {
   objects: SceneObject[];
   /** What the Clothing / Simulation workspaces were set to (so a request
    *  and its result stay together). */
-  studies?: { clothing?: Record<string, string | number>; simulation?: Record<string, string | number> };
+  studies?: {
+    clothing?: Record<string, string | number>;
+    simulation?: Record<string, string | number>;
+    /** The Robotics workspace's program. */
+    robot?: RobotProgram;
+    /** The Structure workspace's frame analysis setup. */
+    structure?: FrameStudy;
+  };
   preview?: string;
 };
 
@@ -198,6 +210,7 @@ export function parseModel(value: unknown): ModelFile {
       },
       ...(kind === "import" ? { src: String(o.src) } : {}),
       ...(kind === "hull" ? { hull: parseHull(o.hull) } : {}),
+      ...(o.joint && typeof o.joint === "object" ? { joint: parseJoint(o.joint) } : {}),
       ...(kind === "curve" ? { curve: parseCurve(o.curve) } : {}),
       ...(kind === "surface" ? { surface: parseSurface(o.surface) } : {}),
       ...(o.mass != null && num(o.mass, 0, 0, 1e9) > 0 ? { mass: num(o.mass, 0, 0, 1e9) } : {}),
@@ -285,6 +298,24 @@ function parseSurface(v: unknown): SurfaceDef {
     ...(s.axisPoint != null ? { axisPoint: vec(s.axisPoint, [0, 0, 0]) } : {}),
     ...(s.radius != null ? { radius: num(s.radius, 0.05, 0.0001, 1000) } : {}),
     ...(s.cap != null ? { cap: s.cap !== false } : {}),
+  };
+}
+
+function parseJoint(v: unknown): JointDef {
+  const j = (v ?? {}) as Record<string, unknown>;
+  const type = (["revolute", "prismatic", "fixed"].includes(String(j.type)) ? j.type : "revolute") as JointDef["type"];
+  const h = (j.home ?? {}) as Record<string, unknown>;
+  const lim = type === "prismatic" ? 100 : 3600;
+  const min = num(j.min, type === "prismatic" ? 0 : -180, -lim, lim);
+  const max = num(j.max, type === "prismatic" ? 0.5 : 180, -lim, lim);
+  return {
+    type,
+    axis: vec(j.axis, [0, 1, 0]),
+    min: Math.min(min, max),
+    max: Math.max(min, max),
+    value: num(j.value, 0, -lim, lim),
+    home: { position: vec(h.position, [0, 0, 0]), rotation: vec(h.rotation, [0, 0, 0]) },
+    ...(j.maxVel != null ? { maxVel: num(j.maxVel, 90, 0.001, 10000) } : {}),
   };
 }
 

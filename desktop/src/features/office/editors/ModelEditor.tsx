@@ -61,11 +61,12 @@ import {
   type SceneObject,
   type Vec3,
 } from "./modelFormat";
+import { type CadApi, InspectPanel, RoboticsPanel, StructurePanel } from "./CadPanels";
 import { type MarineApi, MarinePanel } from "./MarinePanel";
 import { editorRequest } from "./requests";
 
-type Workspace = "Layout" | "Animation" | "Marine" | "Clothing" | "Simulation";
-const WORKSPACES: Workspace[] = ["Layout", "Animation", "Marine", "Clothing", "Simulation"];
+type Workspace = "Layout" | "Animation" | "Robotics" | "Structure" | "Inspect" | "Marine" | "Clothing" | "Simulation";
+const WORKSPACES: Workspace[] = ["Layout", "Animation", "Robotics", "Structure", "Inspect", "Marine", "Clothing", "Simulation"];
 type PropTab = "object" | "modifiers" | "material" | "shape" | "physics" | "world";
 
 const ADD: { kind: Primitive; label: string }[] = [
@@ -337,6 +338,31 @@ export function ModelEditor({
   }, [playing]);
 
   const obj = model.objects.find((o) => o.id === sel);
+  const cadApi = React.useMemo<CadApi>(
+    () => ({
+      tris: (id) => engine.current?.trisOf(id) ?? null,
+      overlay: (key, obj) => {
+        let first = true;
+        for (const e of engines.current.values()) {
+          e.setOverlay(key, obj ? (first ? obj : obj.clone(true)) : null);
+          first = false;
+        }
+      },
+      section: (cut) => {
+        for (const e of engines.current.values()) e.setSection(cut);
+      },
+      pick: (cb) => {
+        const done = (p: Vec3) => {
+          for (const e of engines.current.values()) e.onPoint = null;
+          cb(p);
+        };
+        for (const e of engines.current.values()) e.onPoint = done;
+        toast.message("Click a point in the view");
+      },
+    }),
+    [],
+  );
+
   const marineApi = React.useMemo<MarineApi>(
     () => ({
       tris: (id) => engine.current?.trisOf(id) ?? null,
@@ -665,7 +691,24 @@ export function ModelEditor({
     >
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1">
-          {workspace === "Marine" ? (
+          {workspace === "Robotics" || workspace === "Structure" || workspace === "Inspect" ? (
+            (() => {
+              const P = workspace === "Robotics" ? RoboticsPanel : workspace === "Structure" ? StructurePanel : InspectPanel;
+              return (
+                <P
+                  api={cadApi}
+                  change={change}
+                  model={model}
+                  onPlay={() => {
+                    setFrame(modelRef.current.frameStart);
+                    engine.current?.setFrame(modelRef.current.frameStart);
+                    setPlaying(true);
+                  }}
+                  selected={obj}
+                />
+              );
+            })()
+          ) : workspace === "Marine" ? (
             <MarinePanel
               api={marineApi}
               commit={commit}
