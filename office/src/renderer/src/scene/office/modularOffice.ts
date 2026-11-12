@@ -138,6 +138,12 @@ const P = {
   armchair: { gid: O(16, 0), w: 1, h: 1 },
   armchairSide: { gid: O(16, 2), w: 1, h: 1 },
   armchairSideL: { gid: O(16, 3), w: 1, h: 1 },
+  /** Seen from behind: a chair with its back to a wall below it, facing up
+   *  into the room. */
+  armchairBack: { gid: O(16, 1), w: 1, h: 1 },
+  /** Office chairs for the café: facing down (above a table) and up (below). */
+  chairFront: { gid: O(16, 4), w: 1, h: 1, walk: true },
+  chairBack: { gid: O(16, 5), w: 1, h: 1, walk: true },
   cooler: { gid: O(16, 9), w: 1, h: 3 },
   vending: { gid: O(16, 14), w: 2, h: 3 },
   cabWood: { gid: O(18, 1), w: 1, h: 2 },
@@ -152,7 +158,9 @@ const P = {
   // A potted plant (the bare clump of leaves had no pot).
   bush: { gid: O(28, 2), w: 1, h: 2 },
   printer: { gid: O(27, 11), w: 2, h: 1 },
-  shelfWood: { gid: O(9, 8), w: 2, h: 2 },
+  // Two bookcases side by side: in the sheet they span 2½ tiles and start half
+  // a tile up, so the piece is 3×3 (2×2 cut the second one in half).
+  shelfWood: { gid: O(8, 8), w: 3, h: 3 },
   shelfBooks: { gid: O(8, 13), w: 2, h: 3 },
   sofa: { gid: I(72, 1), w: 3, h: 2 },
   sofaWhite: { gid: I(72, 4), w: 3, h: 2 },
@@ -403,7 +411,8 @@ export function buildModularOffice(source: MapJson, headcount: Headcount): Modul
     set('collision', x, y + 1, 1);
     set('collision', x + 1, y + 1, 1);
     for (const [cx, cy] of [[x, y], [x + 1, y], [x, y + 3], [x + 1, y + 3]]) {
-      put(P.stool, cx, cy);
+      // Chairs facing the table (the wooden stools read as crates).
+      put(cy === y ? P.chairFront : P.chairBack, cx, cy);
       if (!names) {
         const name = `cafe-seat-${cafeSeats.length + 1}`;
         cafeSeats.push(name);
@@ -705,6 +714,8 @@ function furnishNook(nx: number, w: number, comfort: Comfort, put: Put, errands:
   // Back wall (bottom row 4), then the row above the partition (row 7).
   line(plush ? [P.shelfWood, P.palm, P.books, P.lamp, P.shelfBooks] : [P.cabGrey, P.cabWood, P.cooler, PRINTER_DESK, P.cabGrey], 4, () => false);
   const nearDoor = (x: number, p: Piece) => x <= door + 1 && x + p.w - 1 >= door - 1;
-  line(plush ? [P.armchair, P.bush, P.lampBlue, P.armchairSide, P.plantWhite] : [P.lowCabGrey, P.bush, P.lowCab, P.plant], 7, nearDoor);
+  // This row backs onto the partition, so its chairs face up into the room
+  // (a side-on armchair at the end of the row faced the wall).
+  line(plush ? [P.armchairBack, P.bush, P.lampBlue, P.armchairBack, P.plantWhite] : [P.lowCabGrey, P.bush, P.lowCab, P.plant], 7, nearDoor);
   if (plush && w >= 6) put(P.rugRed, Math.min(nx + 3, end - 4), 5);
 }
