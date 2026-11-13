@@ -23,9 +23,7 @@ import { OFFICE_GLASS } from "@/features/office/lib/glass";
 import {
   setOfficeAnchor,
   setOfficeFullWindow,
-  setOfficeStage,
 } from "@/features/office/lib/officeAnchor";
-import { useOfficeBackdrop } from "@/features/office/lib/officeBackdrop";
 import {
   type FloorPoint,
   onFloorAgent,
@@ -71,11 +69,9 @@ const TASK_WIDTH = 320;
 export function OfficeFloorPage() {
   useShowOfficePart("office");
   useFoldedSidebar();
-  // With the floor as the app's background, that floor is the Office here
-  // (nothing new appears); otherwise the live Office frame is laid over the
-  // page.
-  const { enabled: floorIsBackground } = useOfficeBackdrop();
-  useOfficeFocus(floorIsBackground);
+  // The one Office frame is laid over the page (with the background on, it is
+  // the same frame that sits behind the app elsewhere, so nothing reloads).
+  useOfficeFocus();
   const { agents } = useOfficeAgents();
   const [chat, setChat] = React.useState<{
     id: string;
@@ -124,7 +120,7 @@ export function OfficeFloorPage() {
       <div
         className="absolute inset-0"
         data-testid="office-embed"
-        ref={floorIsBackground ? setOfficeStage : setOfficeAnchor}
+        ref={setOfficeAnchor}
       />
       {createPortal(
         <>
@@ -202,19 +198,19 @@ function useFoldedSidebar() {
 
 /** The wash lifted off the background floor, and the floor this page uses;
  *  both go back on leaving. */
-function useOfficeFocus(floorIsBackground: boolean) {
+function useOfficeFocus() {
   React.useEffect(() => {
     const root = document.documentElement;
     root.setAttribute("data-office-focus", "");
     root.removeAttribute("data-office-entering");
-    setFloorSource(floorIsBackground ? "mirror" : "main");
-    setOfficeFullWindow(!floorIsBackground);
+    setFloorSource("main");
+    setOfficeFullWindow(true);
     return () => {
       root.removeAttribute("data-office-focus");
       setFloorSource("main");
       setOfficeFullWindow(false);
     };
-  }, [floorIsBackground]);
+  }, []);
 }
 
 /** A small window with a header, floating over the floor. */
