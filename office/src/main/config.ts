@@ -298,6 +298,11 @@ export interface HarnessConfig {
    *  AC). Default OFF: the honest default is "survive sleep + catch up once on
    *  resume" (see the powerMonitor 'resume' handler), not "stay awake". */
   strongKeepalive?: boolean;
+  /** Send `/remote-control` to the CEO's Claude session when it starts, so it
+   *  can be driven from claude.ai or the phone. Default OFF: where Remote Control
+   *  isn't allowed (an org policy, or no claude.ai sign-in) the command fails in
+   *  the terminal and the next inbox message was glued onto it and lost. */
+  remoteControlOnStart?: boolean;
   /** Restore every agent from the last session when the app opens, however
    *  many there are. Default OFF: only a team of 3 or fewer comes back on its
    *  own (each agent is a ~200 MB process); a larger team waits in the restore

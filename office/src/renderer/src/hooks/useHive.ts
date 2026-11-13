@@ -464,7 +464,9 @@ export function useHive(config: HarnessConfig | null): void {
       bootGraceUntil.current[GOD_ID] = Date.now() + BOOT_GRACE_MS;
       void (async () => {
         try {
-          const remoteCommand = remoteControlCommandForProvider(godProvider, godName);
+          // Opt-in (config.remoteControlOnStart): where Remote Control isn't
+          // allowed the command fails and swallowed the next message.
+          const remoteCommand = config?.remoteControlOnStart === true ? remoteControlCommandForProvider(godProvider, godName) : null;
           if (remoteCommand) {
             // settleMs pauses the chain ~1.5s after /remote-control before the
             // orientation prompt (fresh spawns only) is submitted next.

@@ -95,6 +95,11 @@ export interface HarnessConfig {
    *  prevent-display-sleep so scheduled missions/terminals keep firing on time
    *  while away (battery cost; best on AC). Default off = survive + catch up on
    *  resume. Mirrors the main-process field (src/main/config.ts). */
+  /** Send `/remote-control` to the CEO's Claude session when it starts, so it
+   *  can be driven from claude.ai or the phone. Default OFF: where Remote Control
+   *  isn't allowed (an org policy, or no claude.ai sign-in) the command fails in
+   *  the terminal and the next inbox message was glued onto it and lost. */
+  remoteControlOnStart?: boolean;
   strongKeepalive?: boolean;
   /** Restore every agent from the last session when the app opens, however
    *  many there are. Default OFF: only a team of 3 or fewer comes back on its

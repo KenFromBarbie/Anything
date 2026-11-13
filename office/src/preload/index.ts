@@ -297,6 +297,11 @@ export interface HarnessConfig {
   /** Opt-in strong keep-alive (prevent-display-sleep). Mirrors main + renderer
    *  HarnessConfig so updateConfig({ strongKeepalive }) is typed across the bridge. */
   strongKeepalive?: boolean;
+  /** Send `/remote-control` to the CEO's Claude session when it starts, so it
+   *  can be driven from claude.ai or the phone. Default OFF: where Remote Control
+   *  isn't allowed (an org policy, or no claude.ai sign-in) the command fails in
+   *  the terminal and the next inbox message was glued onto it and lost. */
+  remoteControlOnStart?: boolean;
   /** Restore every agent from the last session when the app opens, however
    *  many there are. Default OFF: only a team of 3 or fewer comes back on its
    *  own (each agent is a ~200 MB process); a larger team waits in the restore
