@@ -12,7 +12,6 @@ import {
   useOfficeAnchor,
   useOfficeFullWindow,
 } from "@/features/office/lib/officeAnchor";
-import { useOfficeBackdrop } from "@/features/office/lib/officeBackdrop";
 import { ViewLoadingFallback } from "@/shared/ui/ViewLoadingFallback";
 
 const OfficeScreen = React.lazy(async () => {
@@ -71,21 +70,18 @@ export function OfficeHost({ active }: { active: boolean }) {
   const anchor = useOfficeAnchor();
   const fullWindow = useOfficeFullWindow();
   const live = active && anchor !== null;
-  // Settings → Appearance: when it isn't placed on a page, this frame is the
-  // floor behind the whole app (there is no second copy of the Office).
-  const { enabled: background } = useOfficeBackdrop();
   // On the Office page the frame fades in over the background floor it lines
   // up with, so the background seems to come forward.
   const [shown, setShown] = React.useState(!fullWindow);
   React.useEffect(() => {
-    if (!fullWindow || background) {
+    if (!fullWindow) {
       setShown(true);
       return;
     }
     setShown(false);
     const timer = setTimeout(() => setShown(true), 260);
     return () => clearTimeout(timer);
-  }, [fullWindow, background]);
+  }, [fullWindow]);
   const [opened, setOpened] = React.useState(live || openedThisSession);
   const [placement, setPlacement] = React.useState<Placement | null>(null);
 
@@ -215,9 +211,7 @@ export function OfficeHost({ active }: { active: boolean }) {
       className={
         placement
           ? `fixed z-10 overflow-hidden transition-opacity duration-500 ease-out ${shown ? "opacity-100" : "opacity-0"}`
-          : background
-            ? "office-backdrop-layer pointer-events-none fixed inset-0 -z-10 overflow-hidden"
-            : "pointer-events-none invisible fixed -left-[10000px] top-0 h-[800px] w-[1280px]"
+          : "pointer-events-none invisible fixed -left-[10000px] top-0 h-[800px] w-[1280px]"
       }
       data-testid="office-host"
       style={
