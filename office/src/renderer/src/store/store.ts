@@ -71,6 +71,9 @@ export interface Agent {
   blockReason?: BlockReason;
   /** present iff this agent has a real PTY in the main process */
   ptyId?: string;
+  /** A floor worker resting with its terminal closed (see hooks/dormancy):
+   *  still on the floor, woken by mail on its previous conversation. */
+  dormant?: boolean;
   /** Incremented by Restart & Continue to remount this agent's xterm without
    * changing its durable PTY/session identity. */
   terminalGeneration?: number;

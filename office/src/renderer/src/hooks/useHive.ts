@@ -22,6 +22,7 @@ import { inboxNudgeText } from '../../../shared/hiveNudge';
 import { resolveGodName } from '../../../shared/godIdentity';
 import { acquireTerminal, resetTerminal, isTerminalAutomationSafe } from '@/components/terminalPool';
 import { canDeliverToAgent, deliverWithAcknowledgement, checkPrecondition } from './queueDelivery';
+import { useDormancy, wakeDormant } from './dormancy';
 import { OFFICE_CAST, DEFAULT_CHARACTER } from '@/scene/office/cast';
 
 const GOD_ID = 'god';
@@ -277,6 +278,7 @@ function passesContextPressure(a: Agent, rule: ContextRule): boolean {
  *      doesn't stall while an agent sits at its prompt.
  */
 export function useHive(config: HarnessConfig | null): void {
+  useDormancy(!!config?.onboardingComplete);
   // Per-agent dedup for the inbox-wake nudge: every inbox message id we have
   // already nudged this agent about. A SET, not a high-water mark.
   //
@@ -726,6 +728,7 @@ export function useHive(config: HarnessConfig | null): void {
           // on the floor when the agent is god.
           const seen = nudged.current[a.id] ?? (nudged.current[a.id] = new Set());
           const fresh = inbox.filter((m) => m.id && !seen.has(m.id));
+          if (fresh.length && a.dormant) void wakeDormant(a);
           if (fresh.length) {
             // Name the ids: the nudge is queued now and typed whenever the agent
             // next goes idle, so it can arrive long after the agent drained and
@@ -821,6 +824,8 @@ export function useHive(config: HarnessConfig | null): void {
       const { messageQueues, removeQueuedMessage } = useStore.getState();
       const next = messageQueues[srcId]?.[0];
       if (!next || !target?.ptyId) return { sent: false };
+      // A resting worker: wake it first; the message goes once it's back.
+      if (target.dormant) { void wakeDormant(target); return { sent: false }; }
       const now = Date.now();
       // Idle, or breaker-pinned with a terminal that has genuinely gone quiet.
       // This gate is a don't-type-mid-stream safety check, so `manual` does NOT
