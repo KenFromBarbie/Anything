@@ -46,7 +46,7 @@ export function liveKindOf(path: string): LiveKind | null {
 }
 
 export interface PresenceStep { ts: number; text: string }
-export interface PresenceFile { path: string; kind: LiveKind; mtime: number }
+export interface PresenceFile { path: string; kind: LiveKind; mtime: number; /** Only read, not made. */ fromRead?: boolean }
 
 export interface Presence {
   activity: Activity;
@@ -111,6 +111,8 @@ export interface ToolCall {
   step: string;
   /** A file it wrote. */
   wrote?: string;
+  /** A file it read (shown live until it writes something). */
+  read?: string;
 }
 
 /** What one tool call means. */
@@ -139,7 +141,7 @@ export function classify(tool: string, input: unknown): ToolCall {
   }
   if (name === 'websearch') return { activity: 'Researching', step: `Searched “${String(i.query ?? '').slice(0, 60)}”` };
   if (name === 'webfetch') return { activity: 'Researching', step: `Read ${String(i.url ?? 'a page').slice(0, 70)}` };
-  if (name === 'read' && file) return { activity: 'Reading', step: `Read ${base(file)}` };
+  if (name === 'read' && file) return { activity: 'Reading', step: `Read ${base(file)}`, read: file };
   if (name === 'grep' || name === 'glob') return { activity: 'Reading', step: `Searched the files for ${String(i.pattern ?? '').slice(0, 40)}` };
   if (name === 'task' || name === 'agent') return { activity: 'Working', step: 'Started a helper' };
   return { activity: 'Working', step: `Used ${tool}` };
@@ -190,13 +192,19 @@ export class PresenceTracker {
       }
     }
     p = { ...p, lastAt: now, idleSince: null, steps: [...p.steps, { ts: now, text: c.step }].slice(-STEPS) };
+    // Nothing made yet: show what it's reading (a project file, not the
+    // office's own mail in the hive).
+    if (c.read && !c.wrote && (!p.latest || p.latest.fromRead) && !/[\\/]hive[\\/]/i.test(c.read)) {
+      const kind = liveKindOf(c.read);
+      if (kind) p.latest = { path: c.read, kind, mtime: now, fromRead: true };
+    }
     if (c.wrote) {
       const d = dirOf(c.wrote);
       p.dirs = [d, ...p.dirs.filter((x) => x !== d)].slice(0, 6);
       const kind = liveKindOf(c.wrote);
       // A script it edits doesn't hide what the script made (a .py edit
       // keeps the .glb on screen); the newer of equals wins.
-      if (kind && (!p.latest || rank(kind) >= rank(p.latest.kind))) p.latest = { path: c.wrote, kind, mtime: now };
+      if (kind && (!p.latest || p.latest.fromRead || rank(kind) >= rank(p.latest.kind))) p.latest = { path: c.wrote, kind, mtime: now };
     }
     this.byAgent.set(agentId, p);
     return p;
@@ -207,7 +215,7 @@ export class PresenceTracker {
     const p = this.byAgent.get(agentId);
     if (!p) return undefined;
     if (p.latest && p.latest.path === file.path && p.latest.mtime >= file.mtime) return p;
-    const better = !p.latest || file.mtime >= p.latest.mtime || rank(file.kind) > rank(p.latest.kind);
+    const better = !p.latest || p.latest.fromRead || file.mtime >= p.latest.mtime || rank(file.kind) > rank(p.latest.kind);
     if (!better) return p;
     const next = { ...p, latest: file, steps: [...p.steps, { ts: file.mtime, text: `Made ${base(file.path)}` }].slice(-STEPS) };
     if (p.activity === 'Writing code' || p.activity === 'Working') {

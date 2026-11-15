@@ -362,6 +362,24 @@ async function scanOutputs(agentId: string): Promise<void> {
     }
   };
   for (const [d, depth] of roots) await look(d, depth);
+  // Modeling in 3D but nothing new yet: the project's current model, so the
+  // live view starts from what they're changing.
+  if (!best && (!p.latest || p.latest.fromRead) && p.activity === 'Modeling in 3D') {
+    let newest: PresenceFile | null = null;
+    const any = async (dir: string, depth: number): Promise<void> => {
+      let entries: Dirent[];
+      try { entries = await fsp.readdir(dir, { withFileTypes: true }); } catch { return; }
+      for (const e of entries.slice(0, 300)) {
+        const full = join(dir, e.name);
+        if (e.isDirectory()) { if (depth > 0 && !e.name.startsWith('.') && e.name !== 'node_modules') await any(full, depth - 1); continue; }
+        if (liveKindOf(e.name) !== 'model') continue;
+        try { const st = await fsp.stat(full); if (st.size > 0 && (!newest || st.mtimeMs > newest.mtime)) newest = { path: full, kind: 'model', mtime: st.mtimeMs }; } catch { /* gone */ }
+      }
+    };
+    for (const [d, depth] of roots) await any(d, depth);
+    if (newest) presence.produced(agentId, newest);
+    return;
+  }
   if (best) presence.produced(agentId, best);
 }
 // The office chain: the CEO and the executives plan, hire and review; floor
@@ -385,7 +403,7 @@ hookServer.onToolUse = (agentId, event, tool, input) => {
   void changeLog.handle(agentId, event, tool, input).then((recorded) => { if (recorded) broadcastPresence(); }).catch(() => undefined);
   if (event === 'PreToolUse') presence.tool(agentId, tool, input);
   else if (event === 'Stop') presence.idle(agentId);
-  else if (event === 'PostToolUse' && /^(bash|powershell)$/i.test(tool)) {
+  else if (event === 'PostToolUse' && /^(bash|powershell|read)$/i.test(tool)) {
     void scanOutputs(agentId).then(broadcastPresence);
     return;
   }

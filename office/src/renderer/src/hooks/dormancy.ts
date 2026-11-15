@@ -63,6 +63,16 @@ export function useDormancy(enabled: boolean): void {
  * named agent that is resting is woken.
  */
 export function useCeoRestores(enabled: boolean): void {
+  // The executives are standing roles: after a restart they come back on
+  // their own (the CEO can't delegate to an empty office).
+  useEffect(() => {
+    if (!enabled) return;
+    const t = setTimeout(() => {
+      const staff = useStore.getState().restorableAgents.filter((a) => a.staff).map((a) => a.id);
+      if (staff.length) void restoreFromHost(staff).catch((err) => console.error('[restore] executives', err));
+    }, 15_000);
+    return () => clearTimeout(t);
+  }, [enabled]);
   useEffect(() => {
     if (!enabled) return;
     let busy = false;
