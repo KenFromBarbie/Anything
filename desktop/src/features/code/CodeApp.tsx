@@ -33,6 +33,8 @@ import type { ManagedAgent } from "@/shared/api/types";
 import { cn } from "@/shared/lib/cn";
 import { Markdown } from "@/shared/ui/markdown";
 
+import { FilePresence } from "@/features/office/ui/FilePresence";
+
 import { CodeToolCard, DiffView } from "./CodeToolCard";
 import {
   codePrompt,
@@ -166,6 +168,8 @@ export function CodeApp({ onClose }: { onClose: () => void }) {
           </span>
         ) : null}
         <span className="flex-1" />
+        {/* Office agents working in this codebase too, like a shared doc. */}
+        {cb ? <FilePresence folder path={cb.path} /> : null}
         {coders.length ? (
           <AgentPicker agent={agent} agents={coders} onPick={chooseAgent} />
         ) : (
@@ -235,7 +239,9 @@ export function CodeApp({ onClose }: { onClose: () => void }) {
           />
         </main>
 
-        {right === "changes" ? <ChangesPanel changes={changes} root={cb?.path ?? ""} /> : null}
+        {right === "changes" ? (
+          <ChangesPanel changes={changes} editor={working ? agent?.name ?? null : null} root={cb?.path ?? ""} />
+        ) : null}
       </div>
       <AddCodebaseDialog onOpenChange={setLinking} open={linking} />
     </div>
@@ -411,8 +417,26 @@ function Composer({ onSend, onStop, disabled, working, placeholder }: { onSend: 
   );
 }
 
-function ChangesPanel({ changes, root }: { changes: ReturnType<typeof collectChanges>; root: string }) {
+function ChangesPanel({
+  changes,
+  root,
+  editor,
+}: {
+  changes: ReturnType<typeof collectChanges>;
+  root: string;
+  /** The coding agent's name while it's working: shown on the file it's in. */
+  editor: string | null;
+}) {
   const [sel, setSel] = React.useState<string | null>(null);
+  // The file it touched last is where it is now.
+  const current = React.useMemo(() => {
+    let best: { path: string; at: number } | null = null;
+    for (const c of changes) {
+      const at = Math.max(0, ...c.edits.map((e) => Date.parse(e.at) || 0));
+      if (!best || at > best.at) best = { path: c.path, at };
+    }
+    return best?.path ?? null;
+  }, [changes]);
   const picked = changes.find((c) => c.path === sel) ?? changes[0] ?? null;
   const add = changes.reduce((s, c) => s + c.additions, 0);
   const del = changes.reduce((s, c) => s + c.deletions, 0);
@@ -440,6 +464,13 @@ function ChangesPanel({ changes, root }: { changes: ReturnType<typeof collectCha
                 type="button"
               >
                 <span className="min-w-0 flex-1 truncate font-mono">{relPath(c.path, root)}</span>
+                {editor && c.path === current ? (
+                  <span className="flex shrink-0 items-center gap-1 rounded-full bg-[#5b4fe0]/25 px-1.5 text-[10px] text-[#a5a0ff]">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#3fb950]" />
+                    {editor}
+                  </span>
+                ) : null}
+                <FilePresence compact path={c.path} />
                 <span className="shrink-0 font-mono text-[11px]">
                   <span className="text-[#3fb950]">+{c.additions}</span> <span className="text-[#f85149]">−{c.deletions}</span>
                 </span>
@@ -447,6 +478,7 @@ function ChangesPanel({ changes, root }: { changes: ReturnType<typeof collectCha
             ))}
           </div>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+            {picked ? <FilePresence path={picked.path} /> : null}
             {picked
               ? [...picked.edits].reverse().map((e) => (
                   <div className="overflow-hidden rounded-lg border border-[#30363d]" key={e.id}>

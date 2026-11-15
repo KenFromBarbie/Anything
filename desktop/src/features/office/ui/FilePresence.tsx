@@ -26,7 +26,7 @@ type Here = {
   where?: string;
 };
 
-function useAgentsIn(path: string | undefined): Here[] {
+function useAgentsIn(path: string | undefined, folder = false): Here[] {
   const { agents } = useOfficeAgents();
   const [now, setNow] = React.useState(() => Date.now());
   React.useEffect(() => {
@@ -41,6 +41,17 @@ function useAgentsIn(path: string | undefined): Here[] {
     for (const agent of agents) {
       const p = agent.presence;
       if (!p) continue;
+      if (folder) {
+        // A codebase: anyone writing anywhere inside it.
+        const inside = (x: string) => norm(x) === target || norm(x).startsWith(`${target.replace(/\/$/, "")}/`);
+        if (!p.dirs.some(inside) && !(p.latest && inside(p.latest.path))) continue;
+        const last = p.steps.at(-1);
+        const at = last?.ts ?? p.lastAt;
+        if (now - at > RECENT_MS) continue;
+        const live = p.idleSince === null && now - p.lastAt < 2 * 60_000;
+        out.push({ agent, live, doing: last?.text ?? p.activity, at });
+        continue;
+      }
       const onLatest = p.latest && norm(p.latest.path) === target;
       // Steps name the file by its base name: "Read x", "Edited x", "Wrote x".
       const step = [...p.steps]
@@ -53,7 +64,7 @@ function useAgentsIn(path: string | undefined): Here[] {
       out.push({ agent, live, doing: step?.text ?? `${p.activity}`, at });
     }
     return out.sort((a, b) => Number(b.live) - Number(a.live) || b.at - a.at);
-  }, [agents, now, path]);
+  }, [agents, folder, now, path]);
 }
 
 /** The line range of an agent's last change to `path`, from its change log. */
@@ -92,7 +103,7 @@ function useLastChange(changesFile: string | undefined, path: string | undefined
   return where;
 }
 
-function Avatar({ here, path }: { here: Here; path: string }) {
+function Avatar({ here, path, compact = false }: { here: Here; path: string; compact?: boolean }) {
   const changes = here.agent.presence?.changes;
   const where = useLastChange(changes?.file, path, changes?.lastAt);
   const initial = here.agent.name.trim().charAt(0).toUpperCase() || "?";
@@ -100,7 +111,8 @@ function Avatar({ here, path }: { here: Here; path: string }) {
     <div className="group relative">
       <span
         className={cn(
-          "flex h-7 w-7 items-center justify-center rounded-full border-2 border-background text-[11px] font-semibold text-white shadow-sm",
+          "flex items-center justify-center rounded-full border-2 border-background font-semibold text-white shadow-sm",
+          compact ? "h-5 w-5 text-[9px]" : "h-7 w-7 text-[11px]",
           accentDotClass(here.agent.accent),
           !here.live && "opacity-45",
         )}
@@ -123,10 +135,22 @@ function Avatar({ here, path }: { here: Here; path: string }) {
 }
 
 /** The avatar stack, plus a live line naming who is editing right now. */
-export function FilePresence({ path, className }: { path?: string; className?: string }) {
-  const here = useAgentsIn(path);
+export function FilePresence({
+  path,
+  className,
+  folder = false,
+  compact = false,
+}: {
+  path?: string;
+  className?: string;
+  /** `path` is a folder (a codebase): everyone working inside it. */
+  folder?: boolean;
+  /** Just the avatars, smaller (a row in a file list). */
+  compact?: boolean;
+}) {
+  const here = useAgentsIn(path, folder);
   if (!path || here.length === 0) return null;
-  const editing = here.filter((h) => h.live && /^(Edited|Wrote) /.test(h.doing));
+  const editing = compact ? [] : here.filter((h) => h.live && /^(Edited|Wrote) /.test(h.doing));
   return (
     <div className={cn("flex items-center gap-2", className)} data-testid="file-presence">
       {editing.length ? (
@@ -137,7 +161,7 @@ export function FilePresence({ path, className }: { path?: string; className?: s
       ) : null}
       <div className="flex -space-x-2">
         {here.slice(0, 6).map((h) => (
-          <Avatar here={h} key={h.agent.id} path={path} />
+          <Avatar compact={compact} here={h} key={h.agent.id} path={path} />
         ))}
         {here.length > 6 ? (
           <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px] font-semibold">
