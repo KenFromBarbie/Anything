@@ -1,4 +1,5 @@
 import * as React from "react";
+import { EditorPathContext, FilePresence } from "@/features/office/ui/FilePresence";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { Pencil } from "lucide-react";
@@ -42,13 +43,16 @@ export function EditorHost() {
   if (!open?.file) return null;
   const key = `${open.kind}:${open.artifactId ?? "new"}:${open.title}`;
   const props = { title: open.title, series: open.series, path: open.path, artifactId: open.artifactId };
-  if (open.kind === "doc") return <WordEditor file={open.file as DocFile} key={key} {...props} />;
-  if (open.kind === "slides") return <SlidesEditor file={open.file as SlidesFile} key={key} {...props} />;
-  if (open.kind === "image") return <ImageEditor file={open.file as ImageFile} key={key} {...props} />;
-  if (open.kind === "video") return <VideoEditor file={open.file as VideoFile} key={key} {...props} />;
-  if (open.kind === "model") return <ModelEditor file={open.file as ModelFile} key={key} {...props} />;
-  if (open.kind === "site") return <SiteEditor file={open.file as SiteFile} key={key} {...props} />;
-  return <SheetEditor file={open.file as SheetFile} key={key} {...props} />;
+  const wrap = (editor: React.ReactNode) => (
+    <EditorPathContext.Provider value={open.path}>{editor}</EditorPathContext.Provider>
+  );
+  if (open.kind === "doc") return wrap(<WordEditor file={open.file as DocFile} key={key} {...props} />);
+  if (open.kind === "slides") return wrap(<SlidesEditor file={open.file as SlidesFile} key={key} {...props} />);
+  if (open.kind === "image") return wrap(<ImageEditor file={open.file as ImageFile} key={key} {...props} />);
+  if (open.kind === "video") return wrap(<VideoEditor file={open.file as VideoFile} key={key} {...props} />);
+  if (open.kind === "model") return wrap(<ModelEditor file={open.file as ModelFile} key={key} {...props} />);
+  if (open.kind === "site") return wrap(<SiteEditor file={open.file as SiteFile} key={key} {...props} />);
+  return wrap(<SheetEditor file={open.file as SheetFile} key={key} {...props} />);
 }
 
 type Item = { id: string; title: string; path?: string; series?: string };
@@ -105,6 +109,7 @@ export function EditorFileView({ item, thumb = false }: { item: Item; thumb?: bo
   if (thumb) return body;
   return (
     <div className="relative h-full overflow-auto bg-[#f3f3f3] dark:bg-[#1f1f1f]">
+      <FilePresence className="absolute left-3 top-3 z-10" path={item.path} />
       <button
         className="sticky left-full top-3 z-10 mr-3 flex h-8 items-center gap-1.5 rounded px-3 text-sm font-medium text-white shadow"
         onClick={() => editInEditor(item, kind, file)}

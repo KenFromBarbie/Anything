@@ -1,4 +1,5 @@
 import * as React from "react";
+import { EditorPresence } from "@/features/office/ui/FilePresence";
 import { createPortal } from "react-dom";
 import {
   Download,
@@ -118,6 +119,7 @@ export function OfficeShell({
             {saving ? "Saving…" : dirty || isNew ? "Not saved" : "Saved to Create"}
           </span>
         </div>
+        <EditorPresence />
         <button
           aria-label={full ? "Exit full screen" : "Full screen"}
           className="flex h-7 w-7 items-center justify-center rounded hover:bg-white/15"

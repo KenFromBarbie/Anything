@@ -1,4 +1,5 @@
 import * as React from "react";
+import { EditorPresence } from "@/features/office/ui/FilePresence";
 import { createPortal } from "react-dom";
 import { Loader2, Maximize2, Minimize2, Save, Sparkles, X } from "lucide-react";
 
@@ -166,6 +167,7 @@ export function CreativeShell({
           <Sparkles className="h-4 w-4" style={{ color: app.color }} />
           Ask the CEO
         </button>
+        <EditorPresence />
         <ShellButton label={full ? "Exit full screen (Esc)" : "Full screen"} onClick={() => setFull((v) => !v)}>
           {full ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </ShellButton>
