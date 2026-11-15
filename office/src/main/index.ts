@@ -336,7 +336,11 @@ function broadcastPresence(): void {
  *  agent has been working in for the newest such file. */
 async function scanOutputs(agentId: string): Promise<void> {
   const p = presence.get(agentId);
-  if (!p?.dirs.length) return;
+  if (!p) return;
+  // Only shell commands so far (no file written yet): its working folder.
+  const cwd = hive.registry().agents[agentId]?.cwd ?? null;
+  const roots: Array<[string, number]> = p.dirs.length ? p.dirs.slice(0, 4).map((d) => [d, 1]) : cwd ? [[cwd, 3]] : [];
+  if (!roots.length) return;
   const since = p.since - 60_000;
   let best: PresenceFile | null = null;
   const look = async (dir: string, depth: number): Promise<void> => {
@@ -357,9 +361,25 @@ async function scanOutputs(agentId: string): Promise<void> {
       } catch { /* gone */ }
     }
   };
-  for (const d of p.dirs.slice(0, 4)) await look(d, 1);
+  for (const [d, depth] of roots) await look(d, depth);
   if (best) presence.produced(agentId, best);
 }
+// The office chain: the CEO and the executives plan, hire and review; floor
+// workers do the work. Managers may write only the office's own files (the
+// hive: board, tasks, spawn requests, messages, their notes).
+hookServer.managerGate = (agentId, tool, input) => {
+  if (!/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(tool)) return null;
+  const root = hive.root();
+  if (!root) return null;
+  const meta = hive.registry().agents[agentId] as { isStaff?: boolean } | undefined;
+  if (agentId !== 'god' && !meta?.isStaff) return null;
+  const i = (input ?? {}) as { file_path?: string; notebook_path?: string };
+  const target = String(i.file_path ?? i.notebook_path ?? '');
+  if (!target) return null;
+  const norm = (x: string) => resolve(x).split(sep).join('/').toLowerCase();
+  if (norm(target).startsWith(norm(root) + '/')) return null;
+  return `You manage; floor workers do the work. Don't write ${target} yourself: hire a floor worker for it (a spawn-requests/<id>.json with the full contract), then review what they make.`;
+};
 hookServer.onToolUse = (agentId, event, tool, input) => {
   // Record file edits (before/after) for the change viewer.
   void changeLog.handle(agentId, event, tool, input).then((recorded) => { if (recorded) broadcastPresence(); }).catch(() => undefined);

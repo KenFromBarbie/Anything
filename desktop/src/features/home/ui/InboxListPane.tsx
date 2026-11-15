@@ -18,9 +18,12 @@ import {
 import { buildInboxListRows } from "@/features/home/lib/inboxListRows";
 import { hasRenderedVideoAttachment } from "@/features/messages/lib/videoReviewContext";
 import { getThreadReference } from "@/features/messages/lib/threading";
-import { InboxDirectMessages } from "@/features/home/ui/InboxDirectMessages";
+import {
+  type DmPreview,
+  InboxDirectMessages,
+} from "@/features/home/ui/InboxDirectMessages";
+import { useChannelsQuery } from "@/features/channels/hooks";
 import { InboxFilterMenu } from "@/features/home/ui/InboxFilterMenu";
-import { AgentQuestionsInbox } from "@/features/tasks/ui/AgentQuestions";
 import {
   DraftsPanel,
   type DraftViewItem,
@@ -287,15 +290,42 @@ export function InboxListPane({
       }),
     [items, reminders, unreadOnly],
   );
+  // Each DM is one row in the Direct messages section above (with its latest
+  // message), so its messages aren't listed again as activity.
+  const { data: channels = [] } = useChannelsQuery();
+  const dmChannelIds = React.useMemo(
+    () =>
+      new Set(channels.filter((c) => c.channelType === "dm").map((c) => c.id)),
+    [channels],
+  );
+  const isDmRow = React.useCallback(
+    (row: (typeof inboxRows)[number]) =>
+      row.kind === "inbox" &&
+      !!row.item.item.channelId &&
+      dmChannelIds.has(row.item.item.channelId),
+    [dmChannelIds],
+  );
+  const dmPreviews = React.useMemo(() => {
+    const map = new Map<string, DmPreview>();
+    for (const row of inboxRows) {
+      if (row.kind !== "inbox" || !isDmRow(row)) continue;
+      const id = row.item.item.channelId as string;
+      const prev = map.get(id);
+      if (prev && prev.at >= row.item.latestActivityAt) continue;
+      map.set(id, {
+        at: row.item.latestActivityAt,
+        text: row.item.preview,
+        time: row.item.timestampLabel,
+      });
+    }
+    return map;
+  }, [inboxRows, isDmRow]);
   const visibleInboxRows = React.useMemo(
     () =>
-      // DM messages stay in the activity list even when their conversation is
-      // also in the Direct messages section above: leaving them out made the
-      // CEO's replies vanish from the Inbox ("No activity yet").
       isMixedInboxView
-        ? inboxRows
+        ? inboxRows.filter((row) => !isDmRow(row))
         : inboxRows.filter((row) => row.kind === "inbox"),
-    [inboxRows, isMixedInboxView],
+    [inboxRows, isDmRow, isMixedInboxView],
   );
   const reminderSources = useReminderSources(reminders);
   const unreadVisibleItemCount = React.useMemo(
@@ -710,9 +740,8 @@ export function InboxListPane({
           data-testid="home-inbox-list"
           ref={scrollRef}
         >
-          {filter === "all" ? <InboxDirectMessages /> : null}
-          {filter === "all" || filter === "needs_action" ? (
-            <AgentQuestionsInbox />
+          {filter === "all" ? (
+            <InboxDirectMessages previews={dmPreviews} />
           ) : null}
           {visibleInboxRows.length > 0 ? (
             <VirtualizedList
@@ -753,7 +782,7 @@ export function InboxListPane({
               }}
               scrollRef={scrollRef}
             />
-          ) : (
+          ) : filter === "all" && !unreadOnly ? null : (
             <div className="flex h-full min-h-64 items-center justify-center px-6 text-center">
               <div>
                 <p className="text-sm font-medium text-foreground">

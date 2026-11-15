@@ -15,6 +15,9 @@ import { useProtectedVisibleDirectMessages } from "@protected-feature-components
 
 const COLLAPSED_KEY = "anything.inbox-dms-collapsed";
 
+/** A DM's latest message, for its row. */
+export type DmPreview = { at: number; text: string; time: string };
+
 /** The DMs the Direct messages section lists (hidden ones aren't). */
 export function useListedDmIds(): Set<string> {
   const { data: channels = [] } = useChannelsQuery();
@@ -40,7 +43,11 @@ export function useListedDmIds(): Set<string> {
  * Direct messages, at the top of the Inbox (they're not in the sidebar): every
  * conversation, unread first in recent order, and a new message.
  */
-export function InboxDirectMessages() {
+export function InboxDirectMessages({
+  previews,
+}: {
+  previews?: ReadonlyMap<string, DmPreview>;
+}) {
   const { data: channels = [] } = useChannelsQuery();
   const { data: identity } = useIdentityQuery();
   const { topLevelUnreadChannelIds } = useAppShell();
@@ -134,6 +141,7 @@ export function InboxDirectMessages() {
             const unread = topLevelUnreadChannelIds.has(channel.id);
             const label = dmChannelLabels[channel.id] ?? channel.name;
             const person = dmParticipantsByChannelId[channel.id]?.[0];
+            const preview = previews?.get(channel.id);
             return (
               <li key={channel.id}>
                 <button
@@ -146,13 +154,32 @@ export function InboxDirectMessages() {
                     className="h-6 w-6 shrink-0 text-[10px]"
                     label={label}
                   />
-                  <span
-                    className={cn(
-                      "min-w-0 flex-1 truncate",
-                      unread && "font-semibold",
-                    )}
-                  >
-                    {label}
+                  <span className="grid min-w-0 flex-1">
+                    <span className="flex items-baseline gap-2">
+                      <span
+                        className={cn(
+                          "min-w-0 flex-1 truncate",
+                          unread && "font-semibold",
+                        )}
+                      >
+                        {label}
+                      </span>
+                      {preview ? (
+                        <span className="shrink-0 text-[11px] text-muted-foreground">
+                          {preview.time}
+                        </span>
+                      ) : null}
+                    </span>
+                    {preview ? (
+                      <span
+                        className={cn(
+                          "truncate text-xs",
+                          unread ? "text-foreground" : "text-muted-foreground",
+                        )}
+                      >
+                        {preview.text}
+                      </span>
+                    ) : null}
                   </span>
                   {unread ? (
                     <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />

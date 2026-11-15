@@ -226,7 +226,7 @@ class BuzzBridge {
     const fresh = () => ({ since: Math.floor(Date.now() / 1000), seen: [] });
     let s = {};
     try { s = JSON.parse(fs.readFileSync(this.statePath, 'utf8')); } catch { /* first run */ }
-    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [], toldHistory: s.toldHistory ?? [], toldDesk: s.toldDesk ?? [], toldDesk2: s.toldDesk2 ?? [], toldVault: s.toldVault ?? [], toldDesign: s.toldDesign ?? [], toldSites: s.toldSites ?? [] };
+    const state = { cursors: s.cursors ?? {}, roots: s.roots ?? {}, threads: {}, hops: s.hops ?? {}, profileFor: s.profileFor ?? '', toldPosting: s.toldPosting ?? [], toldHistory: s.toldHistory ?? [], toldDesk: s.toldDesk ?? [], toldDesk2: s.toldDesk2 ?? [], toldVault: s.toldVault ?? [], toldDesign: s.toldDesign ?? [], toldSites: s.toldSites ?? [], ownerDm: s.ownerDm ?? null, askedInDm: s.askedInDm ?? [] };
     // Older state files: one cursor (Michael's) and thread entries holding the
     // thread itself (an object, or before that just the channel id).
     if (!state.cursors[GOD]) state.cursors[GOD] = s.since !== undefined ? { since: s.since, seen: s.seen ?? [] } : fresh();
@@ -694,12 +694,59 @@ ${global}
     this.pollAgain = false;
     try {
       this.reportRoster();
+      void this.relayAsks();
       // Every agent at once: one after another, each CLI round trip added to
       // the wait of everyone polled after it.
       await Promise.all(this.identities().map((who) => this.pollFor(who)));
     } finally {
       this.polling = false;
       if (this.pollAgain) { this.pollAgain = false; setTimeout(() => { void this.poll(); }, 0); }
+    }
+  }
+
+  /**
+   * The floor's questions for the owner (open `humanQA` asks on tasks.json
+   * cards) arrive as messages in the owner's DM with Michael, signed by him,
+   * each once. The owner answers by replying there; Michael records it.
+   */
+  async relayAsks() {
+    if (this.relayingAsks) return;
+    this.relayingAsks = true;
+    try {
+      const hive = this.hiveDir();
+      if (!hive) return;
+      let tasks;
+      try { tasks = JSON.parse(fs.readFileSync(join(hive, 'tasks.json'), 'utf8')); } catch { return; }
+      const list = Array.isArray(tasks) ? tasks : Array.isArray(tasks?.tasks) ? tasks.tasks : [];
+      const open = [];
+      for (const t of list) {
+        for (const e of Array.isArray(t?.humanQA) ? t.humanQA : []) {
+          if (!e || typeof e.q !== 'string' || e.a || e.dismissedAt) continue;
+          open.push({ t, e, key: `${t.id}|${e.askedAt ?? ''}|${e.q.length}` });
+        }
+      }
+      const pending = open.filter((x) => !this.state.askedInDm.includes(x.key));
+      if (pending.length === 0) return;
+      const dm = this.state.ownerDm
+        ?? (this.michael.dmChannels?.size === 1 ? [...this.michael.dmChannels][0] : null);
+      if (!dm) return; // until the owner has written to Michael once
+      for (const { t, e, key } of pending) {
+        const asker = this.agentName(t.assignee ?? GOD);
+        const text = `**Question on "${String(t.title ?? t.id).slice(0, 120)}"**${asker && asker !== this.michael.name ? ` (from ${asker})` : ''}
+
+${e.q.trim()}
+
+_Reply here and I'll pass it on._`;
+        const r = await this.run(['messages', 'send', '--channel', dm, '--content', '-'], text, this.michael);
+        if (!r?.event_id) break;
+        this.state.askedInDm.push(key);
+        this.state.askedInDm = this.state.askedInDm.slice(-500);
+        this.saveState();
+      }
+    } catch (err) {
+      this.log.warn('[buzz-bridge] relaying asks failed:', err.message);
+    } finally {
+      this.relayingAsks = false;
     }
   }
 
@@ -854,6 +901,11 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
     if (channel && who.callChannels?.has(channel)) this.noteMeeting(ev, channel);
     if (channel) this.noteConversation(ev, channel);
     if (ev.pubkey === who.pubkey) return true;
+    // The owner's DM with Michael: where the floor's questions for the owner go.
+    if (who === this.michael && channel && ev.pubkey.toLowerCase() === this.owner && who.dmChannels?.has(channel) && this.state.ownerDm !== channel) {
+      this.state.ownerDm = channel;
+      this.saveState();
+    }
     const route = this.classify(ev, who);
     if (!route) return true; // ordinary channel chat, not for this agent
     const sender = ev.pubkey.toLowerCase();

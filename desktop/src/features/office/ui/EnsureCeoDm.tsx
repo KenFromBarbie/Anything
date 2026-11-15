@@ -3,6 +3,7 @@ import * as React from "react";
 import { useManagedAgentsQuery } from "@/features/agents/hooks";
 import { useChannelsQuery, useOpenDmMutation } from "@/features/channels/hooks";
 import { useCommunities } from "@/features/communities/useCommunities";
+import { isOfficeAgent } from "@/features/agents/lib/officePersonas";
 import { officeAgentPubkey } from "@/features/office/lib/agentDm";
 
 /** The CEO's chat identity in the active server, or null. */
@@ -17,32 +18,64 @@ export function useCeoPubkey(): string | null {
 }
 
 /**
- * The DM with the CEO is always there: in each server whose Office has a CEO,
- * the DM is opened once (quietly, without switching to it) when it doesn't
- * exist yet. Mounted once, in the app shell.
+ * The Office's standing agents in the active server (the CEO and the
+ * executives, not the floor workers they hire for a job): their chat ids.
+ */
+export function useStandingAgentPubkeys(): string[] {
+  const records = useManagedAgentsQuery();
+  const { activeCommunity } = useCommunities();
+  const community = activeCommunity?.relayUrl;
+  return React.useMemo(
+    () =>
+      (records.data ?? [])
+        .filter((record) => {
+          if (!isOfficeAgent(record) || record.backend.type !== "provider")
+            return false;
+          const config = record.backend.config as {
+            officeAgentId?: string;
+            officeCommunity?: string;
+          };
+          if (
+            community &&
+            config.officeCommunity &&
+            config.officeCommunity !== community
+          )
+            return false;
+          return !config.officeAgentId?.startsWith("worker-");
+        })
+        .map((record) => record.pubkey),
+    [community, records.data],
+  );
+}
+
+/**
+ * A DM with each standing agent is always there, so every conversation is in
+ * the Inbox from the start: in each server, a missing one is opened once
+ * (quietly, without switching to it). Mounted once, in the app shell.
  */
 export function EnsureCeoDm() {
-  const ceo = useCeoPubkey();
+  const agents = useStandingAgentPubkeys();
   const { activeCommunity } = useCommunities();
   const channels = useChannelsQuery();
   const openDm = useOpenDmMutation();
   const tried = React.useRef(new Set<string>());
 
   React.useEffect(() => {
-    if (!ceo || !activeCommunity || !channels.isSuccess) return;
-    const key = `${activeCommunity.relayUrl}|${ceo}`;
-    if (tried.current.has(key)) return;
-    const exists = (channels.data ?? []).some(
-      (c) =>
-        c.channelType === "dm" &&
-        Array.isArray(c.participantPubkeys) &&
-        c.participantPubkeys.includes(ceo),
-    );
-    tried.current.add(key);
-    if (!exists) {
-      openDm.mutate({ pubkeys: [ceo] });
+    if (!activeCommunity || !channels.isSuccess) return;
+    for (const pubkey of agents) {
+      const key = `${activeCommunity.relayUrl}|${pubkey}`;
+      if (tried.current.has(key)) continue;
+      tried.current.add(key);
+      const exists = (channels.data ?? []).some(
+        (c) =>
+          c.channelType === "dm" &&
+          Array.isArray(c.participantPubkeys) &&
+          c.participantPubkeys.length <= 2 &&
+          c.participantPubkeys.includes(pubkey),
+      );
+      if (!exists) openDm.mutate({ pubkeys: [pubkey] });
     }
-  }, [activeCommunity, ceo, channels.data, channels.isSuccess, openDm]);
+  }, [activeCommunity, agents, channels.data, channels.isSuccess, openDm]);
 
   return null;
 }

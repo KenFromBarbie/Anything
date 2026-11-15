@@ -31,7 +31,11 @@ export const LIVE_EXT: Record<string, LiveKind> = {
   mp4: 'video', webm: 'video', mov: 'video',
   html: 'site', htm: 'site',
   pdf: 'pdf',
-  md: 'text', txt: 'text', csv: 'text'
+  md: 'text', txt: 'text', csv: 'text',
+  // Code: shown like a terminal until the thing it makes exists.
+  py: 'text', js: 'text', cjs: 'text', mjs: 'text', ts: 'text', tsx: 'text', jsx: 'text',
+  rs: 'text', go: 'text', java: 'text', cs: 'text', cpp: 'text', c: 'text', h: 'text',
+  css: 'text', json: 'text', yaml: 'text', yml: 'text', toml: 'text', sh: 'text', ps1: 'text'
 };
 
 export function liveKindOf(path: string): LiveKind | null {
@@ -190,7 +194,9 @@ export class PresenceTracker {
       const d = dirOf(c.wrote);
       p.dirs = [d, ...p.dirs.filter((x) => x !== d)].slice(0, 6);
       const kind = liveKindOf(c.wrote);
-      if (kind) p.latest = { path: c.wrote, kind, mtime: now };
+      // A script it edits doesn't hide what the script made (a .py edit
+      // keeps the .glb on screen); the newer of equals wins.
+      if (kind && (!p.latest || rank(kind) >= rank(p.latest.kind))) p.latest = { path: c.wrote, kind, mtime: now };
     }
     this.byAgent.set(agentId, p);
     return p;

@@ -52,6 +52,9 @@ interface HookPayload {
 export class HookServer {
   /** Observer of tool calls with their input (presence). */
   onToolUse?: (agentId: string, event: string, tool: string, input: unknown) => void;
+  /** Managers (the CEO and the executives) don't do the work themselves: a
+   *  reason to refuse this tool call, or null to let it run. */
+  managerGate?: (agentId: string, tool: string, input: unknown) => string | null;
   private server: Server | null = null;
   /** agentId → the live session's transcript file, learned from hook payloads.
    *  Lets the harness read per-agent telemetry (e.g. current context size)
@@ -278,6 +281,14 @@ export class HookServer {
     // agent is paused or this tool is gated. Race-free (immediate return, no
     // renderer round-trip → can't hit the shim timeout). Slow human APPROVAL is
     // deliberately left to Claude's native permission prompt.
+    if (event === 'PreToolUse' && agentId && this.managerGate) {
+      let reason: string | null = null;
+      try { reason = this.managerGate(agentId, p.tool_name ?? '', p.tool_input); } catch { reason = null; }
+      if (reason) {
+        this.emit(agentId, event, p);
+        return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } };
+      }
+    }
     if (event === 'PreToolUse' && agentId && this.control) {
       const d = this.control.toolDecision(agentId, p.tool_name ?? '');
       if (d.deny) {

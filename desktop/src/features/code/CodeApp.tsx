@@ -16,7 +16,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { useManagedAgentsQuery } from "@/features/agents/hooks";
+import {
+  useCreateManagedAgentMutation,
+  useManagedAgentsQuery,
+} from "@/features/agents/hooks";
 import type { TranscriptItem } from "@/features/agents/ui/agentSessionTypes";
 import { useAgentTranscript } from "@/features/agents/ui/useObserverEvents";
 import { useChannelsQuery, useCreateChannelMutation } from "@/features/channels/hooks";
@@ -64,6 +67,7 @@ export function CodeApp({ onClose }: { onClose: () => void }) {
   const agentsQuery = useManagedAgentsQuery();
   const { data: channels = [] } = useChannelsQuery();
   const createChannel = useCreateChannelMutation();
+  const createAgent = useCreateManagedAgentMutation();
   const [linking, setLinking] = React.useState(false);
   const [cbId, setCbId] = React.useState<string | null>(null);
   const [agentPk, setAgentPk] = React.useState<string | null>(readPref);
@@ -91,6 +95,23 @@ export function CodeApp({ onClose }: { onClose: () => void }) {
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
+
+  /** No coding agent yet: make one that runs Claude Code on this computer. */
+  const makeCoder = async () => {
+    try {
+      const made = await createAgent.mutateAsync({
+        name: "Coder",
+        agentCommand: "claude-agent-acp",
+        harnessOverride: true,
+        backend: { type: "local" },
+        spawnAfterCreate: true,
+      });
+      chooseAgent(made.agent.pubkey);
+      toast.success("Coder is ready");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const chooseAgent = (pk: string) => {
     setAgentPk(pk);
@@ -145,7 +166,19 @@ export function CodeApp({ onClose }: { onClose: () => void }) {
           </span>
         ) : null}
         <span className="flex-1" />
-        <AgentPicker agent={agent} agents={coders} onPick={chooseAgent} />
+        {coders.length ? (
+          <AgentPicker agent={agent} agents={coders} onPick={chooseAgent} />
+        ) : (
+          <button
+            className="flex h-7 items-center gap-1.5 rounded-md bg-[#5b4fe0] px-2.5 text-[12px] font-medium text-white hover:bg-[#6b60f0] disabled:opacity-60"
+            disabled={createAgent.isPending}
+            onClick={() => void makeCoder()}
+            type="button"
+          >
+            {createAgent.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
+            Set up a Claude Code agent
+          </button>
+        )}
         <button
           className={cn("flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px]", right === "changes" ? "bg-[#21262d] text-[#e6edf3]" : "text-[#8b949e] hover:bg-[#21262d]")}
           onClick={() => setRight((r) => (r === "changes" ? "none" : "changes"))}
@@ -197,7 +230,7 @@ export function CodeApp({ onClose }: { onClose: () => void }) {
             disabled={!agent || !cb}
             onSend={send}
             onStop={agent ? () => void stopManagedAgent(agent.pubkey).then(() => toast.message(`${agent.name} stopped`)) : undefined}
-            placeholder={!agent ? "Set up a coding agent on the Agents page first (Claude Code, Codex, Goose…)" : !cb ? "Link a codebase first" : `Ask ${agent.name} to build, fix or explain something in ${cb.name}…`}
+            placeholder={!agent ? "Click “Set up a Claude Code agent” at the top right first" : !cb ? "Link a codebase first" : `Ask ${agent.name} to build, fix or explain something in ${cb.name}…`}
             working={working}
           />
         </main>
