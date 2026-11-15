@@ -7,7 +7,10 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { openMeetingDialog } from "@/features/office/lib/meetingRoom";
 import { openDeskAgent } from "@/features/office/ui/DeskAgentDialog";
-import { useOfficeBackdrop } from "@/features/office/lib/officeBackdrop";
+import {
+  useOfficeBackdrop,
+  useOfficeBackdropSuppressed,
+} from "@/features/office/lib/officeBackdrop";
 import { useOfficeStage } from "@/features/office/lib/officeAnchor";
 import {
   emitFloorAgent,
@@ -33,7 +36,12 @@ type Connection = { url: string; token: string };
  * see-through to match, all faded by the chosen strength.
  */
 export function OfficeBackdrop() {
-  const { enabled, strength } = useOfficeBackdrop();
+  const { enabled: chosen, strength } = useOfficeBackdrop();
+  const suppressed = useOfficeBackdropSuppressed();
+  // Mounted once for the whole app (not per server): switching servers keeps
+  // this floor, and the new server's agents walk in while the others walk out.
+  // In a call room it is only hidden, so it doesn't load again afterwards.
+  const enabled = chosen;
   const [conn, setConn] = React.useState<Connection | null>(null);
   const frameRef = React.useRef<HTMLIFrameElement>(null);
   useOfficeThemeSync(frameRef);
@@ -154,8 +162,9 @@ export function OfficeBackdrop() {
     <>
       <div
         aria-hidden
-        className="office-backdrop-layer pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+        className="office-backdrop-layer pointer-events-none fixed inset-0 z-0 overflow-hidden"
         data-office-backdrop-frame
+        style={suppressed ? { visibility: "hidden" } : undefined}
       >
         <iframe
           className="h-full w-full border-0"
@@ -165,13 +174,18 @@ export function OfficeBackdrop() {
           title="Office background"
         />
       </div>
-      {stage ? <FloorClickLayer frame={frameRef} rect={stage} /> : null}
+      {stage && !suppressed ? (
+        <FloorClickLayer frame={frameRef} rect={stage} />
+      ) : null}
       {/* The app's own background, faded by the chosen strength, over the
           floor: the whole window shows the floor evenly. */}
       <div
         aria-hidden
-        className="office-backdrop-layer office-backdrop-wash pointer-events-none fixed inset-0 -z-[5]"
-        style={{ opacity: 1 - strength / 100 }}
+        className="office-backdrop-layer office-backdrop-wash pointer-events-none fixed inset-0 z-0"
+        style={{
+          opacity: 1 - strength / 100,
+          ...(suppressed ? { visibility: "hidden" as const } : {}),
+        }}
       />
     </>
   );

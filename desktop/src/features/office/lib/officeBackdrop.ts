@@ -73,6 +73,24 @@ export function useOfficeBackdrop(): OfficeBackdrop {
   return React.useSyncExternalStore(subscribe, getOfficeBackdrop);
 }
 
+/** Hidden while the window is a call room (the floor stays loaded behind). */
+let suppressed = false;
+const suppressSubscribers = new Set<() => void>();
+export function setOfficeBackdropSuppressed(value: boolean): void {
+  if (suppressed === value) return;
+  suppressed = value;
+  for (const notify of suppressSubscribers) notify();
+}
+export function useOfficeBackdropSuppressed(): boolean {
+  return React.useSyncExternalStore(
+    (notify) => {
+      suppressSubscribers.add(notify);
+      return () => suppressSubscribers.delete(notify);
+    },
+    () => suppressed,
+  );
+}
+
 /** Before going to the Office page: fade the page out while the background
  *  floor comes forward (the Office page takes over from here, see
  *  OfficeFloorPage). */

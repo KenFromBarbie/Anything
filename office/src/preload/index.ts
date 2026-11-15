@@ -794,6 +794,8 @@ const api = {
   hiveLog: (n?: number): Promise<unknown[]> => ipcRenderer.invoke('hive:log', n ?? 200),
   hiveMemory: (id: string): Promise<string> => ipcRenderer.invoke('hive:memory', id),
   hiveInbox: (id: string): Promise<HiveMessage[]> => ipcRenderer.invoke('hive:inbox', id),
+  /** Restore requests the CEO wrote (see main's hive:takeRestoreRequests). */
+  takeRestoreRequests: (): Promise<Array<{ all: boolean; ids: string[] }>> => ipcRenderer.invoke('hive:takeRestoreRequests'),
   /** Voice read-layer: recent message CONTENT (inbox/outbox bodies), REDACTED in
    *  main. Pass { id } for one message, { agentId } to scope to one mailbox, or
    *  {} for the whole floor. Backs Realtime Michael's get_messages. The renderer

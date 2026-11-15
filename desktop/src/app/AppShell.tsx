@@ -82,7 +82,7 @@ import { DeskAgentDialog } from "@/features/office/ui/DeskAgentDialog";
 import { ExportFilesDialog } from "@/features/files/ui/ExportFilesDialog";
 import { CustomizeOfficeDialog } from "@/features/office/ui/CustomizeOfficeDialog";
 import { EnsureCeoDm } from "@/features/office/ui/EnsureCeoDm";
-import { OfficeBackdrop } from "@/features/office/ui/OfficeBackdrop";
+import { setOfficeBackdropSuppressed } from "@/features/office/lib/officeBackdrop";
 import {
   MeetingDialog,
   MeetingFloorSync,
@@ -472,6 +472,12 @@ export function AppShell() {
     unreadThreadFeedItems,
   ]);
 
+  // The Office floor behind the app lives above the server (App.tsx); it hides
+  // while this window is a call room.
+  React.useEffect(() => {
+    setOfficeBackdropSuppressed(isHuddleRoom);
+    return () => setOfficeBackdropSuppressed(false);
+  }, [isHuddleRoom]);
   // Your profile is the same on every server: on opening one, the newest
   // profile is copied to any server that's behind (then shown fresh).
   const profileSyncClient = useQueryClient();
@@ -1036,7 +1042,6 @@ export function AppShell() {
                       ) : null}
                     </div>
                   )}
-                  {!isHuddleRoom ? <OfficeBackdrop /> : null}
                   {!isHuddleRoom ? <MeetingDialog /> : null}
                   {!isHuddleRoom ? <DeskAgentDialog /> : null}
                   {!isHuddleRoom ? <ExportFilesDialog /> : null}

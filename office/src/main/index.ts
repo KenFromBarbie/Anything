@@ -3594,6 +3594,27 @@ ipcMain.handle('hive:tasks', () => hive.tasks());
 ipcMain.handle('hive:log', (_evt, n: unknown) => hive.logTail(typeof n === 'number' ? n : 200));
 ipcMain.handle('hive:memory', (_evt, id: unknown) => (typeof id === 'string' ? hive.memory(id) : ''));
 ipcMain.handle('hive:inbox', (_evt, id: unknown) => (typeof id === 'string' ? hive.inbox(id) : []));
+// The CEO restores the team himself: a JSON file in HIVE_ROOT/restore-requests
+// ({"ids": ["angela-…"]}, or {"all": true}). The renderer collects them here
+// (each once: they move to .done/) and restores as the Restore team button does.
+ipcMain.handle('hive:takeRestoreRequests', () => {
+  const root = hive.root();
+  if (!root) return [];
+  const dir = join(root, 'restore-requests');
+  const out: Array<{ all: boolean; ids: string[] }> = [];
+  let names: string[] = [];
+  try { names = readdirSync(dir).filter((n) => n.endsWith('.json')); } catch { return []; }
+  for (const name of names.slice(0, 20)) {
+    const file = join(dir, name);
+    try {
+      const body = JSON.parse(readFileSync(file, 'utf8')) as { all?: unknown; ids?: unknown };
+      const ids = Array.isArray(body.ids) ? body.ids.filter((x): x is string => typeof x === 'string') : [];
+      out.push({ all: body.all === true || ids.length === 0, ids });
+    } catch { /* malformed: still moved aside below */ }
+    try { mkdirSync(join(dir, '.done'), { recursive: true }); renameSync(file, join(dir, '.done', name)); } catch { try { unlinkSync(file); } catch { /* gone */ } }
+  }
+  return out;
+});
 // Voice read-layer: recent message CONTENT (inbox/outbox bodies), REDACTED
 // main-side by hive.voiceMessages(). The renderer/voice layer never sees a raw
 // body — secrets are stripped here, before the result crosses IPC.

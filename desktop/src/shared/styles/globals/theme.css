@@ -376,6 +376,16 @@
 /* Every theme, not just Anything's: the shell, sidebar and rail are clear
  * over the floor, so the wash below (the theme's own colour) is the tint.
  * Other themes paint these solid, which hid the Office entirely. */
+/* The floor is mounted once for the whole app, outside the shell (it stays
+ * when you switch servers), so the shell's own backdrop colour must let it
+ * through too. */
+:root[data-office-backdrop] .buzz-huddle-shell {
+  background: transparent;
+}
+/* The theme's gradient is painted by the wash over the floor instead. */
+:root[data-office-backdrop] .buzz-theme-gradient-layer {
+  display: none;
+}
 :root[data-office-backdrop] .buzz-huddle-app-surface {
   background-color: transparent;
   background-image: none;

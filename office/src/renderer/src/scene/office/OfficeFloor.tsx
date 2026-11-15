@@ -468,6 +468,8 @@ export function OfficeFloor() {
 
       // Waiting spots near the entrance — where a blocked agent walks to signal
       // it needs the user. Collected as walkable tiles in rings around the door.
+      /** Characters walking out the door after leaving the floor. */
+      const leaving = new Set<Character>();
       const entrance = mapRenderer.getSpawnPoint('entrance')
         ?? { x: Math.floor(mapRenderer.width / 2), y: mapRenderer.height - 2 };
       const waitTiles: Tile[] = [];
@@ -1683,10 +1685,22 @@ export function OfficeFloor() {
         }
         if (rt.seatIndex != null) seatClaims.delete(rt.seatIndex);
         rt.screen?.destroy();
-        rt.character.hide(0);
-        // give the fade-out a moment, then destroy
-        setTimeout(() => rt.character.destroy(), 700);
         runtimes.delete(id);
+        // They leave through the door (another server's agents taking the
+        // floor, or a finished worker going home), then fade out. A walk with
+        // no path, or one that takes too long, just fades where they stand.
+        const c = rt.character;
+        let gone = false;
+        const leave = () => {
+          if (gone) return;
+          gone = true;
+          leaving.delete(c);
+          c.hide(0);
+          setTimeout(() => c.destroy(), 700);
+        };
+        leaving.add(c);
+        try { c.walkToAndThen(entrance, leave); } catch { leave(); }
+        setTimeout(leave, 9000);
       };
 
       // Map an agent's store state onto its on-floor character.
@@ -1996,6 +2010,7 @@ export function OfficeFloor() {
           rt.character.setBubbleZoom(zoom);
           rt.character.update(dt);
         }
+        for (const c of leaving) c.update(dt);
         updateCafeteria(dt);
         updateCoffeeRuns(dt);
         updateErrands(dt);

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStore, type Agent } from '@/store/store';
 import { restartAgent } from '@/components/agentRestart';
+import { restoreFromHost } from './useRestoreTeam';
 
 /**
  * Dormant floor workers: a hired worker that has sat idle for a while has its
@@ -52,6 +53,40 @@ export function useDormancy(enabled: boolean): void {
         }).catch(() => undefined);
       }
     }, CHECK_MS);
+    return () => clearInterval(iv);
+  }, [enabled]);
+}
+
+/**
+ * The CEO brings the team back himself (restore-requests, see main): agents
+ * from the last session are restored as the Restore team button does, and a
+ * named agent that is resting is woken.
+ */
+export function useCeoRestores(enabled: boolean): void {
+  useEffect(() => {
+    if (!enabled) return;
+    let busy = false;
+    const iv = setInterval(async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const requests = await window.cth.takeRestoreRequests();
+        for (const r of requests) {
+          const { agents, restorableAgents } = useStore.getState();
+          for (const a of agents) {
+            if (a.dormant && (r.all || r.ids.includes(a.id))) await wakeDormant(a);
+          }
+          const ids = r.all ? undefined : r.ids.filter((id) => restorableAgents.some((a) => a.id === id));
+          if (ids && ids.length === 0) continue;
+          if (restorableAgents.length === 0) continue;
+          await restoreFromHost(ids).catch((err) => console.error('[restore] CEO restore failed', err));
+        }
+      } catch {
+        /* the Office is still starting: next tick */
+      } finally {
+        busy = false;
+      }
+    }, 5000);
     return () => clearInterval(iv);
   }, [enabled]);
 }

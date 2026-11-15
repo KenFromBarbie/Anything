@@ -1,4 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
+import { OfficeBackdrop } from "@/features/office/ui/OfficeBackdrop";
 import { emit } from "@tauri-apps/api/event";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
@@ -594,6 +595,10 @@ function CommunityApp({
   // Tauri backend is still configured for the previous one.
   const communityApplied =
     community.isReady && community.appliedKey === communityKey;
+  const [officeFloorReady, setOfficeFloorReady] = useState(false);
+  useEffect(() => {
+    if (communityApplied) setOfficeFloorReady(true);
+  }, [communityApplied]);
   useLayoutEffect(() => {
     if (communityApplied) {
       completeCommunityViewTransition();
@@ -639,6 +644,10 @@ function CommunityApp({
 
   return (
     <>
+      {/* One Office floor for every server, started once the first server is
+          up and kept across switches (see OfficeBackdrop). Before the app in
+          the page, so the app paints over it. */}
+      {officeFloorReady ? <OfficeBackdrop /> : null}
       {appContent}
       {transaction ? (
         <div
