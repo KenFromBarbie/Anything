@@ -253,7 +253,8 @@ function LiveWatch({ agent, onClose }: { agent: LiveAgent; onClose: () => void }
           <EditorFileView item={{ id: `live-${agent.id}`, title: name ?? "Live", path: p.latest.path }} />
         </div>
       );
-    } else stage = <TextStage src={src} />;
+    } else if (/\.(md|txt|csv)$/i.test(p.latest.path)) stage = <TextStage src={src} />;
+    else stage = <CodeStage changesFile={p.changes?.file} changesAt={p.changes?.lastAt} path={p.latest.path} src={src} />;
   }
   return (
     <div className="fixed inset-0 z-50 flex bg-black/70 p-4 backdrop-blur-sm" data-testid="live-watch">
@@ -416,6 +417,77 @@ function TextStage({ src }: { src: string }) {
       .catch(() => {});
   }, [src]);
   return <pre className="h-full overflow-auto whitespace-pre-wrap p-4 text-xs text-white/80">{text}</pre>;
+}
+
+/**
+ * Code being written, shown like the app's Code tool: the file with line
+ * numbers, the lines the agent changed last highlighted and kept in view.
+ */
+function CodeStage({ src, path, changesFile, changesAt }: { src: string; path: string; changesFile?: string; changesAt?: number }) {
+  const [text, setText] = React.useState<string | null>(null);
+  const [mark, setMark] = React.useState<{ from: number; to: number } | null>(null);
+  const markRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    let alive = true;
+    fetch(src)
+      .then((r) => r.text())
+      .then((t) => alive && setText(t))
+      .catch(() => alive && setText(""));
+    return () => {
+      alive = false;
+    };
+  }, [src]);
+  // Where the last change to this file landed, from the agent's change log.
+  React.useEffect(() => {
+    if (!changesFile) return;
+    let alive = true;
+    const target = path.replace(/\\/g, "/").toLowerCase();
+    fetch(`${convertFileSrc(changesFile)}?v=${changesAt ?? 0}`)
+      .then((r) => r.text())
+      .then((t) => {
+        const rows = t.split("\n");
+        for (let i = rows.length - 1; i >= 0; i--) {
+          try {
+            const c = JSON.parse(rows[i] ?? "") as { path?: string; hunks?: { line?: number; new?: string }[] };
+            if (c.path?.replace(/\\/g, "/").toLowerCase() !== target) continue;
+            const h = c.hunks?.find((x) => typeof x.line === "number");
+            if (h?.line && alive) setMark({ from: h.line, to: h.line + Math.max(1, (h.new ?? "").split("\n").length) - 1 });
+            return;
+          } catch {
+            /* not a change line */
+          }
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [changesFile, changesAt, path]);
+  React.useEffect(() => {
+    markRef.current?.scrollIntoView({ block: "center" });
+  }, [mark, text]);
+  const name = path.replace(/\\/g, "/").split("/").pop();
+  const lines = (text ?? "").split("\n");
+  return (
+    <div className="flex h-full flex-col bg-[#0d1117] font-mono text-[12.5px] text-[#c9d1d9]">
+      <div className="flex h-9 shrink-0 items-end border-b border-[#30363d] bg-[#010409] px-2">
+        <span className="rounded-t-md border border-b-0 border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-[12px] text-[#e6edf3]">{name}</span>
+        {mark ? <span className="ml-auto pb-2 pr-2 text-[11px] text-[#8b949e]">last change: lines {mark.from}–{mark.to}</span> : null}
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto py-2">
+        {text === null ? null : lines.map((line, i) => {
+          const n = i + 1;
+          const hit = mark && n >= mark.from && n <= mark.to;
+          return (
+            <div className={cn("flex", hit && "bg-[#2ea04326]")} key={n} ref={hit && n === mark?.from ? markRef : undefined}>
+              <span className={cn("w-14 shrink-0 select-none pr-4 text-right", hit ? "text-[#3fb950]" : "text-[#6e7681]")}>{n}</span>
+              <span className="whitespace-pre pr-6">{line || " "}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 type Feedback = { ts: string; agent: string; tool: string; rating: "works" | "rough" | "broken"; what: string; fix?: string };

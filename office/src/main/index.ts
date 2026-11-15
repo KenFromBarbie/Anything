@@ -4709,6 +4709,29 @@ completionWatcher.start();
 // unintegrated work. Every terminal failure informs god WITH the Slack coords so
 // god closes the Slack loop; the success path is the worker replying in-thread.
 
+/** First names for floor workers: a hire that asks for a slug ("bb-v9h-pedal")
+ *  or no name gets a person's name, one not already on the floor. */
+const WORKER_FIRST_NAMES = [
+  'Ada', 'Ben', 'Cleo', 'Dev', 'Elif', 'Finn', 'Gia', 'Hugo', 'Iris', 'Jonas', 'Kira', 'Leo', 'Maya', 'Nico',
+  'Olga', 'Pablo', 'Quinn', 'Rosa', 'Sami', 'Tess', 'Umar', 'Vera', 'Wim', 'Xena', 'Yara', 'Zane', 'Anouk',
+  'Bram', 'Chloe', 'Daan', 'Eva', 'Femke', 'Gijs', 'Hana', 'Ivo', 'Jade', 'Koen', 'Lotte', 'Milan', 'Noor',
+  'Otto', 'Puck', 'Ruben', 'Sanne', 'Thijs', 'Uma', 'Vince', 'Wout', 'Yusuf', 'Zoe', 'Aria', 'Bas', 'Cas',
+  'Dina', 'Emre', 'Fleur', 'Guus', 'Hidde', 'Isa', 'Jip'
+];
+function workerDisplayName(requested: unknown, workerId: string): string {
+  const want = typeof requested === 'string' ? requested.trim() : '';
+  // A person's name: letters (and spaces/apostrophes), starting with a capital.
+  if (/^[A-Z][A-Za-z' .-]{1,30}$/.test(want) && !/[0-9_]/.test(want) && !/-/.test(want)) return want;
+  const taken = new Set(Object.values(hive.registry().agents ?? {})
+    .filter((a) => !(a as { archived?: boolean }).archived)
+    .map((a) => String((a as { name?: string }).name ?? '').split(' ')[0]));
+  const free = WORKER_FIRST_NAMES.filter((n) => !taken.has(n));
+  const pool = free.length ? free : WORKER_FIRST_NAMES;
+  let h = 0;
+  for (const ch of workerId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return pool[h % pool.length];
+}
+
 /** A spawn-request god drops into HIVE_ROOT/spawn-requests/<id>.json. god authors
  *  these directly; `objective` and `cwd` are the only required fields. */
 interface SpawnRequest {
@@ -4879,7 +4902,7 @@ async function processSpawnRequest(filePath: string): Promise<void> {
 
   const meta: AgentMeta = {
     id: workerId,
-    name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : `Worker ${reqId.slice(0, 12)}`,
+    name: workerDisplayName(raw.name, workerId),
     provider: raw.provider,
     role: 'worker',
     cwd

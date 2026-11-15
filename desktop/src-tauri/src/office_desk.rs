@@ -579,7 +579,32 @@ pub async fn office_live_file(app: AppHandle, path: String) -> Result<Value, Str
         .to_path_buf();
     let home = std::fs::canonicalize(&home).map_err(|e| e.to_string())?;
     let file = std::fs::canonicalize(PathBuf::from(&path)).map_err(|_| "that file isn't there (any more)".to_string())?;
-    if !file.starts_with(&home) || !file.is_file() {
+    // Also the project folders the Office's agents work in (their `cwd` in the
+    // hive registry, e.g. the server's work folder), never a whole drive or
+    // the user's home folder.
+    let mut roots = vec![home.clone()];
+    if let Some(hive) = shared.parent() {
+        if let Ok(bytes) = std::fs::read(hive.join("registry.json")) {
+            if let Ok(registry) = serde_json::from_slice::<Value>(&bytes) {
+                let user_home = std::env::var_os("USERPROFILE")
+                    .or_else(|| std::env::var_os("HOME"))
+                    .and_then(|h| std::fs::canonicalize(h).ok());
+                if let Some(agents) = registry["agents"].as_object() {
+                    for agent in agents.values() {
+                        for key in ["cwd", "worktreePath"] {
+                            let Some(dir) = agent[key].as_str() else { continue };
+                            let Ok(dir) = std::fs::canonicalize(dir) else { continue };
+                            if dir.components().count() < 4 || user_home.as_ref() == Some(&dir) {
+                                continue;
+                            }
+                            roots.push(dir);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if !file.is_file() || !roots.iter().any(|root| file.starts_with(root)) {
         return Err("only the Office's own work can be shown live".into());
     }
     // Both spellings (the canonical one starts with \?\ on Windows).
