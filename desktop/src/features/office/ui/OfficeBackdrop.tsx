@@ -35,7 +35,7 @@ type Connection = { url: string; token: string };
  * Click-through, under a wash of the app's background; the page panel is
  * see-through to match, all faded by the chosen strength.
  */
-export function OfficeBackdrop() {
+export function OfficeBackdrop({ community }: { community?: string }) {
   const { enabled: chosen, strength } = useOfficeBackdrop();
   const suppressed = useOfficeBackdropSuppressed();
   // Mounted once for the whole app (not per server): switching servers keeps
@@ -44,24 +44,47 @@ export function OfficeBackdrop() {
   const enabled = chosen;
   const [conn, setConn] = React.useState<Connection | null>(null);
   const frameRef = React.useRef<HTMLIFrameElement>(null);
+  const firstHash = React.useRef<string | null>(null);
   useOfficeThemeSync(frameRef);
   const stage = useStageRect(useOfficeStage());
 
-  // The mirror needs the main Office running (it copies its state).
+  // The mirror needs the main Office running (it copies its state). It reads
+  // the board and the mail from an Office too, so on a server switch it moves
+  // to that server's Office: the same frame, a new connection (no reload).
   React.useEffect(() => {
     if (!enabled || !isTauri()) return;
     startOffice();
     let cancelled = false;
     invoke<Connection>("office_connect").then(
       (c) => {
-        if (!cancelled) setConn(c);
+        if (cancelled) return;
+        setConn((prev) => {
+          if (prev && prev.url !== c.url) {
+            const win = frameRef.current?.contentWindow as
+              | (Window & {
+                  __mdReconnect?: (url: string, token: string) => void;
+                })
+              | null
+              | undefined;
+            try {
+              win?.__mdReconnect?.(c.url, c.token);
+            } catch {
+              // Not loaded yet: it reads the new details when it starts.
+            }
+            // Keep the frame (its src stays the first one, so React doesn't
+            // reload it); only the live connection moved. Remember the new
+            // one so the next switch compares against it.
+            return c;
+          }
+          return prev ?? c;
+        });
       },
       () => undefined,
     );
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [enabled, community]);
 
   // While it's on, the page panel lets it show through.
   React.useEffect(() => {
@@ -152,12 +175,10 @@ export function OfficeBackdrop() {
   }, [enabled]);
 
   if (!enabled || !conn) return null;
-  const hash = new URLSearchParams({
-    sidecarUrl: conn.url,
-    sidecarToken: conn.token,
-    view: "office",
-    role: "mirror",
-  }).toString();
+  // The frame's address stays the first one: changing it would reload the
+  // floor. Later servers' Offices reach it through __mdReconnect.
+  firstHash.current ??= mirrorHash(conn);
+  const hash = firstHash.current;
   return (
     <>
       <div
@@ -189,6 +210,15 @@ export function OfficeBackdrop() {
       />
     </>
   );
+}
+
+function mirrorHash(conn: Connection): string {
+  return new URLSearchParams({
+    sidecarUrl: conn.url,
+    sidecarToken: conn.token,
+    view: "office",
+    role: "mirror",
+  }).toString();
 }
 
 type StageRect = { left: number; top: number; width: number; height: number };

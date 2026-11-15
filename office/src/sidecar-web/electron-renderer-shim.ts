@@ -55,7 +55,14 @@ function decode(text: string): any {
 }
 
 // ─── connection ──────────────────────────────────────────────────────────────
+/** The Office this frame talks to: fixed at the first connection (the page's
+ *  own router rewrites the fragment later), moved by the host on a switch. */
+let fixedEndpoint: string | null = null;
 function endpoint(): string {
+  if (!fixedEndpoint) fixedEndpoint = readEndpoint();
+  return fixedEndpoint;
+}
+function readEndpoint(): string {
   const injected = window.__MD_SIDECAR__;
   if (injected) return `${injected.url}?token=${encodeURIComponent(injected.token)}`;
   // Hosted in Buzz's Office iframe: details ride in the fragment, which never
@@ -89,6 +96,16 @@ function post(msg: unknown): void {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(text);
   else outbox.push(text);
 }
+
+/** The host moved this frame to another Office (it changed the fragment's
+ *  sidecar details): drop the socket; the reconnect reads the new ones. */
+(window as unknown as { __mdReconnect?: (url?: string, token?: string) => void }).__mdReconnect = (url, token) => {
+  if (url && token && /^ws:\/\/127\.0\.0\.1:\d+\/$/.test(url)) {
+    fixedEndpoint = `${url}?token=${encodeURIComponent(token)}`;
+  }
+  syncCache.clear();
+  try { ws?.close(); } catch { /* already closed */ }
+};
 
 function connect(attempt = 0): void {
   const sock = new WebSocket(endpoint());

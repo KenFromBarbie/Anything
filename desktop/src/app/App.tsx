@@ -647,7 +647,9 @@ function CommunityApp({
       {/* One Office floor for every server, started once the first server is
           up and kept across switches (see OfficeBackdrop). Before the app in
           the page, so the app paints over it. */}
-      {officeFloorReady ? <OfficeBackdrop /> : null}
+      {officeFloorReady ? (
+        <OfficeBackdrop community={communityApplied ? communityKey : undefined} />
+      ) : null}
       {appContent}
       {transaction ? (
         <div
