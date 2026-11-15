@@ -4,7 +4,12 @@ import { ChevronDown, ChevronRight, SquarePen } from "lucide-react";
 import { useAppShell } from "@/app/AppShellContext";
 import { useAppNavigation } from "@/app/navigation/useAppNavigation";
 import { useChannelsQuery } from "@/features/channels/hooks";
-import { useCeoPubkey } from "@/features/office/ui/EnsureCeoDm";
+import { useManagedAgentsQuery } from "@/features/agents/hooks";
+import { officeAgentPubkeys } from "@/features/agents/lib/officePersonas";
+import {
+  useCeoPubkey,
+  useStandingAgentPubkeys,
+} from "@/features/office/ui/EnsureCeoDm";
 import { ProfileAvatar } from "@/features/profile/ui/ProfileAvatar";
 import { sortDmChannelsForSidebar } from "@/features/sidebar/lib/dmSidebarSort";
 import { useDmSidebarMetadata } from "@/features/sidebar/useDmSidebarMetadata";
@@ -74,7 +79,24 @@ export function InboxDirectMessages({
         })),
     [channels],
   );
-  const dms = useProtectedVisibleDirectMessages(allDms, identity?.pubkey);
+  const visible = useProtectedVisibleDirectMessages(allDms, identity?.pubkey);
+  // Agents of other servers (and finished floor workers) share names with this
+  // server's: their DMs show only once something was said in them.
+  const records = useManagedAgentsQuery();
+  const standing = useStandingAgentPubkeys();
+  const dms = React.useMemo(() => {
+    const office = officeAgentPubkeys(records.data ?? []);
+    const here = new Set(standing.map((p) => p.toLowerCase()));
+    const me = identity?.pubkey?.toLowerCase();
+    return visible.filter((c) => {
+      const others = c.participantPubkeys
+        .map((p) => p.toLowerCase())
+        .filter((p) => p !== me);
+      const agentOnly = others.length > 0 && others.every((p) => office.has(p));
+      if (!agentOnly) return true;
+      return others.some((p) => here.has(p)) || !!c.lastMessageAt;
+    });
+  }, [identity?.pubkey, records.data, standing, visible]);
   const { dmChannelLabels, dmParticipantsByChannelId } = useDmSidebarMetadata({
     currentPubkey: identity?.pubkey,
     directMessages: dms,

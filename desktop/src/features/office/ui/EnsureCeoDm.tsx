@@ -3,7 +3,7 @@ import * as React from "react";
 import { useManagedAgentsQuery } from "@/features/agents/hooks";
 import { useChannelsQuery, useOpenDmMutation } from "@/features/channels/hooks";
 import { useCommunities } from "@/features/communities/useCommunities";
-import { isOfficeAgent } from "@/features/agents/lib/officePersonas";
+import { useOfficeAgents } from "@/features/office/lib/officeLink";
 import { officeAgentPubkey } from "@/features/office/lib/agentDm";
 
 /** The CEO's chat identity in the active server, or null. */
@@ -24,28 +24,22 @@ export function useCeoPubkey(): string | null {
 export function useStandingAgentPubkeys(): string[] {
   const records = useManagedAgentsQuery();
   const { activeCommunity } = useCommunities();
+  const { agents, restorable } = useOfficeAgents();
   const community = activeCommunity?.relayUrl;
-  return React.useMemo(
-    () =>
-      (records.data ?? [])
-        .filter((record) => {
-          if (!isOfficeAgent(record) || record.backend.type !== "provider")
-            return false;
-          const config = record.backend.config as {
-            officeAgentId?: string;
-            officeCommunity?: string;
-          };
-          if (
-            community &&
-            config.officeCommunity &&
-            config.officeCommunity !== community
-          )
-            return false;
-          return !config.officeAgentId?.startsWith("worker-");
-        })
-        .map((record) => record.pubkey),
-    [community, records.data],
-  );
+  return React.useMemo(() => {
+    const out = new Set<string>();
+    // On the floor, or waiting to be brought back after a restart.
+    const ids = [
+      ...agents.map((a) => ({ id: a.id, isGod: a.isGod })),
+      ...restorable.map((a) => ({ id: a.id, isGod: a.id === "god" })),
+    ];
+    for (const agent of ids) {
+      if (agent.id.startsWith("worker-")) continue;
+      const pubkey = officeAgentPubkey(agent, records.data ?? [], community);
+      if (pubkey) out.add(pubkey);
+    }
+    return [...out];
+  }, [agents, community, records.data, restorable]);
 }
 
 /**
