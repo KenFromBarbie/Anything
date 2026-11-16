@@ -975,6 +975,22 @@ export class HiveManager {
 
     args.push('--append-system-prompt', this.injectedPrompt(meta, dir, root, opts.semanticMemory ?? false, opts.knowledgeGraph ?? false, opts.kgCliPath));
 
+    // The CEO works from the office folder but reviews the server's work: its
+    // project folders (where the staff and workers work) are readable without
+    // a prompt. Only folders that exist, never a drive root or the home folder.
+    if (meta.isGod) {
+      const home = (process.env.USERPROFILE ?? process.env.HOME ?? '').toLowerCase();
+      const seen = new Set<string>();
+      for (const a of Object.values(this.registry().agents ?? {})) {
+        const cwd = (a as { cwd?: string }).cwd;
+        if (!cwd || !existsSync(cwd)) continue;
+        const key = cwd.replace(/[\\/]+$/, '').toLowerCase();
+        if (key === root.toLowerCase() || key.startsWith(root.toLowerCase()) || key === home || key.split(/[\\/]/).length < 3 || seen.has(key)) continue;
+        seen.add(key);
+        args.push('--add-dir', cwd);
+      }
+    }
+
     // Phase 1 — autonomy: attach lifecycle hooks via --settings (no edits to the
     // user's repo) so the agent reports activity and drains its inbox on Stop.
     const sock = this.sockPath();
