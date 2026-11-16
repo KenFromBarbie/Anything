@@ -1,3 +1,5 @@
+import { invoke } from "@tauri-apps/api/core";
+
 import {
   APP,
   EXT,
@@ -31,4 +33,14 @@ export function editorGuide(): string {
     lines.push(`## ${APP[k].name} (\`${EXT[k]}\`)`, "", FORMAT_SPEC[k], "");
   }
   return lines.join("\n");
+}
+
+/** Write the guide where every agent of the active Office reads its tools
+ *  (<hive>/tools/EDITORS.md; the hive is the notes vault's folder). */
+export async function writeEditorGuide(): Promise<void> {
+  const vault = await invoke<{ path?: string }>("office_vault");
+  if (!vault.path) return;
+  const sep = vault.path.includes(String.fromCharCode(92)) ? String.fromCharCode(92) : "/";
+  const hive = vault.path.slice(0, vault.path.lastIndexOf(sep));
+  await invoke("office_export_file", { path: `${hive}${sep}tools${sep}EDITORS.md`, text: editorGuide() });
 }

@@ -19,10 +19,9 @@ import {
   relayToMirror,
   setMirrorSource,
 } from "@/features/office/lib/officeMirror";
-import { editorGuide } from "@/features/office/lib/editorGuide";
+import { writeEditorGuide } from "@/features/office/lib/editorGuide";
 import { runOfficeHostCall } from "@/features/office/lib/officeHostCalls";
 import {
-  callOffice,
   connectOffice,
   setOfficeAgentsState,
   setOfficeOverlay,
@@ -149,9 +148,7 @@ export function OfficeScreen() {
         );
         postToOffice({ type: "panel-state-request" });
         // Every agent knows the app's editors: their formats, in the hive.
-        void callOffice("tools.editorGuide", { text: editorGuide() }).catch(
-          () => undefined,
-        );
+        void writeEditorGuide().catch(() => undefined);
         postToOffice({ type: "state-request" });
         setOfficeOverlay(false);
         return;
