@@ -713,6 +713,26 @@ pub async fn office_export_file(path: String, text: String, base64: Option<bool>
     std::fs::write(&path, text.as_bytes()).map_err(|e| format!("couldn't save it: {e}"))
 }
 
+/// Read an editor file the owner picked in Create's Import (a .json in one of
+/// the editors' formats), so it opens in its editor. Read-only, JSON only.
+#[tauri::command]
+pub async fn office_read_import(path: String) -> Result<String, String> {
+    let path = PathBuf::from(path);
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| n.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !path.is_absolute() || !name.ends_with(".json") {
+        return Err("only the editors' own files (.json) open this way".into());
+    }
+    let meta = std::fs::metadata(&path).map_err(|_| "that file isn't there".to_string())?;
+    if !meta.is_file() || meta.len() > 50 * 1024 * 1024 {
+        return Err("that file is too large to open".into());
+    }
+    std::fs::read_to_string(&path).map_err(|e| format!("couldn't read it: {e}"))
+}
+
 /// Give an artifact a new title.
 #[tauri::command]
 pub async fn office_artifact_rename(app: AppHandle, id: String, title: String) -> Result<(), String> {

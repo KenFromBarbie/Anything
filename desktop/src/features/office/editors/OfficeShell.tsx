@@ -3,6 +3,7 @@ import { EditorPresence } from "@/features/office/ui/FilePresence";
 import { createPortal } from "react-dom";
 import {
   Download,
+  FolderOpen,
   Loader2,
   type LucideIcon,
   Maximize2,
@@ -18,6 +19,7 @@ import { callOffice, useOfficeAgents } from "@/features/office/lib/officeLink";
 import { cn } from "@/shared/lib/cn";
 
 import { APP, type EditorKind } from "./formats";
+import { importFromComputer } from "./importFile";
 
 /**
  * The window every editor lives in, laid out like Microsoft Office: the app's
@@ -97,6 +99,15 @@ export function OfficeShell({
         style={{ background: app.color }}
       >
         <span className="text-sm font-semibold">{app.name}</span>
+        <button
+          aria-label="Open from computer"
+          className="flex h-7 w-7 items-center justify-center rounded hover:bg-white/15"
+          onClick={() => void importFromComputer(kind)}
+          title="Open from computer"
+          type="button"
+        >
+          <FolderOpen className="h-4 w-4" />
+        </button>
         <button
           aria-label="Save"
           className="flex h-7 w-7 items-center justify-center rounded hover:bg-white/15"

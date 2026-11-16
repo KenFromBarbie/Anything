@@ -1,7 +1,8 @@
 import * as React from "react";
 import { EditorPresence } from "@/features/office/ui/FilePresence";
 import { createPortal } from "react-dom";
-import { Loader2, Maximize2, Minimize2, Save, Sparkles, X } from "lucide-react";
+import { FolderOpen, Loader2, Maximize2, Minimize2, Save, Sparkles, X } from "lucide-react";
+import { importFromComputer } from "./importFile";
 
 import { cn } from "@/shared/lib/cn";
 
@@ -156,6 +157,9 @@ export function CreativeShell({
             {saving ? "Saving…" : dirty || isNew ? "Not saved" : "Saved to Create"}
           </span>
         </div>
+        <ShellButton label="Open from computer" onClick={() => void importFromComputer(kind)}>
+          <FolderOpen className="h-4 w-4" />
+        </ShellButton>
         <ShellButton label="Save (Ctrl+S)" onClick={onSave}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
         </ShellButton>
