@@ -77,26 +77,63 @@ export function LiveNow() {
   const [watching, setWatching] = React.useState<string | null>(null);
   const dm = useOpenAgentDm();
   const live = (agents as LiveAgent[]).filter((a) => a.presence && isLive(a, now));
-  const watched = (agents as LiveAgent[]).find((a) => a.id === watching && a.presence);
+  // One stream per piece of work, like a shared document: agents on the same
+  // file are one stream with all of them in it.
+  const streams = groupByFile(live);
+  const watched = streams.find((g) => g.key === watching) ?? null;
   return (
     <>
       <ToolFeedback />
-      {live.length ? (
+      {streams.length ? (
         <section className="space-y-2" data-testid="create-live-now">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-            Live now · {live.length} {live.length === 1 ? "agent" : "agents"} streaming
+            Live now · {streams.length} {streams.length === 1 ? "stream" : "streams"} · {live.length} {live.length === 1 ? "agent" : "agents"}
           </div>
           <div className="flex flex-wrap gap-3">
-            {live.map((a) => (
-              <LiveCard agent={a} key={a.id} onMessage={() => void dm.open(a)} onWatch={() => setWatching(a.id)} />
+            {streams.map((g) => (
+              <LiveCard agents={g.agents} key={g.key} onMessage={(a) => void dm.open(a)} onWatch={() => setWatching(g.key)} />
             ))}
           </div>
         </section>
       ) : null}
       {/* Over the whole window (sidebar and rail included), not inside the page. */}
-      {watched ? createPortal(<LiveWatch agent={watched} onClose={() => setWatching(null)} />, document.body) : null}
+      {watched ? createPortal(<LiveWatch agents={watched.agents} onClose={() => setWatching(null)} />, document.body) : null}
     </>
+  );
+}
+
+type Stream = { key: string; agents: LiveAgent[] };
+
+/** Live agents by the file they're on (the most recently active first). */
+function groupByFile(live: LiveAgent[]): Stream[] {
+  const norm = (x: string) => x.split(String.fromCharCode(92)).join("/").toLowerCase();
+  const by = new Map<string, LiveAgent[]>();
+  for (const a of live) {
+    const key = a.presence.latest ? `file:${norm(a.presence.latest.path)}` : `agent:${a.id}`;
+    by.set(key, [...(by.get(key) ?? []), a]);
+  }
+  return [...by.entries()].map(([key, list]) => ({
+    key,
+    agents: [...list].sort((x, y) => y.presence.lastAt - x.presence.lastAt),
+  }));
+}
+
+/** Overlapping initials, like the people in a shared document. */
+function AgentStack({ agents, size = 20 }: { agents: LiveAgent[]; size?: number }) {
+  return (
+    <span className="flex -space-x-1.5">
+      {agents.slice(0, 5).map((a) => (
+        <span
+          className="flex items-center justify-center rounded-full border-2 border-[#2b2d31] font-semibold text-white"
+          key={a.id}
+          style={{ width: size, height: size, fontSize: size * 0.45, background: a.accent?.startsWith("#") ? a.accent : "#5865f2" }}
+          title={a.name}
+        >
+          {a.name.trim().charAt(0).toUpperCase()}
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -121,8 +158,10 @@ const KIND_APP: Record<LiveKind, { name: string; color: string }> = {
 
 /** An agent at work, like a stream on Discord: their work live on top, then
  *  a rich-presence card (what, in which tool, for how long). */
-function LiveCard({ agent, onWatch, onMessage }: { agent: LiveAgent; onWatch: () => void; onMessage: () => void }) {
+function LiveCard({ agents, onWatch, onMessage }: { agents: LiveAgent[]; onWatch: () => void; onMessage: (agent: LiveAgent) => void }) {
+  const agent = agents[0]!;
   const p = agent.presence;
+  const names = agents.map((a) => a.name).join(", ");
   const now = useNow(1000);
   const kind = p.latest?.kind;
   const Icon = kind ? KIND_ICON[kind] : Radio;
@@ -131,7 +170,7 @@ function LiveCard({ agent, onWatch, onMessage }: { agent: LiveAgent; onWatch: ()
   const last = p.steps.at(-1)?.text;
   return (
     <div className="w-72 overflow-hidden rounded-lg bg-[#2b2d31] text-white shadow-md ring-1 ring-black/20" data-testid="live-card">
-      <button className="group relative block h-40 w-full overflow-hidden bg-[#1e1f22]" onClick={onWatch} title={`Watch ${agent.name}`} type="button">
+      <button className="group relative block h-40 w-full overflow-hidden bg-[#1e1f22]" onClick={onWatch} title={`Watch ${names}`} type="button">
         <LiveThumb fallback={<Icon className="h-10 w-10 text-white/30" />} latest={p.latest ?? null} />
         <span className="absolute left-2 top-2 rounded bg-[#ed4245] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">Live</span>
         <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-sm font-semibold opacity-0 transition group-hover:opacity-100">Watch stream</span>
@@ -139,9 +178,9 @@ function LiveCard({ agent, onWatch, onMessage }: { agent: LiveAgent; onWatch: ()
       <div className="p-3">
         <div className="mb-2 flex items-center justify-between text-xs font-semibold text-white/90">
           <span className="truncate">{p.activity}</span>
-          <span className="flex items-center gap-1.5 text-[11px] font-normal text-white/60">
-            <span className="h-2 w-2 rounded-full" style={{ background: agent.accent?.startsWith("#") ? agent.accent : "#5865f2" }} />
-            {agent.name}
+          <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-normal text-white/60" title={names}>
+            <AgentStack agents={agents} size={18} />
+            <span className="truncate">{agents.length > 1 ? `${agents.length} working` : agent.name}</span>
           </span>
         </div>
         <div className="flex gap-3">
@@ -168,9 +207,13 @@ function LiveCard({ agent, onWatch, onMessage }: { agent: LiveAgent; onWatch: ()
           <button className="h-8 rounded-md bg-[#4e5058] text-sm font-medium hover:bg-[#6d6f78]" onClick={onWatch} type="button">
             Watch stream
           </button>
-          <button className="h-8 rounded-md bg-[#4e5058] text-sm font-medium hover:bg-[#6d6f78]" onClick={onMessage} type="button">
-            Message {agent.name}
-          </button>
+          <div className="flex gap-1.5">
+            {agents.slice(0, 3).map((a) => (
+              <button className="h-8 min-w-0 flex-1 truncate rounded-md bg-[#4e5058] px-2 text-sm font-medium hover:bg-[#6d6f78]" key={a.id} onClick={() => onMessage(a)} type="button">
+                Message {a.name}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -220,7 +263,8 @@ function TextThumb({ src }: { src: string }) {
 
 /** Watching an agent: their work, live, in the tool it belongs to, with what
  *  they're doing beside it. */
-function LiveWatch({ agent, onClose }: { agent: LiveAgent; onClose: () => void }) {
+function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => void }) {
+  const agent = agents[0]!;
   const p = agent.presence;
   const [view, setView] = React.useState<"live" | "changes">("live");
   const now = useNow(15_000);
@@ -266,7 +310,8 @@ function LiveWatch({ agent, onClose }: { agent: LiveAgent; onClose: () => void }
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex h-11 shrink-0 items-center gap-2 border-b border-white/10 px-3 text-sm text-white">
             <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-bold uppercase", working ? "bg-red-600" : "bg-white/20")}>{working ? "Live" : "Paused"}</span>
-            <span className="font-semibold">{agent.name}</span>
+            <AgentStack agents={agents} size={22} />
+            <span className="font-semibold">{agents.map((a) => a.name).join(", ")}</span>
             <span className="text-white/60">· {p.activity}{p.detail ? ` · ${p.detail}` : ""}</span>
             <div className="ml-3 flex rounded-md bg-white/10 p-0.5 text-xs">
               <button className={cn("rounded px-2 py-0.5", view === "live" ? "bg-white/20 text-white" : "text-white/60")} onClick={() => setView("live")} type="button">
@@ -290,13 +335,34 @@ function LiveWatch({ agent, onClose }: { agent: LiveAgent; onClose: () => void }
             <div className="text-xs text-white/60">{working ? sinceLabel(p.since, now) : `idle ${sinceLabel(p.idleSince ?? p.lastAt, now).replace("for ", "")}`}</div>
           </div>
           <div className="px-4 pb-1 pt-3 text-[10px] font-bold uppercase tracking-wide text-white/50">What they're doing</div>
+          {agents.length > 1 ? (
+            <div className="border-b border-white/10 px-4 py-3">
+              <div className="pb-1.5 text-[10px] font-bold uppercase tracking-wide text-white/50">In this file</div>
+              {agents.map((a) => (
+                <div className="flex items-center gap-2 py-1 text-xs" key={a.id}>
+                  <AgentStack agents={[a]} size={20} />
+                  <span className="font-semibold">{a.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-white/60" title={a.presence.steps.at(-1)?.text}>
+                    {a.presence.steps.at(-1)?.text ?? a.presence.activity}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <ol className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-4 pb-4 text-xs">
-            {[...p.steps].reverse().map((s, i) => (
-              <li className={cn("flex gap-2", i === 0 ? "text-white" : "text-white/60")} key={`${s.ts}-${i}`}>
-                <span className="w-12 shrink-0 tabular-nums text-white/40">{ago(s.ts, now)}</span>
-                <span className="min-w-0 break-words">{s.text}</span>
-              </li>
-            ))}
+            {agents
+              .flatMap((a) => a.presence.steps.map((st) => ({ ...st, who: a })))
+              .sort((x, y) => y.ts - x.ts)
+              .slice(0, 80)
+              .map((st, i) => (
+                <li className={cn("flex gap-2", i === 0 ? "text-white" : "text-white/60")} key={`${st.who.id}-${st.ts}-${i}`}>
+                  <span className="w-12 shrink-0 tabular-nums text-white/40">{ago(st.ts, now)}</span>
+                  <span className="min-w-0 break-words">
+                    {agents.length > 1 ? <span className="font-semibold text-white/80">{st.who.name}: </span> : null}
+                    {st.text}
+                  </span>
+                </li>
+              ))}
           </ol>
         </aside>
       </div>
