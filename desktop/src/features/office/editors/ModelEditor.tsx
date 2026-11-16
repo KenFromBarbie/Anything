@@ -96,12 +96,16 @@ export function ModelEditor({
   series: initialSeries,
   path,
   artifactId,
+  follow,
 }: {
   title: string;
   file: ModelFile;
   series?: string;
   path?: string;
   artifactId?: string;
+  /** Watching an agent: each new version of the file, applied in place (the
+   *  view and selection stay where they are). */
+  follow?: ModelFile;
 }) {
   const [title, setTitle] = React.useState(initialTitle);
   const [series, setSeries] = React.useState(initialSeries);
@@ -114,6 +118,9 @@ export function ModelEditor({
     modelRef.current = m;
     setModelState(m);
   }, []);
+  React.useEffect(() => {
+    if (follow) setModel(follow);
+  }, [follow, setModel]);
   const [sel, setSelState] = React.useState<string | null>(file.objects[0]?.id ?? null);
   const selRef = React.useRef(sel);
   const setSel = (id: string | null) => {

@@ -515,6 +515,7 @@ function TextStage({ src }: { src: string }) {
  *  .glb/.obj/.stl as an imported object. A new version reopens it. */
 function LiveModelEditor({ path, mtime }: { path: string; mtime: number }) {
   const [file, setFile] = React.useState<ModelFile | null>(null);
+  const firstPath = React.useRef<string | null>(null);
   React.useEffect(() => {
     let alive = true;
     const name = path.split(String.fromCharCode(92)).join("/").split("/").pop() ?? "Model";
@@ -546,12 +547,18 @@ function LiveModelEditor({ path, mtime }: { path: string; mtime: number }) {
       alive = false;
     };
   }, [path, mtime]);
-  if (!file) return null;
+  // The first version opens the editor; later ones are applied in place.
+  const first = React.useRef<ModelFile | null>(null);
+  if (file && (!first.current || firstPath.current !== path)) {
+    first.current = file;
+    firstPath.current = path;
+  }
+  if (!file || !first.current) return null;
   const title = path.split(String.fromCharCode(92)).join("/").split("/").pop() ?? "Model";
   return (
     <div className="h-full overflow-hidden [&>div]:!h-full [&>div]:!min-h-0 [&>div]:!rounded-none [&>div]:!border-0">
       <React.Suspense fallback={null}>
-        <ModelEditor file={file} key={`${path}:${mtime}`} title={title} />
+        <ModelEditor file={first.current} follow={file} key={path} title={title} />
       </React.Suspense>
     </div>
   );
