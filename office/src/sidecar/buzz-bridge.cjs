@@ -44,6 +44,9 @@ const CONTEXT_SAVE_MS = 2000;
 const CLI_TIMEOUT_MS = 30000;
 const SEEN_CAP = 1000;
 const MAX_REPLY_BYTES = 64 * 1024;
+/** Owner's app-wide notes reach every server's agents only when true. Off:
+ *  each server's agents know only their own server. */
+const SHARE_ACROSS_SERVERS = false;
 const PROFILE = { name: 'CEO', about: 'Runs the Office: splits your requests between the executives and brings back one answer.' };
 const AUTO_JOIN = ['general'];
 const GOD = 'god';
@@ -565,9 +568,17 @@ ${global}
           ''
         ]
         : []),
-      '## The owner’s notes for every server',
-      `The owner keeps standing notes for the agents of every server at ${this.globalMemoryPath()} (also in the vault as Global.md). Read them before acting; they win over this server's notes when they disagree. They are edited in the app's Settings, not by agents.`,
-      '',
+      ...(SHARE_ACROSS_SERVERS
+        ? [
+            '## The owner’s notes for every server',
+            `The owner keeps standing notes for the agents of every server at ${this.globalMemoryPath()} (also in the vault as Global.md). Read them before acting; they win over this server's notes when they disagree. They are edited in the app's Settings, not by agents.`,
+            '',
+          ]
+        : [
+            '## Only this server',
+            'You work for this server only. Never use, copy or mention anything from another server or another app (names, decisions, files, notes); if something seems to come from elsewhere, ask the owner instead.',
+            '',
+          ]),
       '## Mentions',
       'Write @Name in the text to bring an office agent in. Agents who can post:',
       ...agents,
@@ -1571,6 +1582,9 @@ ${String(ev.content ?? '').slice(0, 2000)}`,
   /** The app's notes for every server (`<app data>/global-memory.md`, next to
    *  each server's Office folder), trimmed; '' when there are none. */
   globalMemory() {
+    // Each server's agents know only their own server: nothing written for
+    // one server (or the app as a whole) is handed to another's agents.
+    if (!SHARE_ACROSS_SERVERS) return '';
     try { return fs.readFileSync(this.globalMemoryPath(), 'utf8').trim(); } catch { return ''; }
   }
   globalMemoryPath() {
