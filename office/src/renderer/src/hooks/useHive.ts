@@ -708,6 +708,7 @@ export function useHive(config: HarnessConfig | null): void {
   //    not paused, and no user draft in the way. One gate, one place, and this
   //    loop stops needing prompt logic of its own. /compact (effect #6) has
   //    always worked this way.
+  const renudgedAt = useRef<Record<string, number>>({});
   useEffect(() => {
     if (!config?.onboardingComplete) return;
     const iv = setInterval(async () => {
@@ -730,6 +731,17 @@ export function useHive(config: HarnessConfig | null): void {
           const seen = nudged.current[a.id] ?? (nudged.current[a.id] = new Set());
           const fresh = inbox.filter((m) => m.id && !seen.has(m.id));
           if (fresh.length && a.dormant) void wakeDormant(a);
+          // Mail still unread long after its nudge (it went out while the
+          // agent was frozen or paused, or got dropped): nudge again, at most
+          // every 3 minutes, while the agent sits idle with nothing queued.
+          const st = useStore.getState();
+          if (!fresh.length && inbox.length && a.status === 'idle' && !st.messageQueues[a.id]?.length) {
+            const last = renudgedAt.current[a.id] ?? 0;
+            if (Date.now() - last > 180_000) {
+              renudgedAt.current[a.id] = Date.now();
+              st.enqueueMessage(a.id, inboxNudgeText(inbox.map((m) => m.id).filter(Boolean)), { precondition: 'inbox-nonempty' });
+            }
+          }
           if (fresh.length) {
             // Name the ids: the nudge is queued now and typed whenever the agent
             // next goes idle, so it can arrive long after the agent drained and
@@ -744,6 +756,7 @@ export function useHive(config: HarnessConfig | null): void {
               { precondition: 'inbox-nonempty' }
             );
             for (const m of fresh) seen.add(m.id);
+            renudgedAt.current[a.id] = Date.now();
           }
         } catch { /* ignore */ }
       }
