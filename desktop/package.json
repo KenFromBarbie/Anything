@@ -87,6 +87,8 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "three": "0.181.0",
+    "three-bvh-csg": "0.0.18",
+    "three-mesh-bvh": "0.9.18",
     "tiptap-markdown": "^0.9.0",
     "upng-js": "^2.1.0",
     "virtua": "0.49.3",

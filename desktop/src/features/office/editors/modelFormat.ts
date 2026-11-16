@@ -9,7 +9,11 @@ import type { PrintSettings } from "./slicer";
 
 export const PRIMITIVES = ["box", "sphere", "cylinder", "cone", "torus", "plane", "capsule", "icosphere"] as const;
 export type Primitive = (typeof PRIMITIVES)[number];
-export type ObjectKind = Primitive | "import" | "empty" | "hull" | "curve" | "surface";
+export type ObjectKind = Primitive | "import" | "empty" | "hull" | "curve" | "surface" | "boolean";
+
+/** Cut / join / intersect two parts (by id), kept live: moving either one
+ *  changes the result. */
+export type BooleanDef = { op: "subtract" | "union" | "intersect"; a: string; b: string };
 
 /** A parametric hull (the Marine workspace). */
 export type HullShape = {
@@ -49,6 +53,10 @@ export type Params = {
   radiusTop?: number;
   tube?: number;
   segments?: number;
+  /** Rounded edges on a box (metres). */
+  bevel?: number;
+  /** Smoothing rounds, 0–3 (any shape). */
+  smooth?: number;
 };
 
 export type ObjKey = { f: number; position?: Vec3; rotation?: Vec3; scale?: Vec3 };
@@ -79,6 +87,7 @@ export type SceneObject = {
   /** kind "curve" / "surface" (Rhino-style modeling, with history). */
   curve?: CurveDef;
   surface?: SurfaceDef;
+  boolean?: BooleanDef;
   /** Its mass (kg) for weights & hydrostatics, and its centre of gravity
    *  (defaults to the middle of the object). */
   mass?: number;
@@ -174,12 +183,18 @@ const color = (v: unknown, d: string) =>
   typeof v === "string" && /^#[0-9a-f]{3,8}$/i.test(v.trim()) ? v.trim() : d;
 
 /** Read a saved (or agent-written) scene, filling in what's missing. */
+function parseBoolean(v: unknown): BooleanDef {
+  const b = (v ?? {}) as Record<string, unknown>;
+  const op = b.op === "union" || b.op === "intersect" ? b.op : "subtract";
+  return { op, a: String(b.a ?? ""), b: String(b.b ?? "") };
+}
+
 export function parseModel(value: unknown): ModelFile {
   const v = (value ?? {}) as Record<string, unknown>;
   const base = blankModel();
   const w = (v.world ?? {}) as Record<string, unknown>;
   const objects: SceneObject[] = [];
-  const kinds = [...PRIMITIVES, "import", "empty", "hull", "curve", "surface"] as string[];
+  const kinds = [...PRIMITIVES, "import", "empty", "hull", "curve", "surface", "boolean"] as string[];
   for (const raw of Array.isArray(v.objects) ? v.objects : []) {
     const o = (raw ?? {}) as Record<string, unknown>;
     const kind = (kinds.includes(String(o.kind)) ? o.kind : "box") as ObjectKind;
@@ -190,6 +205,9 @@ export function parseModel(value: unknown): ModelFile {
     for (const [k, d] of Object.entries(defaultParams(kind))) {
       (params as Record<string, number>)[k] = num(p[k], d as number, 0, 10000);
     }
+    // Modifiers on any shape.
+    if (p.bevel !== undefined) params.bevel = num(p.bevel, 0, 0, 100);
+    if (p.smooth !== undefined) params.smooth = Math.round(num(p.smooth, 0, 0, 3));
     const ph = o.physics as Record<string, unknown> | undefined;
     const arr = o.array as Record<string, unknown> | undefined;
     objects.push({
@@ -216,6 +234,7 @@ export function parseModel(value: unknown): ModelFile {
       ...(o.joint && typeof o.joint === "object" ? { joint: parseJoint(o.joint) } : {}),
       ...(kind === "curve" ? { curve: parseCurve(o.curve) } : {}),
       ...(kind === "surface" ? { surface: parseSurface(o.surface) } : {}),
+      ...(kind === "boolean" ? { boolean: parseBoolean(o.boolean) } : {}),
       ...(o.mass != null && num(o.mass, 0, 0, 1e9) > 0 ? { mass: num(o.mass, 0, 0, 1e9) } : {}),
       ...(o.cg != null ? { cg: vec(o.cg, [0, 0, 0]) } : {}),
       ...(arr ? { array: { count: Math.round(num(arr.count, 1, 1, 200)), offset: vec(arr.offset, [1.2, 0, 0]) } } : {}),
@@ -368,4 +387,4 @@ export function poseAt(o: SceneObject, f: number): { position: Vec3; rotation: V
 }
 
 export const MODEL_SPEC =
-  'JSON: {"type":"model","version":1,"fps":24,"frameStart":1,"frameEnd":120,"world":{"background":"#3a3a3a","sun":45,"ambient":0.6,"ground":false,"grid":true},"objects":[…]}. Units are metres, Y is up. An object: {"id","name","kind":"box|sphere|icosphere|cylinder|cone|torus|plane|capsule|import|empty","parent":"<id> (optional)","visible":true,"position":[x,y,z],"rotation":[deg,deg,deg],"scale":[1,1,1],"params":{"width","height","depth","radius","radiusTop","tube","segments"},"material":{"color":"#hex","metalness":0–1,"roughness":0–1,"opacity":0–1,"emissive":"#hex"},"array":{"count":4,"offset":[1.2,0,0]} (optional),"keys":[{"f":1,"position":[…],"rotation":[…],"scale":[…]}] (optional keyframes)}. For anything made elsewhere (simkit results, Blender, three.js), copy the .glb into the shared workspace\'s artifacts/_media folder and add {"kind":"import","src":"<its absolute path>"}; its own animation plays. A boat hull can be {"kind":"hull","hull":{"type":"planing|round","length","beam","depth","deadriseAft","deadriseFwd","transom":0–1,"entry":1–4,"keelRise":0–1,"sheerRise","flare","bilge"}} (transom at x=0, bow at +x, z to starboard), and any object can carry "mass" (kg) and "cg":[x,y,z] for the Marine workspace: weights, hydrostatics, stability and resistance. Curves: {"kind":"curve","curve":{"type":"polyline|interp|circle|rect","points":[[x,y,z],…],"closed":false,"plane":"y"}} (circle: [centre, a point on it]; rect: two corners). Surfaces built from curves keep their history: {"kind":"surface","surface":{"op":"extrude|revolve|loft|pipe","curves":["<curve id>",…],"direction":[0,1,0],"angle":360,"axis":[0,1,0],"axisPoint":[0,0,0],"radius":0.05,"cap":true}}. Keep separate parts as separate objects so the owner can keep editing them.';
+  'JSON: {"type":"model","version":1,"fps":24,"frameStart":1,"frameEnd":120,"world":{"background":"#3a3a3a","sun":45,"ambient":0.6,"ground":false,"grid":true},"objects":[…]}. Units are metres, Y is up. An object: {"id","name","kind":"box|sphere|icosphere|cylinder|cone|torus|plane|capsule|import|empty","parent":"<id> (optional)","visible":true,"position":[x,y,z],"rotation":[deg,deg,deg],"scale":[1,1,1],"params":{"width","height","depth","radius","radiusTop","tube","segments"},"material":{"color":"#hex","metalness":0–1,"roughness":0–1,"opacity":0–1,"emissive":"#hex"},"array":{"count":4,"offset":[1.2,0,0]} (optional),"keys":[{"f":1,"position":[…],"rotation":[…],"scale":[…]}] (optional keyframes)}. For anything made elsewhere (simkit results, Blender, three.js), copy the .glb into the shared workspace\'s artifacts/_media folder and add {"kind":"import","src":"<its absolute path>"}; its own animation plays. A boat hull can be {"kind":"hull","hull":{"type":"planing|round","length","beam","depth","deadriseAft","deadriseFwd","transom":0–1,"entry":1–4,"keelRise":0–1,"sheerRise","flare","bilge"}} (transom at x=0, bow at +x, z to starboard), and any object can carry "mass" (kg) and "cg":[x,y,z] for the Marine workspace: weights, hydrostatics, stability and resistance. Curves: {"kind":"curve","curve":{"type":"polyline|interp|circle|rect","points":[[x,y,z],…],"closed":false,"plane":"y"}} (circle: [centre, a point on it]; rect: two corners). Surfaces built from curves keep their history: {"kind":"surface","surface":{"op":"extrude|revolve|loft|pipe","curves":["<curve id>",…],"direction":[0,1,0],"angle":360,"axis":[0,1,0],"axisPoint":[0,0,0],"radius":0.05,"cap":true}}. Keep separate parts as separate objects so the owner can keep editing them. Modelling tools: any shape can carry "params":{"smooth":0–3} (rounded, subdivided surface) and a box "params":{"bevel":0.05} (rounded edges, metres). Cut, join or intersect two parts with {"kind":"boolean","boolean":{"op":"subtract|union|intersect","a":"<id of the part kept>","b":"<id of the cutter>"}} and set the two parts "visible":false; the boolean stays live (move the cutter, the cut follows). Use these for hull openings, seat wells, a battery drawer bay, rounded panels.';

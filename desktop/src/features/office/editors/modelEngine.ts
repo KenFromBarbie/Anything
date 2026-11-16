@@ -9,6 +9,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { booleanGeometry, roundedBox, smoothGeometry } from "./modelOps";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 
@@ -40,7 +41,7 @@ export function geometryOf(o: SceneObject): THREE.BufferGeometry | null {
   const seg = Math.max(3, Math.round(p.segments ?? 32));
   switch (o.kind) {
     case "box":
-      return new THREE.BoxGeometry(p.width ?? 1, p.height ?? 1, p.depth ?? 1);
+      return p.bevel ? roundedBox(p.width ?? 1, p.height ?? 1, p.depth ?? 1, p.bevel) : new THREE.BoxGeometry(p.width ?? 1, p.height ?? 1, p.depth ?? 1);
     case "sphere":
       return new THREE.SphereGeometry(p.radius ?? 0.5, seg, Math.max(2, Math.round(seg / 2)));
     case "icosphere":
@@ -63,6 +64,27 @@ export function geometryOf(o: SceneObject): THREE.BufferGeometry | null {
     default:
       return null;
   }
+}
+
+/** A part's shape in its own space (primitives, hulls, surfaces, booleans),
+ *  smoothed, for use inside a boolean. */
+function shapeOf(o: SceneObject, file: ModelFile, depth = 0): THREE.BufferGeometry | null {
+  let g: THREE.BufferGeometry | null = null;
+  if (o.kind === "surface" && o.surface) g = surfaceGeometry(o.surface, file);
+  else if (o.kind === "boolean" && o.boolean) {
+    if (depth > 6) return null;
+    g = booleanGeometry(o.boolean, file, (x) => shapeOf(x, file, depth + 1), depth + 1);
+  } else g = geometryOf(o);
+  return g ? smoothGeometry(g, o.params?.smooth ?? 0) : null;
+}
+
+/** What a boolean's result depends on: both parts (and theirs), for rebuilds. */
+function booleanRefs(o: SceneObject, file: ModelFile, depth = 0): unknown {
+  if (!o.boolean || depth > 6) return null;
+  return [o.boolean.a, o.boolean.b].map((id) => {
+    const x = file.objects.find((y) => y.id === id);
+    return x ? [x.kind, x.params, x.hull, x.surface, x.position, x.rotation, x.scale, booleanRefs(x, file, depth + 1)] : null;
+  });
 }
 
 function materialOf(o: SceneObject, shading: Shading): THREE.Material {
@@ -333,8 +355,8 @@ export class ModelScene {
     }
     for (const o of file.objects) {
       // A surface rebuilds when the curves it was made from change (history).
-      const refs = o.surface ? o.surface.curves.map((id) => file.objects.find((x) => x.id === id)).map((c) => (c ? [c.curve, c.position, c.rotation, c.scale] : null)) : null;
-      const sig = JSON.stringify([o.kind, o.params, o.material, o.src, o.array, o.hull, o.curve, o.surface, refs, this.shading]);
+      const refs = o.surface ? o.surface.curves.map((id) => file.objects.find((x) => x.id === id)).map((c) => (c ? [c.curve, c.position, c.rotation, c.scale] : null)) : o.boolean ? booleanRefs(o, file) : null;
+      const sig = JSON.stringify([o.kind, o.params, o.material, o.src, o.array, o.hull, o.curve, o.surface, o.boolean, refs, this.shading]);
       if (this.sigs.get(o.id) !== sig) {
         this.nodes.get(o.id)?.parent?.remove(this.nodes.get(o.id) as THREE.Object3D);
         const node = this.build(o);
@@ -375,8 +397,17 @@ export class ModelScene {
         mesh.receiveShadow = true;
         return mesh;
       }
-      const g = geometryOf(o);
-      if (!g) return null;
+      if (o.kind === "boolean" && o.boolean) {
+        const bg = booleanGeometry(o.boolean, this.file, (x) => shapeOf(x, this.file));
+        if (!bg) return null;
+        const mesh = new THREE.Mesh(smoothGeometry(bg, o.params?.smooth ?? 0), materialOf(o, this.shading));
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        return mesh;
+      }
+      const g0 = geometryOf(o);
+      if (!g0) return null;
+      const g = smoothGeometry(g0, o.params?.smooth ?? 0);
       const mesh = new THREE.Mesh(g, materialOf(o, this.shading));
       mesh.castShadow = true;
       mesh.receiveShadow = true;

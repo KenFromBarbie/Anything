@@ -1198,6 +1198,29 @@ function VecRow({ label, value, step = 0.1, onChange, onCommit }: { label: strin
   );
 }
 
+/** Cut / join / intersect the selected part with another one. */
+function CombineRow({ others, combine }: { others: SceneObject[]; combine: (op: "subtract" | "union" | "intersect", withId: string) => void }) {
+  const [withId, setWithId] = React.useState(others[0]?.id ?? "");
+  const target = others.some((o) => o.id === withId) ? withId : others[0]?.id ?? "";
+  return (
+    <div className="grid gap-1 px-3 py-1">
+      <label className="flex items-center gap-2">
+        <span className="w-20 text-[#a8a8a8]">With</span>
+        <select className="h-6 flex-1 rounded border border-black/50 bg-[#1f1f1f] px-1" onChange={(e) => setWithId(e.target.value)} value={target}>
+          {others.map((o) => (
+            <option key={o.id} value={o.id}>{o.name}</option>
+          ))}
+        </select>
+      </label>
+      <div className="flex gap-1">
+        <button className="h-6 flex-1 rounded bg-[#3a3a3a] hover:bg-[#4a4a4a]" onClick={() => combine("subtract", target)} title="This part with the other one cut out of it" type="button">Cut</button>
+        <button className="h-6 flex-1 rounded bg-[#3a3a3a] hover:bg-[#4a4a4a]" onClick={() => combine("union", target)} title="Both parts joined into one" type="button">Join</button>
+        <button className="h-6 flex-1 rounded bg-[#3a3a3a] hover:bg-[#4a4a4a]" onClick={() => combine("intersect", target)} title="Only where they overlap" type="button">Intersect</button>
+      </div>
+    </div>
+  );
+}
+
 function PropsPanel({
   tab,
   obj,
@@ -1317,11 +1340,70 @@ function PropsPanel({
     const p = obj.params ?? {};
     const fields: { key: keyof Params; label: string; max: number; step: number }[] = [];
     const d = defaultParams(obj.kind);
-    const LABEL: Record<keyof Params, string> = { width: "Width", height: "Height", depth: "Depth", radius: "Radius", radiusTop: "Top radius", tube: "Tube", segments: obj.kind === "icosphere" ? "Subdivisions" : "Segments" };
+    const LABEL: Record<keyof Params, string> = { width: "Width", height: "Height", depth: "Depth", radius: "Radius", radiusTop: "Top radius", tube: "Tube", segments: obj.kind === "icosphere" ? "Subdivisions" : "Segments", bevel: "Round edges", smooth: "Smooth" };
     for (const k of Object.keys(d) as (keyof Params)[]) {
       fields.push({ key: k, label: LABEL[k], max: k === "segments" ? (obj.kind === "icosphere" ? 6 : 128) : 20, step: k === "segments" ? 1 : 0.01 });
     }
-    if (!fields.length) return <p className="p-3 text-[#8a8a8a]">{obj.kind === "import" ? "An imported model's shape comes from its file." : "No shape settings."}</p>;
+    const meshKind = obj.kind !== "import" && obj.kind !== "empty" && obj.kind !== "curve";
+    const others = model.objects.filter((x) => x.id !== obj.id && x.kind !== "import" && x.kind !== "empty" && x.kind !== "curve");
+    const combine = (op: "subtract" | "union" | "intersect", withId: string) => {
+      const other = model.objects.find((x) => x.id === withId);
+      if (!other) return;
+      const label = op === "subtract" ? "Cut" : op === "union" ? "Join" : "Intersect";
+      const result: SceneObject = {
+        id: oid(),
+        name: `${obj.name} ${label.toLowerCase()} ${other.name}`.slice(0, 80),
+        kind: "boolean",
+        visible: true,
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        material: obj.material ? { ...obj.material } : { ...DEFAULT_MATERIAL },
+        boolean: { op, a: obj.id, b: withId },
+      };
+      onModel(
+        {
+          ...model,
+          objects: [
+            ...model.objects.map((x) => (x.id === obj.id || x.id === withId ? { ...x, visible: false } : x)),
+            result,
+          ],
+        },
+        label,
+      );
+    };
+    const modifiers = meshKind ? (
+      <>
+        <Head>Modify</Head>
+        {obj.kind === "box" ? (
+          <Slider label="Round edges" max={0.5} min={0} onChange={(v) => onObj({ params: { ...p, bevel: v } })} onCommit={() => commit("Round edges")} step={0.005} unit="m" value={p.bevel ?? 0} />
+        ) : null}
+        <Slider label="Smooth" max={3} min={0} onChange={(v) => onObj({ params: { ...p, smooth: Math.round(v) } })} onCommit={() => commit("Smooth")} step={1} value={p.smooth ?? 0} />
+        {others.length ? (
+          <CombineRow combine={combine} others={others} />
+        ) : null}
+      </>
+    ) : null;
+    if (obj.kind === "boolean" && obj.boolean) {
+      const b = obj.boolean;
+      const nameOf = (id: string) => model.objects.find((x) => x.id === id)?.name ?? "(missing)";
+      return (
+        <>
+          <Head>Combined · {b.op === "subtract" ? "cut" : b.op === "union" ? "join" : "intersect"}</Head>
+          <label className="flex items-center gap-2 px-3 py-1">
+            <span className="w-20 text-[#a8a8a8]">Operation</span>
+            <select className="h-6 flex-1 rounded border border-black/50 bg-[#1f1f1f] px-1" onChange={(e) => onObj({ boolean: { ...b, op: e.target.value as typeof b.op } }, "Operation")} value={b.op}>
+              <option value="subtract">Cut (A minus B)</option>
+              <option value="union">Join (A plus B)</option>
+              <option value="intersect">Intersect (overlap)</option>
+            </select>
+          </label>
+          <p className="px-3 py-1 text-[#a8a8a8]">A: {nameOf(b.a)} · B: {nameOf(b.b)}. Select either part in the outliner and move or reshape it: the result follows.</p>
+          {modifiers}
+        </>
+      );
+    }
+    if (!fields.length && !modifiers) return <p className="p-3 text-[#8a8a8a]">{obj.kind === "import" ? "An imported model's shape comes from its file." : "No shape settings."}</p>;
     return (
       <>
         <Head>Shape · {obj.kind}</Head>
@@ -1338,6 +1420,7 @@ function PropsPanel({
             value={(p[f.key] ?? d[f.key]) as number}
           />
         ))}
+        {modifiers}
       </>
     );
   }
