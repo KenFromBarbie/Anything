@@ -79,17 +79,39 @@ export function LiveNow() {
   const live = (agents as LiveAgent[]).filter((a) => a.presence && isLive(a, now));
   // One stream per piece of work, like a shared document: agents on the same
   // file are one stream with all of them in it.
-  const streams = groupByFile(live);
+  // Only work there is something to watch of is a stream; agents with nothing
+  // on screen yet (reading, running checks) are listed beside them instead.
+  const groups = groupByFile(live);
+  const streams = groups.filter((g) => g.key.startsWith("file:"));
+  const busy = groups.filter((g) => !g.key.startsWith("file:")).flatMap((g) => g.agents);
   const watched = streams.find((g) => g.key === watching) ?? null;
   return (
     <>
       <ToolFeedback />
-      {streams.length ? (
+      {streams.length || busy.length ? (
         <section className="space-y-2" data-testid="create-live-now">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
             Live now · {streams.length} {streams.length === 1 ? "stream" : "streams"} · {live.length} {live.length === 1 ? "agent" : "agents"}
           </div>
+          {busy.length ? (
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" data-testid="live-also-working">
+              <span>Also working:</span>
+              {busy.map((a) => (
+                <button
+                  className="flex items-center gap-1.5 rounded-full border border-border/60 bg-background/70 px-2 py-0.5 hover:bg-muted"
+                  key={a.id}
+                  onClick={() => void dm.open(a)}
+                  title={`${a.presence.steps.at(-1)?.text ?? a.presence.activity} · message ${a.name}`}
+                  type="button"
+                >
+                  <AgentStack agents={[a]} size={16} />
+                  <span className="font-medium text-foreground">{a.name}</span>
+                  <span className="max-w-48 truncate">{a.presence.activity.toLowerCase()}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-3">
             {streams.map((g) => (
               <LiveCard agents={g.agents} key={g.key} onMessage={(a) => void dm.open(a)} onWatch={() => setWatching(g.key)} />

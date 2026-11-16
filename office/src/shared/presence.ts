@@ -115,6 +115,22 @@ export interface ToolCall {
   read?: string;
 }
 
+/**
+ * The file a shell command shows (cat, sed -n, head, tail, type,
+ * Get-Content), as an absolute path when the command says where: the live view
+ * opens it like the Read tool's. Null when it shows no single file.
+ */
+export function shellRead(cmd: string): string | undefined {
+  const dir = /(?:^|[;&]\s*)cd\s+(?:"([^"]+)"|'([^']+)'|(\S+))/.exec(cmd);
+  const base = dir ? (dir[1] ?? dir[2] ?? dir[3] ?? '') : '';
+  const m = /(?:^|[;&|]\s*)(?:cat|type|head|tail|less|more|sed\s+-n\s+(?:"[^"]*"|'[^']*'|\S+)|get-content)(?:\s+-[\w]+(?:\s+\d+)?)*\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|<>]+))/i.exec(cmd);
+  const file = m ? (m[1] ?? m[2] ?? m[3] ?? '') : '';
+  if (!file || !/\.[a-z0-9]{1,6}$/i.test(file)) return undefined;
+  if (/^([a-z]:)?[\\/]/i.test(file)) return file;
+  if (!base || !/^([a-z]:)?[\\/]/i.test(base)) return undefined;
+  return `${base.replace(/[\\/]+$/, '')}/${file}`;
+}
+
 /** What one tool call means. */
 export function classify(tool: string, input: unknown): ToolCall {
   const i = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
@@ -137,7 +153,12 @@ export function classify(tool: string, input: unknown): ToolCall {
     const short = cmd.replace(/\s+/g, ' ').trim().slice(0, 80);
     const target = /([\w./\\:-]+\.(py|js|ts|mjs|cjs|sh))\b/.exec(cmd)?.[1];
     // Only a path with a folder names the project (not a bare "run.py").
-    return { activity: act, detail: target && /[\/]/.test(target) ? projectOf(target) : undefined, step: `Ran ${short}` };
+    return {
+      activity: act,
+      detail: target && /[\/]/.test(target) ? projectOf(target) : undefined,
+      step: `Ran ${short}`,
+      read: shellRead(cmd),
+    };
   }
   if (name === 'websearch') return { activity: 'Researching', step: `Searched “${String(i.query ?? '').slice(0, 60)}”` };
   if (name === 'webfetch') return { activity: 'Researching', step: `Read ${String(i.url ?? 'a page').slice(0, 70)}` };
