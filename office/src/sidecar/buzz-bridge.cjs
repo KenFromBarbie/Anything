@@ -531,8 +531,11 @@ ${global}
       '',
       ...(simkit
         ? [
+          '## The app\'s editors come first',
+          `Documents, slides, sheets, images, videos, 3D models and sites are made in the app's editors, in their file formats: read ${join(root, 'tools', 'EDITORS.md')} before making any of them. A 3D deliverable is a .model.json the owner opens in the 3D editor (named parts, a parametric hull, curves and surfaces, imports), not a script's .glb or a PNG render.`,
+          '',
           '## 3D, clothing and simulations (simkit)',
-          `The office has a Python kit for engineering work at ${simkit} (numpy; Pillow for GIFs). Read ${join(simkit, 'README.md')} before 3D, clothing or simulation work, and start from a script in ${join(simkit, 'examples')} (boat.py, aircraft.py, garment.py): copy it to your own folder, never edit the kit.`,
+          `simkit is for what the editors can't do themselves: simulations (boats on water, aircraft, cloth) and detailed meshes, which then go into the editor file as import objects. The kit is at ${simkit} (numpy; Pillow for GIFs). Read ${join(simkit, 'README.md')} and start from a script in ${join(simkit, 'examples')} (boat.py, aircraft.py, garment.py): copy it to your own folder, never edit the kit.`,
           `In your scripts: import sys; sys.path.insert(0, r"${join(simkit, '..')}"); from simkit import mesh, glb, hydro, aero, cloth, report`,
           '- Boats, floats, hulls: hydro.Boat: draft, freeboard, GM, GZ curve, motion in waves; an animated .glb of it on the water.',
           '- Aircraft, wings, drones, sails, fins: aero.vlm / aero.aircraft_polar (lift, drag, stall and glide speeds, stability), aero.airfoil_polar, aero.wind_tunnel (a GIF of the airflow).',

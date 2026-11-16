@@ -156,6 +156,18 @@ function snapshotOf(s: ReturnType<typeof useStore.getState>) {
 }
 
 const ops: Record<string, Op> = {
+  /** The app's editors guide (each editor's file format), written where every
+   *  agent reads its tools: <hive>/tools/EDITORS.md. */
+  'tools.editorGuide': async (a) => {
+    const body = text(a.text, 200_000);
+    if (!body) throw new Error('empty guide');
+    const cfg = await window.cth.getConfig();
+    if (!cfg.harnessHome) throw new Error('the Office is not set up');
+    const hive = `${cfg.harnessHome.replace(/[\\/]+$/, '')}/hive`;
+    const res = await window.cth.writeFile(hive, 'tools/EDITORS.md', body);
+    if (!res.ok) throw new Error(res.error);
+    return true;
+  },
   /** Bring back last session's agents: these ids, or all of them. */
   'agents.restore': async (a) => {
     const ids = Array.isArray(a.ids) ? a.ids.map((x) => String(x)) : undefined;
