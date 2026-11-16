@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { Box, Clapperboard, FileText, Globe, ImageIcon, Radio, X } from "lucide-react";
 
@@ -93,7 +94,8 @@ export function LiveNow() {
           </div>
         </section>
       ) : null}
-      {watched ? <LiveWatch agent={watched} onClose={() => setWatching(null)} /> : null}
+      {/* Over the whole window (sidebar and rail included), not inside the page. */}
+      {watched ? createPortal(<LiveWatch agent={watched} onClose={() => setWatching(null)} />, document.body) : null}
     </>
   );
 }
@@ -259,7 +261,7 @@ function LiveWatch({ agent, onClose }: { agent: LiveAgent; onClose: () => void }
     else stage = <CodeStage changesFile={p.changes?.file} changesAt={p.changes?.lastAt} path={p.latest.path} src={src} />;
   }
   return (
-    <div className="fixed inset-0 z-50 flex bg-black/70 p-4 backdrop-blur-sm" data-testid="live-watch">
+    <div className="fixed inset-0 z-[70] flex bg-black/70 p-4 backdrop-blur-sm" data-testid="live-watch">
       <div className="flex min-w-0 flex-1 overflow-hidden rounded-xl border border-white/10 bg-[#111214] shadow-2xl">
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex h-11 shrink-0 items-center gap-2 border-b border-white/10 px-3 text-sm text-white">
