@@ -3,11 +3,13 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { Box, Clapperboard, FileText, Globe, ImageIcon, Radio, X } from "lucide-react";
 
 import { EditorFileView } from "@/features/office/editors/EditorFiles";
+import { blankModel, type ModelFile, parseModel } from "@/features/office/editors/modelFormat";
 import { useOpenAgentDm } from "@/features/office/lib/agentDm";
 import { type AgentPresence, type OfficeAgent, useOfficeAgents } from "@/features/office/lib/officeLink";
 import { foldDiff, lineDiff } from "@/features/office/lib/lineDiff";
 import { cn } from "@/shared/lib/cn";
 
+const ModelEditor = React.lazy(async () => ({ default: (await import("@/features/office/editors/ModelEditor")).ModelEditor }));
 const ModelViewer = React.lazy(async () => ({ default: (await import("./ModelViewer")).ModelViewer }));
 
 /** What an agent is doing, from the Office (see office/src/shared/presence.ts). */
@@ -238,11 +240,11 @@ function LiveWatch({ agent, onClose }: { agent: LiveAgent; onClose: () => void }
   if (src && p.latest) {
     const k = p.latest.kind;
     if (k === "model") {
-      stage = (
-        <React.Suspense fallback={null}>
-          <ModelViewer className="h-full w-full" key={src} path={p.latest.path} src={src} />
-        </React.Suspense>
-      );
+      // In the 3D editor itself (menus, scene tree, workspaces), reopened on
+      // every new version the agent writes, so the changes show as they land.
+      stage = <LiveModelEditor mtime={file?.mtime ?? 0} path={p.latest.path} />;
+    } else if (k === "editor" && /\.model\.json$/i.test(p.latest.path)) {
+      stage = <LiveModelEditor mtime={file?.mtime ?? 0} path={p.latest.path} />;
     } else if (k === "image") stage = <img alt="" className="h-full w-full object-contain" src={src} />;
     // biome-ignore lint/a11y/useMediaCaption: an agent's work in progress
     else if (k === "video") stage = <video autoPlay className="h-full w-full" controls key={src} loop muted src={src} />;
@@ -417,6 +419,52 @@ function TextStage({ src }: { src: string }) {
       .catch(() => {});
   }, [src]);
   return <pre className="h-full overflow-auto whitespace-pre-wrap p-4 text-xs text-white/80">{text}</pre>;
+}
+
+/** The agent's model open in the app's 3D editor: a .model.json as itself, a
+ *  .glb/.obj/.stl as an imported object. A new version reopens it. */
+function LiveModelEditor({ path, mtime }: { path: string; mtime: number }) {
+  const [file, setFile] = React.useState<ModelFile | null>(null);
+  React.useEffect(() => {
+    let alive = true;
+    const name = path.split(String.fromCharCode(92)).join("/").split("/").pop() ?? "Model";
+    if (/\.model\.json$/i.test(path)) {
+      fetch(`${convertFileSrc(path)}?v=${mtime}`)
+        .then((r) => r.json())
+        .then((j) => alive && setFile(parseModel(j)))
+        .catch(() => undefined);
+    } else {
+      const base = blankModel();
+      setFile({
+        ...base,
+        objects: [
+          {
+            id: "live",
+            name,
+            kind: "import",
+            visible: true,
+            position: [0, 0, 0],
+            rotation: [0, 0, 0],
+            scale: [1, 1, 1],
+            // A new URL per version, so the editor loads the new file.
+            src: `${convertFileSrc(path)}?v=${mtime}`,
+          },
+        ],
+      });
+    }
+    return () => {
+      alive = false;
+    };
+  }, [path, mtime]);
+  if (!file) return null;
+  const title = path.split(String.fromCharCode(92)).join("/").split("/").pop() ?? "Model";
+  return (
+    <div className="h-full overflow-hidden [&>div]:!h-full [&>div]:!min-h-0 [&>div]:!rounded-none [&>div]:!border-0">
+      <React.Suspense fallback={null}>
+        <ModelEditor file={file} key={`${path}:${mtime}`} title={title} />
+      </React.Suspense>
+    </div>
+  );
 }
 
 /**

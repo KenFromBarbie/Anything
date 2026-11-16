@@ -386,11 +386,27 @@ async function scanOutputs(agentId: string): Promise<void> {
 // workers do the work. Managers may write only the office's own files (the
 // hive: board, tasks, spawn requests, messages, their notes).
 hookServer.managerGate = (agentId, tool, input) => {
-  if (!/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(tool)) return null;
+  const shell = /^(Bash|PowerShell)$/i.test(tool);
+  if (!shell && !/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(tool)) return null;
   const root = hive.root();
   if (!root) return null;
   const meta = hive.registry().agents[agentId] as { isStaff?: boolean } | undefined;
   if (agentId !== 'god' && !meta?.isStaff) return null;
+  if (shell) {
+    // Looking is fine (ls, cat, grep, git log/diff…, the office's own buzz-*
+    // commands); building, running scripts or writing outside the office
+    // folder is a worker's job.
+    const cmd = String((input as { command?: unknown } | null)?.command ?? '');
+    const flat = cmd.split(String.fromCharCode(92)).join('/').toLowerCase();
+    const hiveRoot = root.split(String.fromCharCode(92)).join('/').toLowerCase();
+    const runs = /(^|[\s;&|(])(python3?|py|node|npx|bun|deno|blender|openscad|freecad|cadquery|pip|npm|pnpm|yarn|cargo|make|cmake|gcc|g\+\+|dotnet|java|ffmpeg|magick|convert)(\.exe)?(\s|$)/i.test(cmd);
+    const writes = /(^|[^0-9<>&])>>?(?!&)|\btee\b|set-content|out-file|add-content|new-item|copy-item|move-item|remove-item|\bcp\s|\bmv\s|\brm\s|sed\s+-i|\bmkdir\b|\btouch\b/i.test(cmd);
+    const onlyOffice = flat.includes(hiveRoot);
+    if (runs || (writes && !onlyOffice)) {
+      return 'You manage; floor workers do the work. Running programs or scripts and writing files outside the office folder is work for a floor worker: hire a floor worker for it (a spawn-requests/<id>.json with the full contract), then review what they report.';
+    }
+    return null;
+  }
   const i = (input ?? {}) as { file_path?: string; notebook_path?: string };
   const target = String(i.file_path ?? i.notebook_path ?? '');
   if (!target) return null;
