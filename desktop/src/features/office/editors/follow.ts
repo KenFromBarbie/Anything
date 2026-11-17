@@ -95,24 +95,38 @@ export function useFileFollow(path: string | undefined, kind: EditorKind | null)
 
 /**
  * Put an agent's cursor flag on an element for a few seconds: an outline in
- * their colour and their name above it (see `[data-agent-mark]` in the
- * editors' CSS), scrolled into view.
+ * their colour with their name above it, drawn as its own layer over the
+ * element (editors like the document's redraw their own DOM, which would
+ * strip anything set on it), following it while you scroll.
  */
 export function markForAgent(el: Element | null | undefined, who: Follower | null, ms = 6000): void {
   if (!el || !(el instanceof HTMLElement)) return;
   const name = who?.name ?? "An agent";
-  el.setAttribute("data-agent-mark", name);
-  el.style.setProperty("--agent-color", who?.color ?? "#1c7ed6");
+  const color = who?.color ?? "#1c7ed6";
   el.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  const prev = (el as HTMLElement & { __agentMark?: number }).__agentMark;
-  if (prev) clearTimeout(prev);
-  (el as HTMLElement & { __agentMark?: number }).__agentMark = window.setTimeout(() => {
-    el.removeAttribute("data-agent-mark");
-  }, ms);
+  const box = document.createElement("div");
+  box.setAttribute("data-agent-mark", name);
+  box.className = "agent-mark-layer";
+  box.style.setProperty("--agent-color", color);
+  Object.assign(box.style, { position: "fixed", pointerEvents: "none", zIndex: "80", borderRadius: "2px" });
+  document.body.appendChild(box);
+  const end = Date.now() + ms;
+  const place = () => {
+    if (!el.isConnected || Date.now() > end) {
+      box.remove();
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    Object.assign(box.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+    requestAnimationFrame(place);
+  };
+  place();
 }
 
 /** Which entries of two lists differ (by id), for marking what changed. */
 export function changedIds<T extends { id: string }>(before: T[], after: T[]): string[] {
   const old = new Map(before.map((x) => [x.id, JSON.stringify(x)]));
-  return after.filter((x) => old.get(x.id) !== JSON.stringify(x)).map((x) => x.id);
+  const changed = after.filter((x) => old.get(x.id) !== JSON.stringify(x));
+  // New entries first: a part just added is what they're working on.
+  return [...changed.filter((x) => !old.has(x.id)), ...changed.filter((x) => old.has(x.id))].map((x) => x.id);
 }
