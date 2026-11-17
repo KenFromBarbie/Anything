@@ -10,6 +10,7 @@ import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { booleanGeometry, roundedBox, smoothGeometry } from "./modelOps";
+import { parseModel } from "./modelFormat";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 
@@ -65,6 +66,40 @@ export function geometryOf(o: SceneObject): THREE.BufferGeometry | null {
       return null;
   }
 }
+
+/** Another 3D editor file as one group (its shapes with their poses and
+ *  colours; imports inside it are left out, one level of parts). */
+function partGroup(file: ModelFile): THREE.Group {
+  const group = new THREE.Group();
+  const nodes = new Map<string, THREE.Object3D>();
+  for (const o of file.objects) {
+    const node = new THREE.Group();
+    node.position.set(...o.position);
+    node.rotation.set(o.rotation[0] * D2R_ENGINE, o.rotation[1] * D2R_ENGINE, o.rotation[2] * D2R_ENGINE);
+    node.scale.set(...o.scale);
+    node.visible = o.visible;
+    if (o.kind !== "curve" && o.kind !== "import" && o.kind !== "empty") {
+      const g = o.kind === "boolean" && o.boolean ? booleanGeometry(o.boolean, file, (x) => shapeOf(x, file)) : shapeOf(o, file);
+      if (g) {
+        const mat = materialOf(o, "material") as THREE.MeshStandardMaterial;
+        if (o.kind === "surface") mat.side = THREE.DoubleSide;
+        const mesh = new THREE.Mesh(o.kind === "boolean" ? smoothGeometry(g, o.params?.smooth ?? 0) : g, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        node.add(mesh);
+      }
+    }
+    nodes.set(o.id, node);
+  }
+  for (const o of file.objects) {
+    const node = nodes.get(o.id) as THREE.Object3D;
+    const parent = (o.parent && nodes.get(o.parent)) || group;
+    parent.add(node);
+  }
+  return group;
+}
+
+const D2R_ENGINE = Math.PI / 180;
 
 /** A part's shape in its own space (primitives, hulls, surfaces, booleans),
  *  smoothed, for use inside a boolean. */
@@ -465,7 +500,14 @@ export class ModelScene {
         const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshBasicMaterial({ color: "#ff3b6b", wireframe: true }));
         resolve({ root: box, clips: [] });
       };
-      if (ext === "stl") {
+      if (/\.model\.json$/i.test(src.split("?")[0])) {
+        // A part made in the 3D editor (another .model.json): its objects,
+        // drawn as one group, so an assembly shows each worker's part live.
+        fetch(url)
+          .then((r) => r.json())
+          .then((j) => resolve({ root: partGroup(parseModel(j)), clips: [] }))
+          .catch(fail);
+      } else if (ext === "stl") {
         new STLLoader().load(url, (g) => resolve({ root: new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: "#c8c8c8" })), clips: [] }), undefined, fail);
       } else if (ext === "obj") {
         new OBJLoader().load(url, (g) => resolve({ root: g, clips: [] }), undefined, fail);
