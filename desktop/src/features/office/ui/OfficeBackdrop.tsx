@@ -1,6 +1,7 @@
 import { openExportFiles } from "@/features/files/ui/ExportFilesDialog";
 import { openCustomizeOffice } from "@/features/office/ui/CustomizeOfficeDialog";
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 import { useOfficeThemeSync } from "@/features/office/lib/officeThemeSync";
 import { invoke, isTauri } from "@tauri-apps/api/core";
@@ -46,7 +47,7 @@ export function OfficeBackdrop({ community }: { community?: string }) {
   const frameRef = React.useRef<HTMLIFrameElement>(null);
   const firstHash = React.useRef<string | null>(null);
   useOfficeThemeSync(frameRef);
-  const stage = useStageRect(useOfficeStage());
+  const stageEl = useOfficeStage();
 
   // The mirror needs the main Office running (it copies its state). It reads
   // the board and the mail from an Office too, so on a server switch it moves
@@ -195,9 +196,11 @@ export function OfficeBackdrop({ community }: { community?: string }) {
           title="Office background"
         />
       </div>
-      {stage && !suppressed ? (
-        <FloorClickLayer frame={frameRef} rect={stage} />
-      ) : null}
+      {/* Clicks on the Office page reach the floor through a layer inside the
+          page's floor area (the floor itself lives outside the app, under it). */}
+      {stageEl && !suppressed
+        ? createPortal(<FloorClickLayer frame={frameRef} />, stageEl)
+        : null}
       {/* The app's own background, faded by the chosen strength, over the
           floor: the whole window shows the floor evenly. */}
       <div
@@ -221,8 +224,6 @@ function mirrorHash(conn: Connection): string {
   }).toString();
 }
 
-type StageRect = { left: number; top: number; width: number; height: number };
-
 /**
  * On the Office page the floor takes clicks: a see-through layer over the
  * page's area passes them into the floor (the floor itself stays where it is,
@@ -230,10 +231,8 @@ type StageRect = { left: number; top: number; width: number; height: number };
  */
 function FloorClickLayer({
   frame,
-  rect,
 }: {
   frame: React.RefObject<HTMLIFrameElement | null>;
-  rect: StageRect;
 }) {
   const send = (event: React.PointerEvent, type: string) => {
     frame.current?.contentWindow?.postMessage(
@@ -251,40 +250,17 @@ function FloorClickLayer({
   };
   return (
     <div
-      className="fixed z-10"
+      className="absolute inset-0 z-[1]"
       data-testid="office-floor-clicks"
       onPointerDown={(event) => send(event, "pointerdown")}
       onPointerMove={(event) => send(event, "pointermove")}
       onPointerUp={(event) => send(event, "pointerup")}
-      style={rect}
+      onWheel={(event) =>
+        frame.current?.contentWindow?.postMessage(
+          { source: "buzz-office-host", type: "wheel", x: event.clientX, y: event.clientY, deltaX: event.deltaX, deltaY: event.deltaY },
+          window.location.origin,
+        )
+      }
     />
   );
-}
-
-function useStageRect(stage: HTMLElement | null): StageRect | null {
-  const [rect, setRect] = React.useState<StageRect | null>(null);
-  React.useLayoutEffect(() => {
-    if (!stage) {
-      setRect(null);
-      return;
-    }
-    const update = () => {
-      const box = stage.getBoundingClientRect();
-      setRect({
-        left: box.left,
-        top: box.top,
-        width: box.width,
-        height: box.height,
-      });
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(stage);
-    window.addEventListener("resize", update);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, [stage]);
-  return rect;
 }

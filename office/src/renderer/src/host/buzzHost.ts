@@ -324,6 +324,11 @@ if (mirrorRole) {
     if (m.type === 'track-agent') trackAgent(typeof m.id === 'string' ? m.id : null);
     // Clicks on the app's Office page, passed in (this frame stays behind the
     // app, drawn whole; a see-through layer over the page forwards them).
+    // The mouse wheel on the app's Office page: zoom the floor where it points.
+    if (m.type === 'wheel' && typeof m.x === 'number' && typeof m.y === 'number') {
+      const canvas = document.querySelector('canvas');
+      canvas?.dispatchEvent(new WheelEvent('wheel', { clientX: m.x, clientY: m.y, deltaX: Number(m.deltaX) || 0, deltaY: Number(m.deltaY) || 0, bubbles: true, cancelable: true }));
+    }
     if (m.type === 'pointer' && typeof m.event === 'string' && typeof m.x === 'number' && typeof m.y === 'number') {
       const canvas = document.querySelector('canvas');
       canvas?.dispatchEvent(new PointerEvent(m.event, {
