@@ -100,3 +100,38 @@ export function useCeoRestores(enabled: boolean): void {
     return () => clearInterval(iv);
   }, [enabled]);
 }
+
+/**
+ * The restore list stays short: a floor worker whose job is over (no open
+ * task of its own, not seen for 12 hours) leaves it on its own, at start and
+ * every half hour. Set aside, not deleted: its folder and notes stay.
+ */
+export function useTidyRestorable(enabled: boolean): void {
+  useEffect(() => {
+    if (!enabled) return;
+    const tidy = async () => {
+      try {
+        const { restorableAgents, removeRestorableAgent } = useStore.getState();
+        const workers = restorableAgents.filter((a) => a.id.startsWith('worker-'));
+        if (!workers.length) return;
+        const [reg, raw] = await Promise.all([window.cth.hiveRegistry(), window.cth.hiveTasks()]);
+        const tasks = (Array.isArray(raw) ? raw : ((raw as { tasks?: unknown[] } | null)?.tasks ?? [])) as { assignee?: string; status?: string }[];
+        const now = Date.now();
+        for (const a of workers) {
+          const open = tasks.some((t) => t.assignee === a.id && t.status !== 'done');
+          const seen = Number((reg.agents?.[a.id] as { lastSeen?: number } | undefined)?.lastSeen ?? 0);
+          if (open || now - seen < 12 * 3_600_000) continue;
+          removeRestorableAgent(a.id);
+        }
+      } catch {
+        /* next round */
+      }
+    };
+    const first = setTimeout(() => void tidy(), 20_000);
+    const iv = setInterval(() => void tidy(), 30 * 60_000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(iv);
+    };
+  }, [enabled]);
+}
