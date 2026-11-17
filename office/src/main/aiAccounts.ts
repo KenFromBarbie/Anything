@@ -16,16 +16,21 @@ import { join } from 'node:path';
  */
 export type AccountEngine = 'claude' | 'codex' | 'gemini';
 
-let cache: { path: string; mtime: number; value: Partial<Record<AccountEngine, string | null>> } | null = null;
+/** Who an agent is, for its account: the CEO and executives ("managers")
+ *  or the floor workers they hire ("workers"), which can run on another. */
+export type AccountRole = 'managers' | 'workers';
 
-function readActive(): Partial<Record<AccountEngine, string | null>> {
+type ActiveFile = Partial<Record<string, string | null>>;
+let cache: { path: string; mtime: number; value: ActiveFile } | null = null;
+
+function readActive(): ActiveFile {
   const path = process.env.BUZZ_AI_ACCOUNTS_FILE;
   if (!path || !existsSync(path)) return {};
   try {
     const mtime = statSync(path).mtimeMs;
     if (cache && cache.path === path && cache.mtime === mtime) return cache.value;
     const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
-    const value = parsed && typeof parsed === 'object' ? (parsed as Partial<Record<AccountEngine, string | null>>) : {};
+    const value = parsed && typeof parsed === 'object' ? (parsed as ActiveFile) : {};
     cache = { path, mtime, value };
     return value;
   } catch {
@@ -34,8 +39,14 @@ function readActive(): Partial<Record<AccountEngine, string | null>> {
 }
 
 /** The account home Buzz picked for an engine, or null for the computer's own. */
-export function activeAccountHome(engine: AccountEngine): string | null {
-  const home = readActive()[engine];
+export function activeAccountHome(engine: AccountEngine, role: AccountRole = 'managers'): string | null {
+  const file = readActive();
+  if (role === 'workers' && `${engine}:workers` in file) {
+    const w = file[`${engine}:workers`];
+    if (w === 'default') return null; // this computer's own sign-in
+    if (typeof w === 'string' && w && existsSync(w)) return w;
+  }
+  const home = file[engine];
   return typeof home === 'string' && home && existsSync(home) ? home : null;
 }
 
@@ -50,13 +61,13 @@ export function accountEngineFor(provider: string | undefined): AccountEngine | 
 /** Point a spawning agent at its engine's chosen account. Codex is handled
  *  where its per-agent CODEX_HOME is assembled (its auth.json comes from the
  *  account's home). */
-export function applyAccountEnv(provider: string | undefined, env: Record<string, string>): void {
+export function applyAccountEnv(provider: string | undefined, env: Record<string, string>, role: AccountRole = 'managers'): void {
   const engine = accountEngineFor(provider);
   if (engine === 'claude') {
-    const home = activeAccountHome('claude');
+    const home = activeAccountHome('claude', role);
     if (home) env.CLAUDE_CONFIG_DIR = home;
   } else if (engine === 'gemini') {
-    const home = activeAccountHome('gemini');
+    const home = activeAccountHome('gemini', role);
     if (home) env.GEMINI_CLI_HOME = home;
   }
 }
@@ -70,6 +81,7 @@ export function claudeConfigRoot(): string {
 /** Every Claude config dir worth searching for a transcript: the active
  *  account's first, then the computer's own. */
 export function claudeConfigRoots(): string[] {
-  const roots = [claudeConfigRoot(), join(homedir(), '.claude')];
+  const workers = activeAccountHome('claude', 'workers');
+  const roots = [claudeConfigRoot(), ...(workers ? [workers] : []), join(homedir(), '.claude')];
   return [...new Set(roots)];
 }

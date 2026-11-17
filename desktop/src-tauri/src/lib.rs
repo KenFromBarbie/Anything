@@ -596,6 +596,7 @@ pub fn run() {
             ai_accounts::ai_accounts_add,
             ai_accounts::ai_accounts_sign_in,
             ai_accounts::ai_accounts_set_active,
+            ai_accounts::ai_accounts_set_workers,
             ai_accounts::ai_accounts_rename,
             ai_accounts::ai_accounts_remove,
             ai_accounts::ai_accounts_usage,

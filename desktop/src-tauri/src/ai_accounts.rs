@@ -114,6 +114,10 @@ struct Switch {
 struct EngineRegistry {
     #[serde(default)]
     active: Option<String>,
+    /// The account the floor workers run on, when it differs from `active`
+    /// (which the CEO and the executives use). None: everyone on `active`.
+    #[serde(default)]
+    workers: Option<String>,
     #[serde(default)]
     profiles: Vec<Profile>,
     #[serde(default)]
@@ -193,6 +197,21 @@ fn write_active(app: &AppHandle, registry: &Registry) -> Result<(), String> {
             .map(|dir| Value::String(dir.to_string_lossy().into_owned()))
             .unwrap_or(Value::Null);
         active.insert(engine.key().to_string(), home);
+        // The floor workers' account, if it's a different one ("default" =
+        // this computer's own sign-in).
+        if let Some(id) = registry.engines.get(engine.key()).and_then(|e| e.workers.as_deref()) {
+            let value = if id == "default" {
+                Some(Value::String("default".into()))
+            } else {
+                profile_dir(app, engine, id)
+                    .ok()
+                    .filter(|dir| dir.is_dir())
+                    .map(|dir| Value::String(dir.to_string_lossy().into_owned()))
+            };
+            if let Some(v) = value {
+                active.insert(format!("{}:workers", engine.key()), v);
+            }
+        }
     }
     write_atomic(
         &root(app)?.join("active.json"),
@@ -361,6 +380,8 @@ pub struct EngineView {
     cli: &'static str,
     cli_installed: bool,
     active: String,
+    /// The floor workers' account (null: the same as `active`).
+    workers: Option<String>,
     accounts: Vec<AccountView>,
 }
 
@@ -408,7 +429,8 @@ fn engine_view(app: &AppHandle, registry: &Registry, engine: Engine) -> EngineVi
         label: engine.label(),
         cli: engine.cli(),
         cli_installed: cli_installed(engine.cli()),
-        active: entry.active.unwrap_or_else(|| "default".into()),
+        active: entry.active.clone().unwrap_or_else(|| "default".into()),
+        workers: entry.workers.clone(),
         accounts,
     }
 }
@@ -1276,6 +1298,40 @@ pub fn ai_accounts_sign_in(app: AppHandle, engine: String, id: String) -> Result
     }
     let dir = profile_dir(&app, engine, &id)?;
     open_login_terminal(engine, Some(&dir), &id)
+}
+
+/// The account this engine's floor workers run on (the CEO and executives
+/// keep the active one): an account id, "default" for this computer's
+/// sign-in, or "same" to put the workers back on the active account.
+#[tauri::command]
+pub fn ai_accounts_set_workers(app: AppHandle, engine: String, id: String) -> Result<(), String> {
+    let engine = Engine::parse(&engine)?;
+    let mut registry = load_registry(&app);
+    let next = if id == "same" || id.is_empty() { None } else { Some(id.clone()) };
+    if let Some(id) = next.as_deref().filter(|id| *id != "default") {
+        let dir = profile_dir(&app, engine, id)?;
+        if !identity(engine, &dir, false).signed_in {
+            return Err("Sign in to that account first.".into());
+        }
+        let known = registry
+            .engines
+            .get(engine.key())
+            .is_some_and(|e| e.profiles.iter().any(|p| p.id == id));
+        if !known {
+            return Err("No such account.".into());
+        }
+    }
+    let entry = registry.engines.entry(engine.key().into()).or_default();
+    // The same account as everyone's: no separate slot.
+    let next = if next.as_deref() == Some(entry.active.as_deref().unwrap_or("default")) { None } else { next };
+    let changed = entry.workers != next;
+    entry.workers = next;
+    save_registry(&app, &registry)?;
+    if changed {
+        use tauri::Emitter;
+        let _ = app.emit("ai-account-switched", engine.key());
+    }
+    Ok(())
 }
 
 /// Agents of this engine use the account from their next (re)start.

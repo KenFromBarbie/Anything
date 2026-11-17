@@ -29,6 +29,9 @@ export type EngineAccounts = {
   cli: string;
   cliInstalled: boolean;
   active: string;
+  /** The floor workers' account when it differs from `active` (which the CEO
+   *  and executives use); null: everyone on `active`. */
+  workers?: string | null;
   accounts: AiAccount[];
 };
 
@@ -121,6 +124,10 @@ export type UsageGuard = {
 export const ruleKey = (engine: Engine, id: string) => `${engine}:${id}`;
 
 export const getUsageGuard = () => invoke<UsageGuard>("ai_accounts_guard");
+
+/** Put this engine's floor workers on an account ("same": back on the one in use). */
+export const setWorkersAccount = (engine: Engine, id: string) =>
+  invoke<void>("ai_accounts_set_workers", { engine, id });
 export const setUsageRule = (
   engine: Engine,
   id: string,

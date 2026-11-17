@@ -30,6 +30,7 @@ import {
   removeAiAccount,
   renameAiAccount,
   setActiveAiAccount,
+  setWorkersAccount,
   setAiAccountApiKey,
   signInAiAccount,
   ruleKey,
@@ -303,12 +304,18 @@ function AccountRow({
   engine,
   account,
   active,
+  workers,
+  split,
   onRename,
   onRemove,
 }: {
   engine: EngineAccounts;
   account: AiAccount;
   active: boolean;
+  /** The floor workers run on this account. */
+  workers: boolean;
+  /** The floor workers have an account of their own (two in use). */
+  split: boolean;
   onRename: () => void;
   onRemove: () => void;
 }) {
@@ -319,6 +326,18 @@ function AccountRow({
     onSuccess: () => {
       toast.success(
         `${engine.label} agents will use ${account.isDefault ? "this computer's sign-in" : account.label}. Running agents switch when they restart.`,
+      );
+      void client.invalidateQueries({ queryKey: LIST_KEY });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const useForWorkers = useMutation({
+    mutationFn: () => setWorkersAccount(engine.engine, active ? "same" : account.id),
+    onSuccess: () => {
+      toast.success(
+        active
+          ? `${engine.label} floor workers back on ${account.isDefault ? "this computer's sign-in" : account.label}, with the CEO and executives. Running workers switch when they restart.`
+          : `${engine.label} floor workers will use ${account.isDefault ? "this computer's sign-in" : account.label}; the CEO and executives stay on theirs. Running workers switch when they restart.`,
       );
       void client.invalidateQueries({ queryKey: LIST_KEY });
     },
@@ -365,7 +384,14 @@ function AccountRow({
           <span className="min-w-0">
             <span className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{account.label}</span>
-              {active ? <Badge variant="success">In use</Badge> : null}
+              {split ? (
+                <>
+                  {active ? <Badge variant="success">CEO &amp; executives</Badge> : null}
+                  {workers ? <Badge variant="success">Floor workers</Badge> : null}
+                </>
+              ) : active ? (
+                <Badge variant="success">In use</Badge>
+              ) : null}
               {account.plan ? (
                 <Badge variant="outline">{account.plan}</Badge>
               ) : null}
@@ -397,6 +423,18 @@ function AccountRow({
           >
             {use.isPending ? <Loader2 className="animate-spin" /> : <Check />}
             Use for agents
+          </Button>
+        ) : null}
+        {account.signedIn && !workers ? (
+          <Button
+            disabled={useForWorkers.isPending}
+            onClick={() => useForWorkers.mutate()}
+            size="sm"
+            title="The floor workers run on this account; the CEO and executives stay on theirs"
+            variant="outline"
+          >
+            {useForWorkers.isPending ? <Loader2 className="animate-spin" /> : <Check />}
+            Use for floor workers
           </Button>
         ) : null}
         <DropdownMenu>
@@ -688,6 +726,8 @@ function EngineGroup({ engine }: { engine: EngineAccounts }) {
           <AccountRow
             account={account}
             active={engine.active === account.id}
+            workers={engine.workers ? engine.workers === account.id : engine.active === account.id}
+            split={!!engine.workers}
             engine={engine}
             key={account.id}
             onRemove={() => setRemoving(account)}

@@ -780,7 +780,10 @@ export class HiveManager {
     };
     // The AI account Buzz's Settings picked for this engine (CLAUDE_CONFIG_DIR /
     // GEMINI_CLI_HOME); unset means this computer's own sign-in.
-    applyAccountEnv(meta.provider ?? 'claude', env);
+    // The CEO and the executives run on the account in use; the floor workers
+    // on theirs when Settings gives them another (AI accounts → floor workers).
+    const accountRole = meta.isGod || meta.isStaff ? 'managers' : 'workers';
+    applyAccountEnv(meta.provider ?? 'claude', env, accountRole);
     // The bundled-node launcher, so an agent can run the hive's .cjs helpers (KG
     // CLI, Slack reply helper) even when `node` is not on its PATH. Invoking the
     // Electron binary directly would open a second app window, so this must stay
@@ -847,7 +850,7 @@ export class HiveManager {
           if (desc.kind === 'hooks') {
             if (desc.shim === 'agy') this.installAgyHooks();
             else if (desc.shim === 'codex') {
-              env.CODEX_HOME = this.installCodexHooks(dir, meta.id);
+              env.CODEX_HOME = this.installCodexHooks(dir, meta.id, meta.isGod || meta.isStaff ? 'managers' : 'workers');
               // Codex refuses to run hooks from a config dir without persisted
               // "hook trust" (normally an interactive gate). Our hooks.json is
               // hive-authored inside an isolated CODEX_HOME, so we bypass that gate
@@ -2165,7 +2168,7 @@ export class HiveManager {
     return n;
   }
 
-  private installCodexHooks(dir: string, agentId: string): string {
+  private installCodexHooks(dir: string, agentId: string, role: 'managers' | 'workers' = 'workers'): string {
     const home = join(dir, '.codex');
     try {
       mkdirSync(home, { recursive: true });
@@ -2177,7 +2180,7 @@ export class HiveManager {
       // The login comes from the account Buzz's Settings picked for Codex, else
       // from the user's own ~/.codex. A marker records which one this agent's
       // auth.json came from, so switching accounts relinks it on the next start.
-      const authHome = activeAccountHome('codex') ?? userHome;
+      const authHome = activeAccountHome('codex', role) ?? userHome;
       const authSrc = join(authHome, 'auth.json');
       const authDest = join(home, 'auth.json');
       const marker = join(home, '.buzz-auth-source');
