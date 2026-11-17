@@ -787,6 +787,7 @@ export function Navigator({
               n.hidden && "opacity-50",
               mark === "inside" && "outline outline-1 -outline-offset-1 outline-[#4a9cff]",
             )}
+            data-node-id={n.id}
             draggable
             key={n.id}
             onClick={() => onSelect(n.id)}

@@ -52,7 +52,8 @@ function useWriterOf(path: string | undefined): Follower | null {
           if (!best || s.ts > best.at) best = { at: s.ts, who: { name: a.name, color: colorOf(a.name, a.accent) } };
         }
       }
-      if (p.latest && base(p.latest.path) === name && (!best || p.latest.mtime > best.at)) {
+      const shownOnly = !!(p.latest as { fromRead?: boolean } | null)?.fromRead;
+      if (p.latest && !shownOnly && base(p.latest.path) === name && (!best || p.latest.mtime > best.at)) {
         best = { at: p.latest.mtime, who: { name: a.name, color: colorOf(a.name, a.accent) } };
       }
     }
@@ -121,6 +122,26 @@ export function markForAgent(el: Element | null | undefined, who: Follower | nul
     requestAnimationFrame(place);
   };
   place();
+}
+
+/** Flag the element `selector` finds, waiting up to ~1.5 s for it to be drawn
+ *  (a clip or layer just added appears a moment after the change lands);
+ *  falls back to `fallback`. */
+export function markSoon(selector: string | null, who: Follower | null, fallback?: string): void {
+  let tries = 0;
+  const attempt = () => {
+    const el = selector ? document.querySelector(selector) : null;
+    if (el && (el as HTMLElement).getBoundingClientRect().width > 0) {
+      markForAgent(el, who);
+      return;
+    }
+    if (++tries < 15) {
+      setTimeout(attempt, 100);
+      return;
+    }
+    markForAgent(fallback ? document.querySelector(fallback) : el, who);
+  };
+  requestAnimationFrame(attempt);
 }
 
 /** Which entries of two lists differ (by id), for marking what changed. */

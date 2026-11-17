@@ -85,6 +85,8 @@ export function SiteEditor({
   const [saving, setSaving] = React.useState(false);
 
   const [site, setSiteState] = React.useState<SiteFile>(file);
+  /** The version on screen before an agent's change (to find what changed). */
+  const prevSite = React.useRef<SiteFile>(file);
   const siteRef = React.useRef(site);
   const setSite = React.useCallback((s: SiteFile) => {
     siteRef.current = s;
@@ -391,11 +393,25 @@ export function SiteEditor({
   React.useEffect(() => {
     const next = follow.file;
     if (!next || next.type !== "site" || dirty) return;
+    prevSite.current = siteRef.current;
     const changed = changedIds(siteRef.current.pages, next.pages);
     if (!changed.length && JSON.stringify(siteRef.current) === JSON.stringify(next)) return;
     setSite(next);
-    if (changed[0]) setPageIdState(changed[0]);
-    requestAnimationFrame(() => markForAgent(document.querySelector(`[data-page-id="${changed[0] ?? ""}"]`) ?? document.querySelector("[data-testid=creative-editor-site]"), follow.by));
+    const pageId = changed[0] ?? next.pages[0]?.id;
+    if (pageId) setPageIdState(pageId);
+    // Within that page, the element they changed (or added): selected, so the
+    // canvas outlines it, and flagged in the Navigator.
+    const flat = (nodes: { id: string; children?: unknown[] }[]): { id: string }[] =>
+      nodes.flatMap((n) => [n, ...flat((n.children ?? []) as { id: string; children?: unknown[] }[])]);
+    const before = flat((prevSite.current.pages.find((p) => p.id === pageId)?.body ?? []) as never);
+    const after = flat((next.pages.find((p) => p.id === pageId)?.body ?? []) as never);
+    const node = changedIds(before as { id: string }[], after as { id: string }[])[0];
+    prevSite.current = next;
+    if (node) select(node);
+    requestAnimationFrame(() => markForAgent(
+      (node && document.querySelector(`[data-node-id="${node}"]`)) || document.querySelector('select[aria-label="Page"]') || document.querySelector("[data-testid=creative-editor-site]"),
+      follow.by,
+    ));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [follow.version]);
 

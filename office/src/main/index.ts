@@ -334,15 +334,24 @@ function broadcastPresence(): void {
 }
 /** A script may have written a .glb / .png / .html: look in the folders the
  *  agent has been working in for the newest such file. */
+/** When each agent's current shell command started, and what it was. */
+const commandStart = new Map<string, { at: number; cmd: string }>();
+
 async function scanOutputs(agentId: string): Promise<void> {
   const p = presence.get(agentId);
   if (!p) return;
+  const started = commandStart.get(agentId);
   // Only shell commands so far (no file written yet): its working folder.
   const cwd = hive.registry().agents[agentId]?.cwd ?? null;
   const roots: Array<[string, number]> = p.dirs.length ? p.dirs.slice(0, 4).map((d) => [d, 1]) : cwd ? [[cwd, 3]] : [];
   if (!roots.length) return;
-  const since = p.since - 60_000;
+  // Only files that appeared during this command: a file someone else made
+  // earlier in a shared folder is not this agent's. Two seconds of slack for
+  // the file system's clock.
+  const since = started ? started.at - 2_000 : Date.now() - 30_000;
+  const cmd = (started?.cmd ?? '').toLowerCase();
   let best: PresenceFile | null = null;
+  let named: PresenceFile | null = null;
   const look = async (dir: string, depth: number): Promise<void> => {
     let entries: Dirent[];
     try { entries = await fsp.readdir(dir, { withFileTypes: true }); } catch { return; }
@@ -357,7 +366,13 @@ async function scanOutputs(agentId: string): Promise<void> {
       try {
         const st = await fsp.stat(full);
         if (st.mtimeMs < since || st.size === 0) continue;
-        if (!best || st.mtimeMs > best.mtime) best = { path: full, kind, mtime: st.mtimeMs };
+        const file = { path: full, kind, mtime: st.mtimeMs };
+        // The command names it (python make_hull.py --out hull.glb): theirs for sure.
+        const stem = e.name.toLowerCase().replace(/\.[a-z0-9]+(\.json)?$/, '');
+        if (cmd && (cmd.includes(e.name.toLowerCase()) || (stem.length > 3 && cmd.includes(stem)))) {
+          if (!named || st.mtimeMs > named.mtime) named = file;
+        }
+        if (!best || st.mtimeMs > best.mtime) best = file;
       } catch { /* gone */ }
     }
   };
@@ -377,10 +392,28 @@ async function scanOutputs(agentId: string): Promise<void> {
       }
     };
     for (const [d, depth] of roots) await any(d, depth);
-    if (newest) presence.produced(agentId, newest);
+    // Shown, not made: it's the starting point, not their work.
+    if (newest) presence.showing(agentId, newest);
     return;
   }
-  if (best) presence.produced(agentId, best);
+  // Several agents in one folder: a file the command doesn't name is only
+  // credited when no other agent is running a command in that folder now.
+  const namedFile = named as PresenceFile | null;
+  const newestFile = best as PresenceFile | null;
+  if (namedFile) presence.produced(agentId, namedFile);
+  else if (newestFile && !othersBusyIn(agentId, newestFile.path)) presence.produced(agentId, newestFile);
+}
+
+/** Another agent has a shell command running whose folder holds `file`. */
+function othersBusyIn(agentId: string, file: string): boolean {
+  const reg = hive.registry().agents;
+  const f = file.split(sep).join('/').toLowerCase();
+  for (const [id, run] of commandStart) {
+    if (id === agentId || Date.now() - run.at > 30 * 60_000) continue;
+    const cwd = String((reg[id] as { cwd?: string } | undefined)?.cwd ?? '').split(sep).join('/').toLowerCase();
+    if (cwd && f.startsWith(cwd)) return true;
+  }
+  return false;
 }
 // The office chain: the CEO and the executives plan, hire and review; floor
 // workers do the work. Managers may write only the office's own files (the
@@ -417,10 +450,18 @@ hookServer.managerGate = (agentId, tool, input) => {
 hookServer.onToolUse = (agentId, event, tool, input) => {
   // Record file edits (before/after) for the change viewer.
   void changeLog.handle(agentId, event, tool, input).then((recorded) => { if (recorded) broadcastPresence(); }).catch(() => undefined);
-  if (event === 'PreToolUse') presence.tool(agentId, tool, input);
+  if (event === 'PreToolUse') {
+    presence.tool(agentId, tool, input);
+    if (/^(bash|powershell)$/i.test(tool)) {
+      commandStart.set(agentId, { at: Date.now(), cmd: String((input as { command?: unknown } | null)?.command ?? '') });
+    }
+  }
   else if (event === 'Stop') presence.idle(agentId);
   else if (event === 'PostToolUse' && /^(bash|powershell|read)$/i.test(tool)) {
-    void scanOutputs(agentId).then(broadcastPresence);
+    void scanOutputs(agentId).then(() => {
+      if (/^(bash|powershell)$/i.test(tool)) commandStart.delete(agentId);
+      broadcastPresence();
+    });
     return;
   }
   broadcastPresence();

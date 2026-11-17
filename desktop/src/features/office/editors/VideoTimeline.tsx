@@ -385,6 +385,7 @@ function ClipBox({
   for (const p of ANIM_PROPS) for (const k of clip.anim?.[p] ?? []) keys.add(k.t);
   return (
     <div
+      data-clip-id={clip.id}
       className={cn(
         "absolute bottom-[3px] top-[3px] overflow-hidden rounded-[3px] border text-[10px] text-white",
         TONE[tone],

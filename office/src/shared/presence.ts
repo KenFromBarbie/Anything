@@ -247,6 +247,16 @@ export class PresenceTracker {
     return next;
   }
 
+  /** A file to show while it works, not one it made (the project's current
+   *  model before it changes anything): no "Made" step, no credit. */
+  showing(agentId: string, file: PresenceFile): Presence | undefined {
+    const p = this.byAgent.get(agentId);
+    if (!p || (p.latest && !p.latest.fromRead)) return p;
+    const next = { ...p, latest: { ...file, fromRead: true } };
+    this.byAgent.set(agentId, next);
+    return next;
+  }
+
   /** Its turn ended (Stop). */
   idle(agentId: string, now = Date.now()): Presence | undefined {
     const p = this.byAgent.get(agentId);

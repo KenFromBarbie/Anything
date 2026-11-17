@@ -1,5 +1,5 @@
 import * as React from "react";
-import { EditorFollowContext, changedIds, markForAgent } from "./follow";
+import { EditorFollowContext, changedIds, markSoon } from "./follow";
 import { invoke } from "@tauri-apps/api/core";
 import {
   ChevronLeft,
@@ -446,7 +446,7 @@ export function VideoEditor({
     if (!changed.length && JSON.stringify(projRef.current) === JSON.stringify(next)) return;
     setProject(next);
     if (changed[0]) setSel(changed[0]);
-    requestAnimationFrame(() => markForAgent(document.querySelector(`[data-clip-id="${changed[0] ?? ""}"]`) ?? document.querySelector("[data-testid=creative-editor-video]"), follow.by));
+    markSoon(changed[0] ? `[data-clip-id="${changed[0]}"]` : null, follow.by, "[data-testid=creative-editor-video]");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [follow.version]);
 

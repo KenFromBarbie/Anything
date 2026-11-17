@@ -399,7 +399,7 @@ export function LayersPanel({
       </div>
       <ul className="py-0.5">
         {[...layers].reverse().map((l) => (
-          <li key={l.id}>
+          <li data-layer-id={l.id} key={l.id}>
             <div
               className={cn(
                 "flex h-11 cursor-default items-center gap-1.5 border-b border-black/30 pr-2",

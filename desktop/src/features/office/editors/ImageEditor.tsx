@@ -1,4 +1,5 @@
 import * as React from "react";
+import { EditorFollowContext, changedIds, markSoon } from "./follow";
 import {
   AlignEndHorizontal,
   AlignEndVertical,
@@ -277,6 +278,32 @@ export function ImageEditor({
       commit(label, []);
     }, 350);
   };
+
+  // ---- an agent's new version ------------------------------------------
+  // Their new file lands in place (unless you have unsaved edits): its
+  // pictures load, the layer they changed or added is selected, and their
+  // cursor flag sits on it in the Layers panel.
+  const follow = React.useContext(EditorFollowContext);
+  const shownFile = React.useRef<ImageFile>(file);
+  React.useEffect(() => {
+    const next = follow.file;
+    if (!next || next.type !== "image" || dirty || !ready) return;
+    let alive = true;
+    const changed = changedIds(shownFile.current.layers, next.layers);
+    loadRasters(next).then((m) => {
+      if (!alive) return;
+      shownFile.current = next;
+      rasters.current = m;
+      setDoc({ width: next.width, height: next.height, layers: next.layers.map(strip) });
+      bump();
+      if (changed[0]) setActive(changed[0]);
+      markSoon(changed[0] ? `[data-layer-id="${changed[0]}"]` : null, follow.by, "[data-testid=creative-editor-image]");
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [follow.version]);
 
   // ---- loading ---------------------------------------------------------
   // biome-ignore lint/correctness/useExhaustiveDependencies: load once
