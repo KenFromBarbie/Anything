@@ -167,6 +167,7 @@ export function OfficeShell({
               className="absolute left-0 top-9 z-10 w-56 rounded-md border border-black/10 bg-white py-1 text-sm shadow-lg dark:border-white/10 dark:bg-[#2d2d2d]"
               onMouseLeave={() => setFileMenu(false)}
             >
+              <MenuItem icon={FolderOpen} label="Open from computer…" onClick={() => { setFileMenu(false); void importFromComputer(kind); }} />
               <MenuItem icon={Save} label="Save to Create" onClick={() => { setFileMenu(false); onSave(); }} />
               {exports.map((x) => (
                 <MenuItem icon={Download} key={x.label} label={x.label} onClick={() => { setFileMenu(false); x.run(); }} />

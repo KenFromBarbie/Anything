@@ -4755,15 +4755,23 @@ const WORKER_FIRST_NAMES = [
 function workerDisplayName(requested: unknown, workerId: string): string {
   const want = typeof requested === 'string' ? requested.trim() : '';
   // A person's name: letters (and spaces/apostrophes), starting with a capital.
-  if (/^[A-Z][A-Za-z' .-]{1,30}$/.test(want) && !/[0-9_]/.test(want) && !/-/.test(want)) return want;
+  // Every name this Office has used, set-aside and restorable agents too: two
+  // workers called Zoe on one floor (or in its restore list) are a mix-up.
   const taken = new Set(Object.values(hive.registry().agents ?? {})
-    .filter((a) => !(a as { archived?: boolean }).archived)
-    .map((a) => String((a as { name?: string }).name ?? '').split(' ')[0]));
-  const free = WORKER_FIRST_NAMES.filter((n) => !taken.has(n));
-  const pool = free.length ? free : WORKER_FIRST_NAMES;
+    .map((a) => String((a as { name?: string }).name ?? '').trim()));
+  if (/^[A-Z][A-Za-z' .-]{1,30}$/.test(want) && !/[0-9_]/.test(want) && !/-/.test(want) && !taken.has(want)) return want;
   let h = 0;
   for (const ch of workerId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return pool[h % pool.length];
+  const free = WORKER_FIRST_NAMES.filter((n) => !taken.has(n));
+  if (free.length) return free[h % free.length];
+  // All first names used: the next free numbered one (Maya 2, Maya 3…).
+  for (let k = 2; k < 100; k++) {
+    for (let i = 0; i < WORKER_FIRST_NAMES.length; i++) {
+      const name = `${WORKER_FIRST_NAMES[(h + i) % WORKER_FIRST_NAMES.length]} ${k}`;
+      if (!taken.has(name)) return name;
+    }
+  }
+  return WORKER_FIRST_NAMES[h % WORKER_FIRST_NAMES.length];
 }
 
 /** A spawn-request god drops into HIVE_ROOT/spawn-requests/<id>.json. god authors

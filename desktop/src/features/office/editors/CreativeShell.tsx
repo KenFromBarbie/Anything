@@ -109,7 +109,7 @@ export function CreativeShell({
         >
           {badge}
         </span>
-        {menus.map((m) => (
+        {withOpen(menus, kind).map((m) => (
           <div className="relative" key={m.label}>
             <button
               className={cn("h-7 rounded px-2.5", open === m.label ? "bg-[#454545]" : "hover:bg-[#3a3a3a]")}
@@ -197,6 +197,12 @@ export function CreativeShell({
     </div>
   );
   return full ? createPortal(window_, document.body) : window_;
+}
+
+/** Every editor's File menu starts with Open from computer. */
+function withOpen(menus: Menu[], kind: EditorKind): Menu[] {
+  const open = { label: "Open from computer…", run: () => void importFromComputer(kind) };
+  return menus.map((m) => (m.label === "File" && !m.items.some((it) => it !== "-" && it.label === open.label) ? { ...m, items: [open, "-", ...m.items] } : m));
 }
 
 function ShellButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
