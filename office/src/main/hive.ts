@@ -2121,14 +2121,19 @@ export class HiveManager {
   syncCodexLogin(source: string): number {
     const copies = this.codexLoginCopies(source).filter((f) => existsSync(f));
     if (copies.length < 2) return 0;
-    let newest = copies[0];
-    let newestAt = 0;
+    // Newest by the login's own "last_refresh" (when its token was really
+    // renewed), never by file date: a failed refresh attempt rewrites the file
+    // with the same, already-spent token, and must not win.
+    let newest = '';
+    let newestAt = -1;
     for (const f of copies) {
       try {
-        const at = statSync(f).mtimeMs;
-        if (at > newestAt) { newest = f; newestAt = at; }
-      } catch { /* gone */ }
+        const j = JSON.parse(readFileSync(f, 'utf8')) as { last_refresh?: string };
+        const at = j.last_refresh ? Date.parse(j.last_refresh) : NaN;
+        if (Number.isFinite(at) && at > newestAt) { newest = f; newestAt = at; }
+      } catch { /* half-written or gone */ }
     }
+    if (!newest) return 0;
     let text: string;
     try { text = readFileSync(newest, 'utf8'); JSON.parse(text); } catch { return 0; } // half-written: next round
     let changed = 0;
