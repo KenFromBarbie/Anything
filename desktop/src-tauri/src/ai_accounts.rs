@@ -878,20 +878,35 @@ fn claude_plan_limits(home: &Path) -> Option<Vec<Limit>> {
 }
 
 fn fetch_claude_limits(token: &str) -> Option<Vec<Limit>> {
-    let body: Value = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(8))
-        .build()
-        .ok()?
-        .get("https://api.anthropic.com/api/oauth/usage")
-        .bearer_auth(token)
-        .header("anthropic-beta", "oauth-2025-04-20")
-        .send()
-        .ok()?
-        .error_for_status()
-        .ok()?
-        .json()
-        .ok()?;
-    Some(claude_limits_from(&body))
+    let mut builder = reqwest::blocking::Client::builder().timeout(Duration::from_secs(8));
+    // Started with the local Claude proxy (HTTPS_PROXY + NODE_EXTRA_CA_CERTS,
+    // see start-anything.ps1): the proxy answers for Anthropic with its own
+    // local certificate and reaches Anthropic over classic TLS, which this
+    // network lets through. Trust that certificate, as the agents do.
+    if let Some(ca) = std::env::var_os("NODE_EXTRA_CA_CERTS")
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|pem| reqwest::Certificate::from_pem(&pem).ok())
+    {
+        builder = builder.add_root_certificate(ca);
+    }
+    let client = builder.build().ok()?;
+    // A few tries: a connection the network cuts is worth another go.
+    for attempt in 0..3 {
+        let answer = client
+            .get("https://api.anthropic.com/api/oauth/usage")
+            .bearer_auth(token)
+            .header("anthropic-beta", "oauth-2025-04-20")
+            .send()
+            .and_then(|r| r.error_for_status())
+            .and_then(|r| r.json::<Value>());
+        match answer {
+            Ok(body) => return Some(claude_limits_from(&body)),
+            Err(e) if e.is_status() => return None, // Anthropic said no: not a network problem
+            Err(_) if attempt < 2 => std::thread::sleep(Duration::from_millis(400)),
+            Err(_) => return None,
+        }
+    }
+    None
 }
 
 /// Anthropic's usage answer as limits: utilization is a percent, resets_at a

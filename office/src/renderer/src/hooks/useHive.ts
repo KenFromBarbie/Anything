@@ -22,7 +22,7 @@ import { inboxNudgeText } from '../../../shared/hiveNudge';
 import { resolveGodName } from '../../../shared/godIdentity';
 import { acquireTerminal, resetTerminal, isTerminalAutomationSafe } from '@/components/terminalPool';
 import { canDeliverToAgent, deliverWithAcknowledgement, checkPrecondition } from './queueDelivery';
-import { useCeoRestores, useDormancy, useTidyRestorable, wakeDormant } from './dormancy';
+import { useCeoRestores, useDormancy, useResumeFallback, useTidyRestorable, wakeDormant } from './dormancy';
 import { OFFICE_CAST, DEFAULT_CHARACTER } from '@/scene/office/cast';
 
 const GOD_ID = 'god';
@@ -281,6 +281,7 @@ export function useHive(config: HarnessConfig | null): void {
   useDormancy(!!config?.onboardingComplete);
   useCeoRestores(!!config?.onboardingComplete);
   useTidyRestorable(!!config?.onboardingComplete);
+  useResumeFallback(!!config?.onboardingComplete);
   // Per-agent dedup for the inbox-wake nudge: every inbox message id we have
   // already nudged this agent about. A SET, not a high-water mark.
   //

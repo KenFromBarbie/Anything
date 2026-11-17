@@ -14,7 +14,7 @@ import { useStore, type Agent } from '@/store/store';
 import { restartAgent } from '@/components/agentRestart';
 import { isRestoring, lastRestoreNote, onRestoreChange, restoreFromHost, restoreProgress } from '@/hooks/useRestoreTeam';
 import { openQuestion, parseTasks, type HiveTask, type HumanQA } from '@/components/TasksKanban';
-import { disposeTerminal } from '@/components/terminalPool';
+import { acquireTerminal, disposeTerminal } from '@/components/terminalPool';
 import { sectionOps } from '@/host/buzzSectionsApi';
 import { OFFICE_CAST, DEFAULT_CHARACTER, paintCastPortrait, type OfficeCharacterName } from '@/scene/office/cast';
 import { PORTRAIT_H, PORTRAIT_W } from '@/scene/office/portraitArt';
@@ -461,6 +461,18 @@ const ops: Record<string, Op> = {
     return true;
   },
   /** Open a system terminal in the agent's folder. */
+  /** What an agent's terminal shows right now, as text (the live view's
+   *  Terminal tab: a simulation's output, the agent's own screen). */
+  'agent.screen': (a) => {
+    const agent = useStore.getState().agents.find((x) => x.id === text(a.id, 120));
+    if (!agent?.ptyId) return { lines: [] as string[] };
+    const buf = acquireTerminal(agent.ptyId).term.buffer.active;
+    const rows = Math.min(400, Number(a.rows) || 200);
+    const lines: string[] = [];
+    for (let i = Math.max(0, buf.length - rows); i < buf.length; i++) lines.push(buf.getLine(i)?.translateToString(true) ?? '');
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+    return { lines };
+  },
   'agent.openTerminal': async (a) => {
     const result = await window.cth.openTerminalAt(liveAgent(a.id).cwd);
     if (!result.ok) throw new Error(result.error ?? 'could not open a terminal');

@@ -6,7 +6,7 @@ import { Box, Clapperboard, FileText, Globe, ImageIcon, Radio, X } from "lucide-
 import { EditorFileView, LiveFileEditor } from "@/features/office/editors/EditorFiles";
 import { blankModel, type ModelFile, parseModel } from "@/features/office/editors/modelFormat";
 import { useOpenAgentDm } from "@/features/office/lib/agentDm";
-import { type AgentPresence, type OfficeAgent, useOfficeAgents } from "@/features/office/lib/officeLink";
+import { type AgentPresence, callOffice, type OfficeAgent, useOfficeAgents } from "@/features/office/lib/officeLink";
 import { foldDiff, lineDiff } from "@/features/office/lib/lineDiff";
 import { cn } from "@/shared/lib/cn";
 
@@ -288,7 +288,10 @@ function TextThumb({ src }: { src: string }) {
 function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => void }) {
   const agent = agents[0]!;
   const p = agent.presence;
-  const [view, setView] = React.useState<"live" | "changes">("live");
+  // A simulation (or nothing on screen yet) is best watched in the terminal.
+  const [view, setView] = React.useState<"live" | "terminal" | "changes">(
+    p.activity === "Running a simulation" || !p.latest ? "terminal" : "live",
+  );
   const now = useNow(15_000);
   const file = useLiveFile(p.latest?.path);
   const working = isLive(agent, now);
@@ -322,7 +325,17 @@ function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => vo
       // place with their cursor, like a shared document.
       stage = <LiveFileEditor key={p.latest.path} path={p.latest.path} />;
     } else if (/\.(md|txt|csv)$/i.test(p.latest.path)) stage = <TextStage src={src} />;
-    else stage = <CodeStage changesFile={p.changes?.file} changesAt={p.changes?.lastAt} path={p.latest.path} src={src} />;
+    else stage = (
+      <CodeStage
+        agent={agent.name}
+        changesAt={p.changes?.lastAt}
+        changesFile={p.changes?.file}
+        color={agent.accent?.startsWith("#") ? agent.accent : "#5865f2"}
+        path={p.latest.path}
+        readLines={(p.latest as { lines?: [number, number]; fromRead?: boolean }).fromRead ? (p.latest as { lines?: [number, number] }).lines : undefined}
+        src={src}
+      />
+    );
   }
   return (
     <div className="fixed inset-0 z-[70] flex bg-black/70 p-4 backdrop-blur-sm" data-testid="live-watch">
@@ -337,6 +350,9 @@ function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => vo
               <button className={cn("rounded px-2 py-0.5", view === "live" ? "bg-white/20 text-white" : "text-white/60")} onClick={() => setView("live")} type="button">
                 Live view
               </button>
+              <button className={cn("rounded px-2 py-0.5", view === "terminal" ? "bg-white/20 text-white" : "text-white/60")} onClick={() => setView("terminal")} type="button">
+                Terminal
+              </button>
               <button className={cn("rounded px-2 py-0.5", view === "changes" ? "bg-white/20 text-white" : "text-white/60")} onClick={() => setView("changes")} type="button">
                 Changes{p.changes?.count ? ` (${p.changes.count})` : ""}
               </button>
@@ -346,7 +362,15 @@ function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => vo
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="relative min-h-0 flex-1">{view === "changes" ? <ChangesFeed changes={p.changes ?? null} roots={p.dirs} /> : stage}</div>
+          <div className="relative min-h-0 flex-1">
+            {view === "changes" ? <ChangesFeed changes={p.changes ?? null} roots={p.dirs} /> : view === "terminal" ? <TerminalStage agentId={agent.id} /> : stage}
+            {/* Who's at work and on what, like a cursor in a shared document. */}
+            <div className="pointer-events-none absolute bottom-3 left-3 z-20 flex max-w-[70%] items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold text-white shadow-lg" style={{ background: agent.accent?.startsWith("#") ? agent.accent : "#5865f2" }}>
+              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full bg-white", working && "animate-pulse")} />
+              <span className="shrink-0">{agent.name}</span>
+              <span className="truncate font-normal opacity-90">· {p.steps.at(-1)?.text ?? p.activity}</span>
+            </div>
+          </div>
         </div>
         <aside className="flex w-72 shrink-0 flex-col border-l border-white/10 text-white">
           <div className="border-b border-white/10 p-4">
@@ -562,11 +586,48 @@ function LiveModelEditor({ path, mtime }: { path: string; mtime: number }) {
   );
 }
 
+/** The agent's own terminal, live (refreshed every second): a simulation's
+ *  output as it runs, or whatever the agent is doing on screen. */
+function TerminalStage({ agentId }: { agentId: string }) {
+  const [lines, setLines] = React.useState<string[]>([]);
+  const box = React.useRef<HTMLDivElement>(null);
+  const stick = React.useRef(true);
+  React.useEffect(() => {
+    let alive = true;
+    const tick = () =>
+      callOffice<{ lines: string[] }>("agent.screen", { id: agentId, rows: 300 })
+        .then((r) => alive && setLines(r.lines ?? []))
+        .catch(() => undefined);
+    void tick();
+    const t = setInterval(tick, 1000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [agentId]);
+  React.useEffect(() => {
+    const el = box.current;
+    if (el && stick.current) el.scrollTop = el.scrollHeight;
+  }, [lines]);
+  return (
+    <div
+      className="h-full overflow-auto bg-[#0d1117] p-3 font-mono text-[12px] leading-[1.35] text-[#c9d1d9]"
+      onScroll={(e) => {
+        const el = e.currentTarget;
+        stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+      }}
+      ref={box}
+    >
+      {lines.length ? <pre className="whitespace-pre-wrap break-words">{lines.join("\n")}</pre> : <p className="text-white/40">Waiting for the terminal…</p>}
+    </div>
+  );
+}
+
 /**
  * Code being written, shown like the app's Code tool: the file with line
  * numbers, the lines the agent changed last highlighted and kept in view.
  */
-function CodeStage({ src, path, changesFile, changesAt }: { src: string; path: string; changesFile?: string; changesAt?: number }) {
+function CodeStage({ src, path, changesFile, changesAt, readLines, agent, color }: { src: string; path: string; changesFile?: string; changesAt?: number; readLines?: [number, number]; agent: string; color: string }) {
   const [text, setText] = React.useState<string | null>(null);
   const [mark, setMark] = React.useState<{ from: number; to: number } | null>(null);
   const markRef = React.useRef<HTMLDivElement>(null);
@@ -606,25 +667,45 @@ function CodeStage({ src, path, changesFile, changesAt }: { src: string; path: s
       alive = false;
     };
   }, [changesFile, changesAt, path]);
+  // What the cursor shows: the lines being read right now (when the command
+  // names them), else the lines last changed.
+  const cursor = readLines ? { from: readLines[0], to: readLines[1], doing: "reading" } : mark ? { ...mark, doing: "edited" } : null;
   React.useEffect(() => {
     markRef.current?.scrollIntoView({ block: "center" });
-  }, [mark, text]);
+  }, [cursor?.from, cursor?.to, text]);
   const name = path.replace(/\\/g, "/").split("/").pop();
   const lines = (text ?? "").split("\n");
   return (
     <div className="flex h-full flex-col bg-[#0d1117] font-mono text-[12.5px] text-[#c9d1d9]">
       <div className="flex h-9 shrink-0 items-end border-b border-[#30363d] bg-[#010409] px-2">
         <span className="rounded-t-md border border-b-0 border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-[12px] text-[#e6edf3]">{name}</span>
-        {mark ? <span className="ml-auto pb-2 pr-2 text-[11px] text-[#8b949e]">last change: lines {mark.from}–{mark.to}</span> : null}
+        {cursor ? (
+          <span className="ml-auto flex items-center gap-1.5 pb-2 pr-2 text-[11px] text-[#8b949e]">
+            <span className="h-2 w-2 rounded-full" style={{ background: color }} />
+            {agent} {cursor.doing === "reading" ? "is reading" : "last changed"} lines {cursor.from}–{cursor.to}
+          </span>
+        ) : null}
       </div>
       <div className="min-h-0 flex-1 overflow-auto py-2">
         {text === null ? null : lines.map((line, i) => {
           const n = i + 1;
-          const hit = mark && n >= mark.from && n <= mark.to;
+          const hit = cursor && n >= cursor.from && n <= cursor.to;
+          const first = hit && n === cursor?.from;
           return (
-            <div className={cn("flex", hit && "bg-[#2ea04326]")} key={n} ref={hit && n === mark?.from ? markRef : undefined}>
-              <span className={cn("w-14 shrink-0 select-none pr-4 text-right", hit ? "text-[#3fb950]" : "text-[#6e7681]")}>{n}</span>
+            <div
+              className="relative flex"
+              key={n}
+              ref={first ? markRef : undefined}
+              style={hit ? { background: `${color}26`, boxShadow: `inset 3px 0 0 ${color}` } : undefined}
+            >
+              <span className={cn("w-14 shrink-0 select-none pr-4 text-right", hit ? "text-white" : "text-[#6e7681]")}>{n}</span>
               <span className="whitespace-pre pr-6">{line || " "}</span>
+              {first ? (
+                // The agent's cursor: their name on a flag, like a shared document.
+                <span className="pointer-events-none absolute left-14 top-0 -translate-y-full rounded-t px-1.5 text-[10px] font-semibold leading-4 text-white" style={{ background: color }}>
+                  {agent} · {cursor?.doing}
+                </span>
+              ) : null}
             </div>
           );
         })}

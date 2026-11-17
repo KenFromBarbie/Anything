@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStore, type Agent } from '@/store/store';
 import { restartAgent } from '@/components/agentRestart';
+import { acquireTerminal } from '@/components/terminalPool';
 import { restoreFromHost } from './useRestoreTeam';
 
 /**
@@ -132,6 +133,51 @@ export function useTidyRestorable(enabled: boolean): void {
     return () => {
       clearTimeout(first);
       clearInterval(iv);
+    };
+  }, [enabled]);
+}
+
+/**
+ * A restored agent whose previous conversation can't be found ("No
+ * conversation found with session ID …": it was kept under another account or
+ * folder) exits at once and sits dead. Start it again fresh instead: same
+ * agent, folder, notes and inbox, a new conversation; its mail is delivered
+ * as usual.
+ */
+export function useResumeFallback(enabled: boolean): void {
+  useEffect(() => {
+    if (!enabled) return;
+    const watched = new Map<string, () => void>();
+    const fellBack = new Set<string>();
+    const sync = () => {
+      const { agents } = useStore.getState();
+      for (const a of agents) {
+        const pty = a.ptyId;
+        if (!pty || watched.has(pty)) continue;
+        const off = window.cth.onPtyExit(pty, () => {
+          let text = '';
+          try {
+            const buf = acquireTerminal(pty).term.buffer.active;
+            for (let i = Math.max(0, buf.length - 40); i < buf.length; i++) text += `${buf.getLine(i)?.translateToString(true) ?? ''}
+`;
+          } catch { /* no terminal */ }
+          if (!/No conversation found with session ID/i.test(text)) return;
+          const agent = useStore.getState().agents.find((x) => x.ptyId === pty);
+          if (!agent || fellBack.has(agent.id)) return; // once: no loops
+          fellBack.add(agent.id);
+          useStore.getState().updateAgent(agent.id, { action: 'starting fresh (previous conversation not found)' });
+          void restartAgent(agent, agent.model, {}).catch((err) => console.error('[resume-fallback]', agent.id, err));
+        });
+        watched.set(pty, off);
+      }
+    };
+    sync();
+    const unsub = useStore.subscribe((st, prev) => {
+      if (st.agents !== prev.agents) sync();
+    });
+    return () => {
+      unsub();
+      for (const off of watched.values()) off();
     };
   }, [enabled]);
 }

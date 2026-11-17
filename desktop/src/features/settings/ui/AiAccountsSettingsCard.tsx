@@ -321,7 +321,9 @@ function AccountRow({
   onRemove: () => void;
 }) {
   const client = useQueryClient();
-  const [open, setOpen] = React.useState(active);
+  // Every account in use starts open with its usage (the CEO and executives'
+  // and the floor workers').
+  const [open, setOpen] = React.useState(active || (split && workers));
   const use = useMutation({
     mutationFn: () => setActiveAiAccount(engine.engine, account.id),
     onSuccess: () => {

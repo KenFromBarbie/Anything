@@ -46,7 +46,7 @@ export function liveKindOf(path: string): LiveKind | null {
 }
 
 export interface PresenceStep { ts: number; text: string }
-export interface PresenceFile { path: string; kind: LiveKind; mtime: number; /** Only read, not made. */ fromRead?: boolean }
+export interface PresenceFile { path: string; kind: LiveKind; mtime: number; /** Only read, not made. */ fromRead?: boolean; /** The lines a read showed (sed -n 190,302p, head -n 40). */ lines?: [number, number] }
 
 export interface Presence {
   activity: Activity;
@@ -113,6 +113,8 @@ export interface ToolCall {
   wrote?: string;
   /** A file it read (shown live until it writes something). */
   read?: string;
+  /** The lines that read showed, when the command says. */
+  readLines?: [number, number];
 }
 
 /**
@@ -129,6 +131,16 @@ export function shellRead(cmd: string): string | undefined {
   if (/^([a-z]:)?[\\/]/i.test(file)) return file;
   if (!base || !/^([a-z]:)?[\\/]/i.test(base)) return undefined;
   return `${base.replace(/[\\/]+$/, '')}/${file}`;
+}
+
+/** The line range a shell read shows: sed -n 190,302p → [190, 302];
+ *  head -n 40 / head -40 → [1, 40]. */
+export function shellReadLines(cmd: string): [number, number] | undefined {
+  const sed = /sed\s+-n\s+["']?(\d+),(\d+)p/.exec(cmd);
+  if (sed) return [Number(sed[1]), Number(sed[2])];
+  const head = /head\s+(?:-n\s*)?-?(\d+)/.exec(cmd);
+  if (head) return [1, Number(head[1])];
+  return undefined;
 }
 
 /** What one tool call means. */
@@ -158,6 +170,7 @@ export function classify(tool: string, input: unknown): ToolCall {
       detail: target && /[\/]/.test(target) ? projectOf(target) : undefined,
       step: `Ran ${short}`,
       read: shellRead(cmd),
+      readLines: shellReadLines(cmd),
     };
   }
   if (name === 'websearch') return { activity: 'Researching', step: `Searched “${String(i.query ?? '').slice(0, 60)}”` };
@@ -217,8 +230,11 @@ export class PresenceTracker {
     // office's own mail in the hive).
     if (c.read && !c.wrote && (!p.latest || p.latest.fromRead) && !/[\\/]hive[\\/]/i.test(c.read)) {
       const kind = liveKindOf(c.read);
-      if (kind) p.latest = { path: c.read, kind, mtime: now, fromRead: true };
+      if (kind) p.latest = { path: c.read, kind, mtime: now, fromRead: true, ...(c.readLines ? { lines: c.readLines } : {}) };
     }
+    // The office's own mail (inbox/outbox messages, moved away once handled)
+    // is not work to show.
+    if (c.wrote && /[\\/](inbox|outbox)[\\/]/i.test(c.wrote)) c.wrote = undefined;
     if (c.wrote) {
       const d = dirOf(c.wrote);
       p.dirs = [d, ...p.dirs.filter((x) => x !== d)].slice(0, 6);
