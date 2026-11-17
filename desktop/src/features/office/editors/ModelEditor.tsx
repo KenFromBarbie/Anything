@@ -958,6 +958,7 @@ export function ModelEditor({
                   obj={obj}
                   onModel={(m, l) => change(m, l)}
                   onObj={(patch, l) => obj && updateObj(obj.id, patch, l)}
+                  onSelect={setSel}
                   tab={tab}
                 />
               </div>
@@ -1252,6 +1253,7 @@ function PropsPanel({
   onObj,
   onModel,
   commit,
+  onSelect,
 }: {
   tab: PropTab;
   obj?: SceneObject;
@@ -1260,6 +1262,8 @@ function PropsPanel({
   onObj: (patch: Partial<SceneObject>, label?: string) => void;
   onModel: (m: ModelFile, label?: string) => void;
   commit: (label: string) => void;
+  /** Select a part (the new result after Cut / Join / Intersect). */
+  onSelect?: (id: string) => void;
 }) {
   if (tab === "world") {
     const w = model.world;
@@ -1394,6 +1398,7 @@ function PropsPanel({
         },
         label,
       );
+      onSelect?.(result.id);
     };
     const modifiers = meshKind ? (
       <>
