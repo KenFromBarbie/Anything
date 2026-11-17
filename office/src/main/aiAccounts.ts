@@ -14,7 +14,7 @@ import { join } from 'node:path';
  *  - Codex: a CODEX_HOME whose auth.json signs the agent in
  *  - Gemini CLI: a GEMINI_CLI_HOME
  */
-export type AccountEngine = 'claude' | 'codex' | 'gemini';
+export type AccountEngine = 'claude' | 'codex' | 'gemini' | 'kimi' | 'opencode';
 
 /** Who an agent is, for its account: the CEO and executives ("managers")
  *  or the floor workers they hire ("workers"), which can run on another. */
@@ -54,7 +54,10 @@ export function activeAccountHome(engine: AccountEngine, role: AccountRole = 'ma
 export function accountEngineFor(provider: string | undefined): AccountEngine | null {
   if (!provider || provider === 'claude') return 'claude';
   if (provider === 'codex') return 'codex';
-  if (provider === 'gemini') return 'gemini';
+  // Google's CLI is Antigravity now (it keeps Gemini's home and sign-in).
+  if (provider === 'gemini' || provider === 'antigravity') return 'gemini';
+  if (provider === 'kimi') return 'kimi';
+  if (provider === 'opencode') return 'opencode';
   return null;
 }
 
@@ -66,6 +69,13 @@ export function applyAccountEnv(provider: string | undefined, env: Record<string
   if (engine === 'claude') {
     const home = activeAccountHome('claude', role);
     if (home) env.CLAUDE_CONFIG_DIR = home;
+  } else if (engine === 'kimi') {
+    const home = activeAccountHome('kimi', role);
+    if (home) env.KIMI_CODE_HOME = home;
+  } else if (engine === 'opencode') {
+    // opencode keeps its sign-ins in $XDG_DATA_HOME/opencode/auth.json.
+    const home = activeAccountHome('opencode', role);
+    if (home) env.XDG_DATA_HOME = home;
   } else if (engine === 'gemini') {
     const home = activeAccountHome('gemini', role);
     if (home) env.GEMINI_CLI_HOME = home;

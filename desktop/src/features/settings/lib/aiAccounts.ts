@@ -2,12 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 
 /**
  * The AI subscriptions the Office's agents run on (Rust: `ai_accounts`). Each
- * engine — Claude Code, Codex (ChatGPT), Gemini CLI (Google) — has "This
+ * engine — Claude Code, Codex (ChatGPT), Antigravity (Google), Kimi, opencode — has "This
  * computer" (its normal sign-in) plus any accounts added here; the active one
  * is what agents start on.
  */
 
-export type Engine = "claude" | "codex" | "gemini";
+export type Engine = "claude" | "codex" | "gemini" | "kimi" | "opencode";
 
 export type AiAccount = {
   id: string;
@@ -73,6 +73,8 @@ export const API_KEY_HINT: Record<Engine, string> = {
   claude: "An Anthropic API key (sk-ant-…), from console.anthropic.com",
   codex: "An OpenAI API key (sk-…), from platform.openai.com",
   gemini: "A Gemini API key, from aistudio.google.com",
+  kimi: "Kimi signs in with its own login",
+  opencode: "opencode signs in with its own login",
 };
 export const signInAiAccount = (engine: Engine, id: string) =>
   invoke<void>("ai_accounts_sign_in", { engine, id });
@@ -93,7 +95,9 @@ export function windowTotal(w: UsageWindow): number {
 export const ENGINE_CLI_NAME: Record<Engine, string> = {
   claude: "Claude Code",
   codex: "Codex",
-  gemini: "Gemini CLI",
+  gemini: "Antigravity CLI",
+  kimi: "Kimi Code CLI",
+  opencode: "opencode",
 };
 
 /** What happens when an account reaches one of its caps. */

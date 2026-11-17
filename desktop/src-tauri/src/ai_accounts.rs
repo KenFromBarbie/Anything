@@ -32,17 +32,26 @@ pub mod guard;
 enum Engine {
     Claude,
     Codex,
+    /// Google: the Antigravity CLI (`agy`), which replaced Gemini CLI; it keeps
+    /// Gemini's home (~/.gemini) and sign-in files. Key stays "gemini" so saved
+    /// accounts and the Office's account file carry over.
     Gemini,
+    /// Moonshot's Kimi Code CLI (KIMI_CODE_HOME, default ~/.kimi-code).
+    Kimi,
+    /// opencode (its sign-ins live in $XDG_DATA_HOME/opencode/auth.json).
+    Opencode,
 }
 
-const ENGINES: [Engine; 3] = [Engine::Claude, Engine::Codex, Engine::Gemini];
+const ENGINES: [Engine; 5] = [Engine::Claude, Engine::Codex, Engine::Gemini, Engine::Kimi, Engine::Opencode];
 
 impl Engine {
     fn parse(value: &str) -> Result<Engine, String> {
         match value {
             "claude" => Ok(Engine::Claude),
             "codex" => Ok(Engine::Codex),
-            "gemini" => Ok(Engine::Gemini),
+            "gemini" | "antigravity" => Ok(Engine::Gemini),
+            "kimi" => Ok(Engine::Kimi),
+            "opencode" => Ok(Engine::Opencode),
             other => Err(format!("unknown engine {other}")),
         }
     }
@@ -51,20 +60,26 @@ impl Engine {
             Engine::Claude => "claude",
             Engine::Codex => "codex",
             Engine::Gemini => "gemini",
+            Engine::Kimi => "kimi",
+            Engine::Opencode => "opencode",
         }
     }
     fn label(self) -> &'static str {
         match self {
             Engine::Claude => "Claude",
             Engine::Codex => "ChatGPT",
-            Engine::Gemini => "Google",
+            Engine::Gemini => "Google · Antigravity",
+            Engine::Kimi => "Kimi",
+            Engine::Opencode => "opencode",
         }
     }
     fn cli(self) -> &'static str {
         match self {
             Engine::Claude => "claude",
             Engine::Codex => "codex",
-            Engine::Gemini => "gemini",
+            Engine::Gemini => "agy",
+            Engine::Kimi => "kimi",
+            Engine::Opencode => "opencode",
         }
     }
     fn home_var(self) -> &'static str {
@@ -72,13 +87,17 @@ impl Engine {
             Engine::Claude => "CLAUDE_CONFIG_DIR",
             Engine::Codex => "CODEX_HOME",
             Engine::Gemini => "GEMINI_CLI_HOME",
+            Engine::Kimi => "KIMI_CODE_HOME",
+            Engine::Opencode => "XDG_DATA_HOME",
         }
     }
     fn login_command(self) -> &'static str {
         match self {
             Engine::Claude => "claude /login",
             Engine::Codex => "codex login",
-            Engine::Gemini => "gemini",
+            Engine::Gemini => "agy",
+            Engine::Kimi => "kimi login",
+            Engine::Opencode => "opencode auth login",
         }
     }
     /// The CLI's own home when no account is picked.
@@ -88,6 +107,8 @@ impl Engine {
             Engine::Claude => home.join(".claude"),
             Engine::Codex => home.join(".codex"),
             Engine::Gemini => home,
+            Engine::Kimi => home.join(".kimi-code"),
+            Engine::Opencode => home.join(".local").join("share"),
         }
     }
 }
@@ -263,6 +284,22 @@ fn jwt_claims(token: &str) -> Option<Value> {
     serde_json::from_slice(&bytes).ok()
 }
 
+/// A file whose name matches, within `depth` folders of `dir`.
+fn find_file(dir: &Path, depth: usize, matches: &dyn Fn(&str) -> bool) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else { return false };
+    for e in entries.flatten() {
+        let path = e.path();
+        let name = e.file_name().to_string_lossy().to_lowercase();
+        if path.is_file() && matches(&name) {
+            return true;
+        }
+        if depth > 0 && path.is_dir() && !name.starts_with('.') && name != "sessions" && name != "logs" && find_file(&path, depth - 1, matches) {
+            return true;
+        }
+    }
+    false
+}
+
 fn identity(engine: Engine, home: &Path, is_default: bool) -> Identity {
     match engine {
         Engine::Claude => {
@@ -334,6 +371,29 @@ fn identity(engine: Engine, home: &Path, is_default: bool) -> Identity {
                 } else {
                     None
                 }),
+            }
+        }
+        Engine::Kimi => {
+            // Signed in: a token file from `kimi login` (device code), or an API
+            // key in its config.
+            let tokens = find_file(home, 3, &|n| n.ends_with("-tokens.json") || n == "credentials.json");
+            let api_key = std::fs::read_to_string(home.join("config.toml"))
+                .map(|t| t.lines().any(|l| l.trim_start().starts_with("api_key") && l.contains('=') && !l.trim_end().ends_with("\"\"")))
+                .unwrap_or(false);
+            Identity {
+                signed_in: tokens || api_key,
+                plan: if api_key && !tokens { Some("API key".into()) } else { None },
+                ..Identity::default()
+            }
+        }
+        Engine::Opencode => {
+            // opencode signs in per provider; its auth.json names them.
+            let auth = read_json(&home.join("opencode").join("auth.json")).unwrap_or(Value::Null);
+            let providers: Vec<String> = auth.as_object().map(|m| m.keys().cloned().collect()).unwrap_or_default();
+            Identity {
+                signed_in: !providers.is_empty(),
+                plan: if providers.is_empty() { None } else { Some(providers.join(", ")) },
+                ..Identity::default()
             }
         }
         Engine::Gemini => {
@@ -476,6 +536,7 @@ fn seed_home(engine: Engine, dir: &Path) {
             }
             link_dir(&normal.join("packages"), &dir.join("packages"));
         }
+        Engine::Kimi | Engine::Opencode => {}
         Engine::Gemini => {
             let gemini = dir.join(".gemini");
             let _ = std::fs::create_dir_all(&gemini);
@@ -1134,6 +1195,7 @@ fn install_api_key(engine: Engine, dir: &Path, key: &str) -> Result<(), String> 
             }
             Ok(())
         }
+        Engine::Kimi | Engine::Opencode => Err(format!("{} signs in with its own login (Sign in).", engine.label())),
         Engine::Gemini => {
             let gemini = dir.join(".gemini");
             std::fs::create_dir_all(&gemini).map_err(|e| e.to_string())?;
@@ -1178,6 +1240,7 @@ fn uses_api_key(engine: Engine, home: &Path) -> bool {
                     .map(|k| !k.is_empty())
             })
             .unwrap_or(false),
+        Engine::Kimi | Engine::Opencode => false,
         Engine::Gemini => std::fs::read_to_string(home.join(".gemini").join(".env"))
             .map(|t| {
                 t.lines()
@@ -1334,6 +1397,14 @@ pub fn ai_accounts_set_workers(app: AppHandle, engine: String, id: String) -> Re
     Ok(())
 }
 
+/// Which of these agent CLIs are installed (by command name).
+#[tauri::command]
+pub fn ai_accounts_cli_installed(clis: Vec<String>) -> Vec<bool> {
+    clis.iter()
+        .map(|c| c.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_') && cli_installed(c))
+        .collect()
+}
+
 /// Agents of this engine use the account from their next (re)start.
 #[tauri::command]
 pub fn ai_accounts_set_active(app: AppHandle, engine: String, id: String) -> Result<(), String> {
@@ -1447,6 +1518,7 @@ fn account_at_usage(app: &AppHandle, engine: Engine, id: &str) -> Result<Usage, 
         Engine::Claude => claude_usage(&home),
         Engine::Codex => codex_usage(&home, account.as_deref(), &history),
         Engine::Gemini => gemini_usage(&home),
+        Engine::Kimi | Engine::Opencode => Usage::default(),
     })
 }
 
@@ -1472,6 +1544,7 @@ pub async fn ai_accounts_usage(
         Engine::Claude => claude_usage(&home),
         Engine::Codex => codex_usage(&home, account.as_deref(), &history),
         Engine::Gemini => gemini_usage(&home),
+        Engine::Kimi | Engine::Opencode => Usage::default(),
     })
     .await
     .map_err(|e| e.to_string())

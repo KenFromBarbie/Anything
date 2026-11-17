@@ -1,4 +1,5 @@
 import * as React from "react";
+import { OtherAgentClis } from "./OtherAgentClis";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -782,7 +783,7 @@ export function AiAccountsSettingsCard() {
   return (
     <section className="min-w-0" data-testid="settings-ai-accounts">
       <SettingsSectionHeader
-        description="The Claude, ChatGPT and Google subscriptions your agents run on. Add more accounts, see their usage, set caps that switch accounts or freeze the agents, and pick which one the agents use."
+        description="The subscriptions your agents run on: Claude, ChatGPT, Google (Antigravity), Kimi and opencode. Add more accounts, see their usage, set caps that switch accounts or freeze the agents, and pick which one the CEO and executives use and which one the floor workers use."
         title="AI accounts"
       />
       {accounts.isLoading ? (
@@ -801,6 +802,7 @@ export function AiAccountsSettingsCard() {
           {(accounts.data ?? []).map((engine) => (
             <EngineGroup engine={engine} key={engine.engine} />
           ))}
+          <OtherAgentClis />
           <UsageActivityGroup />
         </SettingsOptionGroupList>
       )}
