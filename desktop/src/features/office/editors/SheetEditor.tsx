@@ -1,4 +1,5 @@
 import * as React from "react";
+import { EditorFollowContext, markForAgent } from "./follow";
 import {
   BarChart3,
   Bold,
@@ -148,6 +149,21 @@ export function SheetEditor({
     }
     change({ ...sheet, charts: [...sheet.charts, { type, range: rangeText, title: "Chart title" }] });
   };
+
+  // An agent's new version: in place, with their cursor on the cells that changed.
+  const follow = React.useContext(EditorFollowContext);
+  React.useEffect(() => {
+    const next = follow.file;
+    if (!next || next.type !== "sheet" || dirty) return;
+    const before = sheet.cells;
+    const refs = new Set([...Object.keys(before), ...Object.keys(next.cells)]);
+    const changed = [...refs].filter((r) => (before[r] ?? "") !== (next.cells[r] ?? ""));
+    setSheet(next);
+    requestAnimationFrame(() => {
+      for (const r of changed.slice(0, 40)) markForAgent(document.querySelector(`[data-cell="${r}"]`), follow.by);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [follow.version]);
 
   const save = async (): Promise<{ id: string; path?: string } | null> => {
     if (saving) return null;
@@ -325,6 +341,7 @@ export function SheetEditor({
                             inRange(c, r) && !isSel && "bg-[#e6f4ec] dark:bg-[#1e3a2b]",
                             isSel && "relative outline outline-2 -outline-offset-1 outline-[#107C41]",
                           )}
+                          data-cell={ref}
                           key={ref}
                           onDoubleClick={() => setEditing(sheet.cells[ref] ?? "")}
                           onMouseDown={(e) => {

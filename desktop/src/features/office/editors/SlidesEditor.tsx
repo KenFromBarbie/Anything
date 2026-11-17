@@ -1,4 +1,5 @@
 import * as React from "react";
+import { EditorFollowContext, markForAgent } from "./follow";
 import { createPortal } from "react-dom";
 import {
   ArrowDown,
@@ -85,6 +86,24 @@ export function SlidesEditor({
     change({ ...deck, slides });
     setAt(j);
   };
+
+  // An agent's new version: in place; you're taken to the slide they changed,
+  // with their cursor on it.
+  const follow = React.useContext(EditorFollowContext);
+  React.useEffect(() => {
+    const next = follow.file;
+    if (!next || next.type !== "slides" || dirty) return;
+    const a = deck.slides.map((x) => JSON.stringify(x));
+    const b = next.slides.map((x) => JSON.stringify(x));
+    let i = 0;
+    while (i < a.length && i < b.length && a[i] === b[i]) i++;
+    if (i === a.length && i === b.length && JSON.stringify(deck) === JSON.stringify(next)) return;
+    const at = Math.min(i, next.slides.length - 1);
+    setDeck(next);
+    setAt(Math.max(0, at));
+    requestAnimationFrame(() => markForAgent(document.querySelector(`[data-slide-index="${at}"]`), follow.by));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [follow.version]);
 
   const save = async (): Promise<{ id: string; path?: string } | null> => {
     if (saving) return null;
@@ -219,6 +238,7 @@ export function SlidesEditor({
           {deck.slides.map((s, i) => (
             <button
               className="mb-2 flex w-full items-start gap-1.5 text-left"
+              data-slide-index={i}
               key={`${i}-${s.layout}`}
               onClick={() => setAt(i)}
               type="button"

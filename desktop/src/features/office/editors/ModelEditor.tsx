@@ -1,4 +1,5 @@
 import * as React from "react";
+import { EditorFollowContext, changedIds } from "./follow";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Atom,
@@ -121,6 +122,22 @@ export function ModelEditor({
   React.useEffect(() => {
     if (follow) setModel(follow);
   }, [follow, setModel]);
+  // An agent's new version of the open file: in place; the part they changed
+  // is selected, with their name on the viewport.
+  const followed = React.useContext(EditorFollowContext);
+  const [agentNote, setAgentNote] = React.useState<{ name: string; color: string; what: string } | null>(null);
+  React.useEffect(() => {
+    const next = followed.file;
+    if (!next || next.type !== "model") return;
+    const changed = changedIds(modelRef.current.objects, next.objects);
+    setModel(next);
+    const first = next.objects.find((o) => o.id === changed[0]);
+    if (first) setSel(first.id);
+    setAgentNote({ name: followed.by?.name ?? "An agent", color: followed.by?.color ?? "#1c7ed6", what: first ? first.name : "the scene" });
+    const t = setTimeout(() => setAgentNote(null), 6000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [followed.version]);
   const [sel, setSelState] = React.useState<string | null>(file.objects[0]?.id ?? null);
   const selRef = React.useRef(sel);
   const setSel = (id: string | null) => {
@@ -827,6 +844,12 @@ export function ModelEditor({
               ) : (
                 <Viewport label={`User Perspective  (${frame})${obj ? ` ${obj.name}` : ""}`} register={register} view="perspective" model={modelRef} />
               )}
+              {/* An agent's cursor: who just changed what (the part is selected). */}
+              {agentNote ? (
+                <div className="pointer-events-none absolute right-3 top-2 z-10 flex items-center gap-1.5 rounded px-2 py-0.5 text-[11px] font-semibold text-white shadow" style={{ background: agentNote.color }}>
+                  {agentNote.name} · {agentNote.what}
+                </div>
+              ) : null}
             </div>
             {/* command line */}
             <div className="shrink-0 border-t border-black/60 bg-[#232323] px-2 py-1 font-mono text-[11px]">

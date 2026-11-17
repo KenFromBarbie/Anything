@@ -1,6 +1,7 @@
 import * as React from "react";
+import { EditorFollowContext, useFileFollow } from "./follow";
 import { EditorPathContext, FilePresence } from "@/features/office/ui/FilePresence";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { Pencil } from "lucide-react";
 
@@ -38,13 +39,60 @@ import { SlidesEditor } from "./SlidesEditor";
 import { WordEditor } from "./WordEditor";
 
 /** The editor window, when one is open. Mount once where Create lives. */
+/** The app's editor for an agent's file, following it live (Create's
+ *  Watch stream): each new version lands in place, with the agent's cursor. */
+export function LiveFileEditor({ path }: { path: string }) {
+  const kind = editorKindOf(path);
+  const follow = useFileFollow(path, kind);
+  const [first, setFirst] = React.useState<EditorFile | null>(null);
+  React.useEffect(() => {
+    if (!kind) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await invoke<{ mtime: number }>("office_live_file", { path });
+        const json = await (await fetch(`${convertFileSrc(path)}?v=${r.mtime}`)).json();
+        if (alive) setFirst(parseFile(kind, json));
+      } catch {
+        /* not readable (yet) */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [path, kind]);
+  if (!kind || !first) return null;
+  const title = path.split(String.fromCharCode(92)).join("/").split("/").pop()?.replace(/\.[a-z]+\.json$/i, "") ?? "Live";
+  const props = { title, path, key: path };
+  const editor =
+    kind === "doc" ? <WordEditor file={first as DocFile} {...props} />
+    : kind === "slides" ? <SlidesEditor file={first as SlidesFile} {...props} />
+    : kind === "image" ? <ImageEditor file={first as ImageFile} {...props} />
+    : kind === "video" ? <VideoEditor file={first as VideoFile} {...props} />
+    : kind === "model" ? <ModelEditor file={first as ModelFile} {...props} />
+    : kind === "site" ? <SiteEditor file={first as SiteFile} {...props} />
+    : <SheetEditor file={first as SheetFile} {...props} />;
+  return (
+    <div className="h-full overflow-hidden [&>div]:!h-full [&>div]:!min-h-0 [&>div]:!rounded-none [&>div]:!border-0">
+      <EditorPathContext.Provider value={path}>
+        <EditorFollowContext.Provider value={follow}>{editor}</EditorFollowContext.Provider>
+      </EditorPathContext.Provider>
+    </div>
+  );
+}
+
 export function EditorHost() {
   const open = useOpenEditor();
+  // The file on disk, followed while it's open: an agent's changes land in
+  // place, with their cursor (see follow.ts).
+  const follow = useFileFollow(open?.path, open?.kind ?? null);
   if (!open?.file) return null;
   const key = `${open.kind}:${open.artifactId ?? "new"}:${open.title}`;
   const props = { title: open.title, series: open.series, path: open.path, artifactId: open.artifactId };
   const wrap = (editor: React.ReactNode) => (
-    <EditorPathContext.Provider value={open.path}>{editor}</EditorPathContext.Provider>
+    <EditorPathContext.Provider value={open.path}>
+      <EditorFollowContext.Provider value={follow}>{editor}</EditorFollowContext.Provider>
+    </EditorPathContext.Provider>
   );
   if (open.kind === "doc") return wrap(<WordEditor file={open.file as DocFile} key={key} {...props} />);
   if (open.kind === "slides") return wrap(<SlidesEditor file={open.file as SlidesFile} key={key} {...props} />);

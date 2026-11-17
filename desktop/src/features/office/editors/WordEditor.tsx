@@ -1,4 +1,5 @@
 import * as React from "react";
+import { EditorFollowContext, markForAgent } from "./follow";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import {
   AlignCenter,
@@ -118,6 +119,28 @@ export function WordEditor({
       };
     },
   });
+
+  // An agent's new version: in place, and their cursor on the first
+  // paragraph that changed (unless you have unsaved edits of your own).
+  const follow = React.useContext(EditorFollowContext);
+  React.useEffect(() => {
+    const next = follow.file;
+    if (!editor || !next || next.type !== "doc" || dirty) return;
+    const before = editor.getHTML();
+    if (before === next.html) return;
+    const blocks = (html: string) => {
+      const d = document.createElement("div");
+      d.innerHTML = html;
+      return [...d.children].map((c) => c.outerHTML);
+    };
+    const a = blocks(before);
+    const b = blocks(next.html);
+    let i = 0;
+    while (i < a.length && i < b.length && a[i] === b[i]) i++;
+    editor.commands.setContent(next.html, { emitUpdate: false });
+    requestAnimationFrame(() => markForAgent(editor.view.dom.children[Math.min(i, b.length - 1)], follow.by));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [follow.version]);
 
   const save = async (): Promise<{ id: string; path?: string } | null> => {
     if (!editor || saving) return null;

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { EditorFollowContext, changedIds, markForAgent } from "./follow";
 import { Code2, Download, Eye, Monitor, PenTool, Redo2, Smartphone, Tablet, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -385,6 +386,19 @@ export function SiteEditor({
   const code = React.useMemo(() => (mode === "code" ? { html: pageHtml(site, page, { cssHref: "styles.css" }), css: siteCss(site) } : null), [mode, site, page]);
 
   // ── files ──
+  // An agent's new version: in place; you're taken to the page they changed.
+  const follow = React.useContext(EditorFollowContext);
+  React.useEffect(() => {
+    const next = follow.file;
+    if (!next || next.type !== "site" || dirty) return;
+    const changed = changedIds(siteRef.current.pages, next.pages);
+    if (!changed.length && JSON.stringify(siteRef.current) === JSON.stringify(next)) return;
+    setSite(next);
+    if (changed[0]) setPageIdState(changed[0]);
+    requestAnimationFrame(() => markForAgent(document.querySelector(`[data-page-id="${changed[0] ?? ""}"]`) ?? document.querySelector("[data-testid=creative-editor-site]"), follow.by));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [follow.version]);
+
   const save = async (): Promise<{ id: string; path?: string } | null> => {
     setSaving(true);
     try {

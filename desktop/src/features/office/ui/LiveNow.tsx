@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { Box, Clapperboard, FileText, Globe, ImageIcon, Radio, X } from "lucide-react";
 
-import { EditorFileView } from "@/features/office/editors/EditorFiles";
+import { EditorFileView, LiveFileEditor } from "@/features/office/editors/EditorFiles";
 import { blankModel, type ModelFile, parseModel } from "@/features/office/editors/modelFormat";
 import { useOpenAgentDm } from "@/features/office/lib/agentDm";
 import { type AgentPresence, type OfficeAgent, useOfficeAgents } from "@/features/office/lib/officeLink";
@@ -318,11 +318,9 @@ function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => vo
     else if (k === "video") stage = <video autoPlay className="h-full w-full" controls key={src} loop muted src={src} />;
     else if (k === "site" || k === "pdf") stage = <iframe className="h-full w-full bg-white" key={src} src={src} title={name ?? "Live"} />;
     else if (k === "editor") {
-      stage = (
-        <div className="h-full overflow-auto bg-[#f3f3f3]" key={src}>
-          <EditorFileView item={{ id: `live-${agent.id}`, title: name ?? "Live", path: p.latest.path }} />
-        </div>
-      );
+      // The real editor, following the file: the agent's changes land in
+      // place with their cursor, like a shared document.
+      stage = <LiveFileEditor key={p.latest.path} path={p.latest.path} />;
     } else if (/\.(md|txt|csv)$/i.test(p.latest.path)) stage = <TextStage src={src} />;
     else stage = <CodeStage changesFile={p.changes?.file} changesAt={p.changes?.lastAt} path={p.latest.path} src={src} />;
   }

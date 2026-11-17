@@ -745,3 +745,26 @@
   box-shadow: none;
   margin: 0;
 }
+
+/* An agent's cursor in the app's editors (editors/follow.ts): what they just
+ * changed, outlined in their colour with their name on a flag above it. */
+[data-agent-mark] {
+  position: relative;
+  outline: 2px solid var(--agent-color, #1c7ed6) !important;
+  outline-offset: 1px;
+  transition: outline-color 0.3s;
+}
+[data-agent-mark]::before {
+  content: attr(data-agent-mark);
+  position: absolute;
+  left: -2px;
+  top: -1.55em;
+  z-index: 30;
+  padding: 0 5px;
+  border-radius: 3px 3px 3px 0;
+  background: var(--agent-color, #1c7ed6);
+  color: #fff;
+  font: 600 11px/1.45em system-ui, sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+}
