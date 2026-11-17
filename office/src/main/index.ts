@@ -447,6 +447,15 @@ hookServer.managerGate = (agentId, tool, input) => {
   if (norm(target).startsWith(norm(root) + '/')) return null;
   return `You manage; floor workers do the work. Don't write ${target} yourself: hire a floor worker for it (a spawn-requests/<id>.json with the full contract), then review what they make.`;
 };
+// Codex agents each hold a copy of the Codex login on Windows; keep them in
+// step so one agent's token refresh doesn't sign out all the others.
+setInterval(() => {
+  try {
+    const n = hive.syncCodexLogins();
+    if (n) console.log(`[codex] synced the refreshed login to ${n} copy(ies)`);
+  } catch { /* next round */ }
+}, 10_000).unref?.();
+
 hookServer.onToolUse = (agentId, event, tool, input) => {
   // Record file edits (before/after) for the change viewer.
   void changeLog.handle(agentId, event, tool, input).then((recorded) => { if (recorded) broadcastPresence(); }).catch(() => undefined);

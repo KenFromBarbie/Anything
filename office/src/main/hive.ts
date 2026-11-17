@@ -2100,6 +2100,66 @@ export class HiveManager {
    *  ~/.codex/auth.json is linked in and their config.toml is copied + extended
    *  (login + model/provider/trust settings still apply).
    *  Returns the CODEX_HOME path for the caller to put in the worker's env. */
+  /** Every copy of one Codex login: its source and the agents' copies of it. */
+  private codexLoginCopies(source: string): string[] {
+    const root = this.root();
+    const out = [join(source, 'auth.json')];
+    if (!root) return out;
+    let ids: string[] = [];
+    try { ids = readdirSync(join(root, 'agents')); } catch { return out; }
+    for (const id of ids) {
+      const home = join(root, 'agents', id, '.codex');
+      let from = '';
+      try { from = readFileSync(join(home, '.buzz-auth-source'), 'utf8').trim(); } catch { continue; }
+      if (from === source) out.push(join(home, 'auth.json'));
+    }
+    return out;
+  }
+
+  /** Make every copy of one Codex login the newest one (by modified time):
+   *  a token one agent's Codex refreshed reaches the others and the source. */
+  syncCodexLogin(source: string): number {
+    const copies = this.codexLoginCopies(source).filter((f) => existsSync(f));
+    if (copies.length < 2) return 0;
+    let newest = copies[0];
+    let newestAt = 0;
+    for (const f of copies) {
+      try {
+        const at = statSync(f).mtimeMs;
+        if (at > newestAt) { newest = f; newestAt = at; }
+      } catch { /* gone */ }
+    }
+    let text: string;
+    try { text = readFileSync(newest, 'utf8'); JSON.parse(text); } catch { return 0; } // half-written: next round
+    let changed = 0;
+    for (const f of copies) {
+      if (f === newest) continue;
+      try {
+        if (readFileSync(f, 'utf8') === text) continue;
+        const tmp = `${f}.buzz-sync`;
+        writeFileSync(tmp, text, 'utf8');
+        renameSync(tmp, f);
+        changed++;
+      } catch { /* in use: next round */ }
+    }
+    return changed;
+  }
+
+  /** Keep every Codex login's copies in step (run every few seconds by main). */
+  syncCodexLogins(): number {
+    const root = this.root();
+    if (!root) return 0;
+    const sources = new Set<string>();
+    let ids: string[] = [];
+    try { ids = readdirSync(join(root, 'agents')); } catch { return 0; }
+    for (const id of ids) {
+      try { sources.add(readFileSync(join(root, 'agents', id, '.codex', '.buzz-auth-source'), 'utf8').trim()); } catch { /* not a Codex agent */ }
+    }
+    let n = 0;
+    for (const src of sources) if (src) n += this.syncCodexLogin(src);
+    return n;
+  }
+
   private installCodexHooks(dir: string, agentId: string): string {
     const home = join(dir, '.codex');
     try {
@@ -2125,6 +2185,14 @@ export class HiveManager {
         try { symlinkSync(authSrc, authDest); }
         catch { try { copyFileSync(authSrc, authDest); } catch { /* best-effort */ } }
         try { writeFileSync(marker, authHome, 'utf8'); } catch { /* best-effort */ }
+      }
+      // A COPY (Windows, no symlink privilege) goes stale: whichever Codex
+      // refreshes the login first rotates the refresh token, and every other
+      // copy (and the user's own Codex) then fails with "refresh token was
+      // already used". Start from the newest copy of this login, and
+      // syncCodexLogins() keeps them all in step while agents run.
+      else if (existsSync(authSrc) && existsSync(authDest)) {
+        try { this.syncCodexLogin(authHome); } catch { /* best-effort */ }
       }
       // The managed app-server daemon used by Codex Remote Control is launched
       // from the standalone install rooted at $CODEX_HOME/packages. Share the
@@ -2180,6 +2248,13 @@ export class HiveManager {
         for (const ev of events) {
           config += `\n[[hooks.${ev}]]\n[[hooks.${ev}.hooks]]\ntype = "command"\ncommand = ${JSON.stringify(command)}\ntimeout = 30\n`;
         }
+      }
+      // Agents don't use ChatGPT's apps connectors; on many logins they fail to
+      // start ("codex_apps … invalid_jwt") on every launch. Off for agents only.
+      if (/^\[features\]\s*$/m.test(config)) {
+        config = config.replace(/^apps\s*=.*$/m, '').replace(/^\[features\]\s*$/m, '[features]\napps = false');
+      } else {
+        config += '\n[features]\napps = false\n';
       }
       writeFileSync(join(home, 'config.toml'), config, 'utf8');
 
