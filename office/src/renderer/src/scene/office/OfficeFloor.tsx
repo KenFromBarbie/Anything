@@ -2027,6 +2027,9 @@ export function OfficeFloor() {
         }
       };
       app.ticker.add(onTick);
+      // The floor behind Anything's pages (the mirror) is pixel art seen
+      // through panels: 30 frames a second looks the same and halves its cost.
+      if (mirrorRole) app.ticker.maxFPS = 30;
       // init() is async: the floor may already be behind a fullscreen terminal by
       // the time we get here, and app.init() starts the ticker itself.
       if (pausedRef.current) app.ticker.stop();

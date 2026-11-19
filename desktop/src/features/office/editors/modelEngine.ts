@@ -281,13 +281,51 @@ export class ModelScene {
     this.ro.observe(host);
     this.resize();
     this.sync(file);
-    const loop = () => {
+    // Draw at full rate only while something changes: the camera moving, a
+    // pointer or key in the view, an edit (every public method marks the scene
+    // changed), an auto-turn. Idle, it redraws 4 times a second (late model
+    // loads land); off screen or in a hidden window, not at all. A scene with
+    // soft shadows redrawn 60 times a second for nothing was the app's
+    // largest steady cost while a 3D file sat open.
+    for (const k of Object.getOwnPropertyNames(ModelScene.prototype)) {
+      if (k === "constructor" || k === "dispose" || k === "poke") continue;
+      const d = Object.getOwnPropertyDescriptor(ModelScene.prototype, k);
+      if (!d || typeof d.value !== "function") continue;
+      const f = d.value as (...a: unknown[]) => unknown;
+      (this as unknown as Record<string, unknown>)[k] = (...a: unknown[]) => {
+        this.poke();
+        return f.apply(this, a);
+      };
+    }
+    this.orbit.addEventListener("change", () => this.poke());
+    this.gizmo.addEventListener("change", () => this.poke());
+    for (const ev of ["pointerdown", "pointermove", "wheel", "keydown"]) host.addEventListener(ev, () => this.poke(), { passive: true });
+    this.seen = new IntersectionObserver(([e]) => {
+      this.onScreen = e?.isIntersecting ?? true;
+      if (this.onScreen) this.poke();
+    });
+    this.seen.observe(host);
+    this.poke();
+    let last = 0;
+    const loop = (now: number) => {
       this.raf = requestAnimationFrame(loop);
+      if (!this.onScreen || document.hidden) return;
+      const busy = now < this.activeUntil || this.orbit.autoRotate;
+      if (!busy && now - last < 250) return;
+      last = now;
       this.orbit.update();
       this.outline?.update();
       this.renderer.render(this.scene, this.camera);
     };
-    loop();
+    this.raf = requestAnimationFrame(loop);
+  }
+
+  private activeUntil = 0;
+  private onScreen = true;
+  private seen: IntersectionObserver | null = null;
+  /** Something changed: draw at full rate for a moment. */
+  poke() {
+    this.activeUntil = performance.now() + 1500;
   }
 
   private resize() {
@@ -765,6 +803,7 @@ export class ModelScene {
 
   dispose() {
     cancelAnimationFrame(this.raf);
+    this.seen?.disconnect();
     this.ro.disconnect();
     this.gizmo.dispose();
     this.orbit.dispose();
