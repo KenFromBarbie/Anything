@@ -5502,7 +5502,7 @@ const recentHires: Array<{ by: string; at: number; is3d: boolean }> = [];
 const splitNudgedAt = new Map<string, number>();
 function noteHire(by: string, objective: string): void {
   const now = Date.now();
-  const is3d = /\.model\.json|3d|model(l)?ing|glb|cad/i.test(objective);
+  const is3d = /\.model\.json|\b3d\b|\bmodel(l)?ing\b|\bglb\b|\bcad\b/i.test(objective);
   recentHires.push({ by, at: now, is3d });
   while (recentHires.length && now - recentHires[0].at > 6 * 3600_000) recentHires.shift();
   if (!is3d || by === 'god') return;
