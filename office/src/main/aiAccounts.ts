@@ -67,7 +67,14 @@ export function accountEngineFor(provider: string | undefined): AccountEngine | 
 export function applyAccountEnv(provider: string | undefined, env: Record<string, string>, role: AccountRole = 'managers'): void {
   const engine = accountEngineFor(provider);
   if (engine === 'claude') {
-    const home = activeAccountHome('claude', role);
+    let home = activeAccountHome('claude', role);
+    // A floor-workers account that isn't signed in (no saved sign-in in its
+    // folder) would make every new worker's Claude open a browser sign-in on
+    // its own. Run them on the managers' account until it is signed in.
+    if (home && role === 'workers' && !existsSync(join(home, '.credentials.json'))) {
+      console.warn('[ai-accounts] floor-workers Claude account is not signed in; workers use the managers account');
+      home = activeAccountHome('claude', 'managers');
+    }
     if (home) env.CLAUDE_CONFIG_DIR = home;
   } else if (engine === 'kimi') {
     const home = activeAccountHome('kimi', role);
