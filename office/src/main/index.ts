@@ -37,6 +37,7 @@ import { KnowledgeManager } from './knowledge';
 import { MemoryReflector, type ReflectSettings } from './reflect';
 import { PersistStore } from './db';
 import { readAgentUsage, readContextTokens, seedSessionTranscript, resolveSessionCwd } from './transcript';
+import { claudeHomeFor } from './aiAccounts';
 import { listIssues, listCIRuns } from './github';
 import { SlackWebhookServer, SlackReplyServer, postSlackReply, type SlackEventFile } from './slack';
 import {
@@ -3055,7 +3056,10 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     const explicitSid = typeof opts.resumeSessionId === 'string' ? opts.resumeSessionId.trim() : '';
     const sid = explicitSid || (opts.resume === true ? hive.lastSession(opts.hive.id) : undefined);
     if (sid && !args.includes('--resume')) {
-      if (seedSessionTranscript(opts.cwd, sid)) {
+      const hiveMeta = opts.hive as { id?: string; isGod?: boolean; isStaff?: boolean };
+      const managerRole = !!hiveMeta.isGod || !!hiveMeta.isStaff || !!(hive.registry().agents[String(hiveMeta.id)] as { isStaff?: boolean } | undefined)?.isStaff;
+      const agentRoot = claudeHomeFor(managerRole ? 'managers' : 'workers') ?? join(homedir(), '.claude');
+      if (seedSessionTranscript(opts.cwd, sid, agentRoot)) {
         args.push('--resume', sid);
         didResume = true;
       } else if (explicitSid) {

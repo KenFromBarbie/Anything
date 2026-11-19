@@ -41,8 +41,8 @@ function legacyProjectKey(cwd: string): string {
  *  our own stale copies forever. When neither exists we return the CURRENT
  *  spelling, because callers that go on to create the directory must create the
  *  one Claude Code will actually read. */
-export function projectDir(cwd: string): string {
-  const root = path.join(claudeConfigRoot(), 'projects');
+export function projectDir(cwd: string, configRoot: string = claudeConfigRoot()): string {
+  const root = path.join(configRoot, 'projects');
   const current = path.join(root, projectKey(cwd));
   if (existsSync(current)) return current;
   // For cwd '/' the legacy key is the empty string, and path.join(root, '')
@@ -73,10 +73,12 @@ export function projectDir(cwd: string): string {
  *  crafted id like `../../x` would otherwise traverse out of the project dirs). */
 const VALID_SESSION_ID = /^[A-Za-z0-9_-]+$/;
 
-export function seedSessionTranscript(cwd: string, sessionId: string): boolean {
+export function seedSessionTranscript(cwd: string, sessionId: string, configRoot?: string): boolean {
   try {
     if (!sessionId || !VALID_SESSION_ID.test(sessionId)) return false;
-    const target = path.join(projectDir(cwd), `${sessionId}.jsonl`);
+    // Into the account folder the agent actually runs on (a floor worker's
+    // account differs from the managers'), else its --resume finds nothing.
+    const target = path.join(projectDir(cwd, configRoot), `${sessionId}.jsonl`);
     if (existsSync(target)) return true;
     // The active account's transcripts first, then the computer's own (a
     // session started before switching accounts).

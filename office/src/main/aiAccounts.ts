@@ -67,14 +67,7 @@ export function accountEngineFor(provider: string | undefined): AccountEngine | 
 export function applyAccountEnv(provider: string | undefined, env: Record<string, string>, role: AccountRole = 'managers'): void {
   const engine = accountEngineFor(provider);
   if (engine === 'claude') {
-    let home = activeAccountHome('claude', role);
-    // A floor-workers account that isn't signed in (no saved sign-in in its
-    // folder) would make every new worker's Claude open a browser sign-in on
-    // its own. Run them on the managers' account until it is signed in.
-    if (home && role === 'workers' && !existsSync(join(home, '.credentials.json'))) {
-      console.warn('[ai-accounts] floor-workers Claude account is not signed in; workers use the managers account');
-      home = activeAccountHome('claude', 'managers');
-    }
+    const home = claudeHomeFor(role);
     if (home) env.CLAUDE_CONFIG_DIR = home;
   } else if (engine === 'kimi') {
     const home = activeAccountHome('kimi', role);
@@ -87,6 +80,19 @@ export function applyAccountEnv(provider: string | undefined, env: Record<string
     const home = activeAccountHome('gemini', role);
     if (home) env.GEMINI_CLI_HOME = home;
   }
+}
+
+/** The Claude config dir an agent of this role runs on (null = the
+ *  computer's own ~/.claude). A floor-workers account that isn't signed in (no
+ *  saved sign-in in its folder) would make every new worker's Claude open a
+ *  browser sign-in on its own, so workers use the managers' account until it
+ *  is signed in. */
+export function claudeHomeFor(role: AccountRole): string | null {
+  const home = activeAccountHome('claude', role);
+  if (home && role === 'workers' && !existsSync(join(home, '.credentials.json'))) {
+    return activeAccountHome('claude', 'managers');
+  }
+  return home;
 }
 
 /** Claude Code's config dir for the active account (its transcripts live in

@@ -913,8 +913,11 @@ export function ensureClaudePermissionsAccepted(cwd?: string): void {
   }
   // An account picked in Buzz's Settings has its own config dir (settings.json
   // and .claude.json inside it), which needs the same answers.
-  const account = activeAccountHome('claude');
-  if (account) {
+  // Both of them: the managers' account and the floor workers' (Settings →
+  // AI accounts → floor workers); a worker on a new account otherwise sits on
+  // "Do you trust this folder?" with nobody to answer.
+  const accounts = new Set([activeAccountHome('claude', 'managers'), activeAccountHome('claude', 'workers')].filter((x): x is string => !!x));
+  for (const account of accounts) {
     ensureClaudeGlobalPermissions(home, account);
     if (cwd) ensureClaudeProjectTrust(home, cwd, join(account, '.claude.json'));
   }
