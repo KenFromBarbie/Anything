@@ -110,6 +110,59 @@ export function booleanGeometry(
   depth = 0,
 ): THREE.BufferGeometry | null {
   if (depth > 6) return null;
+  // Cut / join / intersect is heavy (seconds on a detailed part) and ran on
+  // every redraw source: each new version of a file an agent writes, each
+  // open view of it (editor, live stream, preview). The result only depends
+  // on the operation and the two parts (and, for a part that is itself a
+  // boolean, its own parts), so it is computed once per shape and copied.
+  const key = booleanKey(def, file, depth);
+  const hit = key ? CSG_CACHE.get(key) : undefined;
+  if (hit) {
+    CSG_CACHE.delete(key!);
+    CSG_CACHE.set(key!, hit);
+    return hit.clone();
+  }
+  const made = computeBoolean(def, file, shapeOf);
+  if (key && made) {
+    CSG_CACHE.set(key, made);
+    while (CSG_CACHE.size > 48) {
+      const old = CSG_CACHE.keys().next().value as string;
+      CSG_CACHE.get(old)?.dispose();
+      CSG_CACHE.delete(old);
+    }
+    return made.clone();
+  }
+  return made;
+}
+
+const CSG_CACHE = new Map<string, THREE.BufferGeometry>();
+
+/** What a boolean's shape depends on: the operation and both parts, with a
+ *  part that is itself a boolean described by its own parts in turn. */
+function booleanKey(def: BooleanDef, file: ModelFile, depth: number): string | null {
+  const byId = new Map(file.objects.map((o) => [o.id, o]));
+  const seen = new Set<string>();
+  const sig = (id: string, d: number): string => {
+    const o = byId.get(id);
+    if (!o || d > 8 || seen.has(id)) return `?${id}`;
+    seen.add(id);
+    const own = JSON.stringify(o);
+    const sub = o.kind === "boolean" && o.boolean ? `[${sig(o.boolean.a, d + 1)}|${sig(o.boolean.b, d + 1)}]` : "";
+    seen.delete(id);
+    return own + sub;
+  };
+  try {
+    return `${depth}:${JSON.stringify(def)}:${sig(def.a, 0)}:${sig(def.b, 0)}`;
+  } catch {
+    return null;
+  }
+}
+
+function computeBoolean(
+  def: BooleanDef,
+  file: ModelFile,
+  shapeOf: (o: SceneObject) => THREE.BufferGeometry | null,
+): THREE.BufferGeometry | null {
   const a = file.objects.find((o) => o.id === def.a);
   const b = file.objects.find((o) => o.id === def.b);
   if (!a || !b || a.id === b.id) return null;

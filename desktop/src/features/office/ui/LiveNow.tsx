@@ -77,7 +77,11 @@ export function LiveNow() {
   const now = useNow();
   const [watching, setWatching] = React.useState<string | null>(null);
   const dm = useOpenAgentDm();
-  const live = (agents as LiveAgent[]).filter((a) => a.presence && isLive(a, now));
+  // The office's own files (task board, hire requests, mail, replies) are
+  // coordination, not work to watch: agents on them aren't streams.
+  const live = (agents as LiveAgent[])
+    .filter((a) => a.presence && isLive(a, now))
+    .map((a) => (a.presence.latest && /[\\/](hive|spawn-requests|restore-requests|inbox|outbox|replies)[\\/]|[\\/]xyz\.block\.buzz\.app[\\/]|[\\/]tasks\.json$/i.test(a.presence.latest.path) ? { ...a, presence: { ...a.presence, latest: null } } : a));
   // One stream per piece of work, like a shared document: agents on the same
   // file are one stream with all of them in it.
   // Only work there is something to watch of is a stream; agents with nothing

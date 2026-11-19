@@ -143,6 +143,12 @@ export function shellReadLines(cmd: string): [number, number] | undefined {
   return undefined;
 }
 
+/** A file of the office itself (its data folder: the hive's board, tasks,
+ *  hire/restore requests, mail and replies), never a deliverable. */
+export function isOfficeFile(path: string): boolean {
+  return /[\\/](hive|spawn-requests|restore-requests|inbox|outbox|replies)[\\/]|[\\/]xyz\.block\.buzz\.app[\\/]|[\\/]tasks\.json$/i.test(path);
+}
+
 /** What one tool call means. */
 export function classify(tool: string, input: unknown): ToolCall {
   const i = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
@@ -207,6 +213,15 @@ export class PresenceTracker {
   /** A tool call starting (PreToolUse). */
   tool(agentId: string, tool: string, input: unknown, now = Date.now()): Presence {
     const c = classify(tool, input);
+    // The office's own files (the task board, hire and restore requests, mail,
+    // replies) are coordination, not work to watch: no stream, and what they
+    // say ("simulation" in a hire request) doesn't make the job a simulation.
+    if (c.wrote && isOfficeFile(c.wrote)) {
+      c.wrote = undefined;
+      c.activity = 'Messaging';
+      c.detail = undefined;
+    }
+    if (c.read && isOfficeFile(c.read)) c.read = undefined;
     let p = this.byAgent.get(agentId);
     const stale = !p || now - p.lastAt > QUIET_MS;
     if (!p || stale) {
