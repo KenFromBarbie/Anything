@@ -550,16 +550,33 @@ fn seed_home(engine: Engine, dir: &Path) {
 /// Open a terminal running the CLI's login, with the account's home set (or
 /// the CLI's normal home for "This computer").
 fn open_login_terminal(engine: Engine, home: Option<&Path>, label: &str) -> Result<(), String> {
-    let command = engine.login_command();
+    // Sign-ins always run with a debug log, so a failure ("OAuth error:
+    // aborted") says why. The log sits next to the account (or in temp).
+    let debug_log = home
+        .map(Path::to_path_buf)
+        .unwrap_or_else(std::env::temp_dir)
+        .join(format!("signin-{}-debug.log", engine.label().to_lowercase().replace(' ', "-")));
+    let owned = match engine {
+        Engine::Claude => format!(
+            "echo Debug log: \"{0}\" && claude --debug-file \"{0}\" /login",
+            debug_log.display()
+        ),
+        _ => engine.login_command().to_string(),
+    };
+    let command = owned.as_str();
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         let title = format!("Sign in to {} ({label})", engine.label());
         let mut cmd = Command::new("cmd");
-        cmd.args(["/C", "start", &title, "cmd", "/K", command])
+        // The command goes in raw: it carries its own quotes for cmd.
+        cmd.args(["/C", "start", &title, "cmd", "/K"]).raw_arg(command)
             .creation_flags(0x0800_0000);
         if let Some(home) = home {
             cmd.env(engine.home_var(), home);
+        }
+        if engine == Engine::Codex {
+            cmd.env("RUST_LOG", "debug");
         }
         cmd.spawn()
             .map_err(|e| format!("Couldn't open a terminal: {e}"))?;
