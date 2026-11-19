@@ -95,9 +95,14 @@ function byExtension(path: string): Activity | null {
 /** Refine "Writing code" from what the code is about. */
 function byContent(text: string): Activity | null {
   const t = text.toLowerCase();
-  if (/simkit.*cloth|cloth\.(drape|tshirt|skirt|body)|sewing|garment|pattern piece/.test(t)) return 'Designing clothing';
-  if (/simkit.*(hydro|aero)|hydro\.boat|aero\.(vlm|wind_tunnel|airfoil|aircraft)|wind[_ ]tunnel|cfd|simulat/.test(t)) return 'Running a simulation';
-  if (/blender|bpy\.|three\.js|gltfexporter|trimesh|glb\.scene|simkit.*(mesh|glb)|\.glb\b/.test(t)) return 'Modeling in 3D';
+  // Explicit tool calls first, then what the script makes (a 3D file it
+  // writes is 3D work even when it mentions a "simulation" or a "garment"),
+  // then loose words.
+  if (/simkit.*cloth|cloth\.(drape|tshirt|skirt|body)/.test(t)) return 'Designing clothing';
+  if (/simkit.*(hydro|aero)|hydro\.boat|aero\.(vlm|wind_tunnel|airfoil|aircraft)|wind[_ ]tunnel|\bcfd\b/.test(t)) return 'Running a simulation';
+  if (/\.model\.json|blender|bpy\.|three\.js|gltfexporter|trimesh|glb\.scene|simkit.*(mesh|glb)|\.(glb|gltf|stl|obj)\b/.test(t)) return 'Modeling in 3D';
+  if (/sewing|garment|pattern piece/.test(t)) return 'Designing clothing';
+  if (/simulat/.test(t)) return 'Running a simulation';
   if (/ffmpeg|moviepy|\.mp4\b|\.webm\b/.test(t)) return 'Editing a video';
   if (/python-pptx|pptx/.test(t)) return 'Making slides';
   if (/\bpil\b|from pil|imagemagick|\bconvert .*\.(png|jpg)|matplotlib|\.png\b/.test(t)) return 'Making an image';
@@ -146,7 +151,7 @@ export function shellReadLines(cmd: string): [number, number] | undefined {
 /** A file of the office itself (its data folder: the hive's board, tasks,
  *  hire/restore requests, mail and replies), never a deliverable. */
 export function isOfficeFile(path: string): boolean {
-  return /[\\/](hive|spawn-requests|restore-requests|inbox|outbox|replies)[\\/]|[\\/]xyz\.block\.buzz\.app[\\/]|[\\/]tasks\.json$/i.test(path);
+  return /[\\/]hive[\\/](?!shared[\\/])|[\\/](spawn-requests|restore-requests|inbox|outbox|replies)[\\/]|[\\/]tasks\.json$/i.test(path);
 }
 
 /** What one tool call means. */
