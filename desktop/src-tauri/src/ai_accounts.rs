@@ -93,7 +93,7 @@ impl Engine {
     }
     fn login_command(self) -> &'static str {
         match self {
-            Engine::Claude => "claude /login",
+            Engine::Claude => "claude auth login",
             Engine::Codex => "codex login",
             Engine::Gemini => "agy",
             Engine::Kimi => "kimi login",
@@ -558,7 +558,7 @@ fn open_login_terminal(engine: Engine, home: Option<&Path>, label: &str) -> Resu
         .join(format!("signin-{}-debug.log", engine.label().to_lowercase().replace(' ', "-")));
     let owned = match engine {
         Engine::Claude => format!(
-            "echo Debug log: \"{0}\" && claude --debug-file \"{0}\" /login",
+            "echo Debug log: \"{0}\" && claude --debug-file \"{0}\" auth login",
             debug_log.display()
         ),
         _ => engine.login_command().to_string(),
