@@ -4950,6 +4950,7 @@ async function processSpawnRequest(filePath: string): Promise<void> {
 
   const objective = typeof raw.objective === 'string' ? raw.objective.trim() : '';
   if (!objective) { fail('missing "objective"'); return; }
+  if (typeof raw.requestedBy === 'string') noteHire(raw.requestedBy, objective);
 
   const reqId = (typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : basename(filePath).replace(/\.json$/i, ''))
     .replace(/[^A-Za-z0-9._-]/g, '-');
@@ -5493,6 +5494,42 @@ function runManagerTaskBeat(): void {
   }
 }
 let managerTaskTimer: ReturnType<typeof setInterval> | null = null;
+
+/** 3D work hired out whole, one worker at a time (r3, r4, r5… each redoing the
+ *  entire model) instead of split by component. Seen per hirer; when a
+ *  manager's 3D hires come one at a time, tell them once per hour to split. */
+const recentHires: Array<{ by: string; at: number; is3d: boolean }> = [];
+const splitNudgedAt = new Map<string, number>();
+function noteHire(by: string, objective: string): void {
+  const now = Date.now();
+  const is3d = /\.model\.json|3d|model(l)?ing|glb|cad/i.test(objective);
+  recentHires.push({ by, at: now, is3d });
+  while (recentHires.length && now - recentHires[0].at > 6 * 3600_000) recentHires.shift();
+  if (!is3d || by === 'god') return;
+  // Siblings: other hires by the same manager within 3 minutes of this one.
+  const siblings = recentHires.filter((h) => h.by === by && Math.abs(h.at - now) < 180_000).length;
+  if (siblings > 1) return;
+  // A lone 3D hire is fine once; the pattern is a second lone 3D hire.
+  const loneBefore = recentHires.filter((h) => h.by === by && h.is3d && now - h.at > 180_000).length;
+  if (!loneBefore) return;
+  if (now - (splitNudgedAt.get(by) ?? 0) < 3600_000) return;
+  splitNudgedAt.set(by, now);
+  setTimeout(() => {
+    // Re-check after the 3-minute window: maybe the siblings came after all.
+    if (recentHires.filter((h) => h.by === by && Math.abs(h.at - now) < 180_000).length > 1) return;
+    try {
+      hive.send({
+        to: by,
+        act: 'request',
+        subject: 'Split the 3D work: one worker per component, at once',
+        body: 'You hired one worker for the whole 3D model again, after an earlier one (each round redoing it alone). Split it instead: one floor worker per component (e.g. hull, frame and wheels, drivetrain, seat and interior, battery), each writing its own .model.json, plus one who assembles them into the main .model.json by importing the parts. Hire them all now, in parallel, through spawn-requests, give each a first name, and review each part. For a revision, hire one worker per component that needs changing, never one worker to redo everything.',
+        requires_reply: false,
+      }, 'harness');
+    } catch (e) {
+      console.error('[split nudge]', e);
+    }
+  }, 180_000);
+}
 
 function armAlwaysOnBeats(): void {
   if (managerTaskTimer) clearInterval(managerTaskTimer);
