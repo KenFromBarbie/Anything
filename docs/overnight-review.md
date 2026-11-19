@@ -17,6 +17,8 @@ A running log from an unattended night of testing, fixing and reviewing. Newest 
 | 3D editor | The agent's "cursor" was a corner tag for 6 s | An arrow and name pinned on the changed part, following the camera. |
 | Performance | 15–16 s freezes | Boolean (Cut/Join/Intersect) results are cached by shape instead of recomputed for every view and version. |
 | Performance | The 3D engine redrew 60×/s while idle; the background floor ran full rate | Draw on demand (rest when idle or off screen); background floor at 30 fps. |
+| Live view | Build scripts for 3D parts were labelled "Making an image", "Running a simulation" or "Designing clothing" from loose words in the script | A script that writes a 3D file is 3D work; explicit simulation/cloth calls still win (loads at the next restart). |
+| Live view | My bookkeeping filter also hid real work in the hive's shared folder (caught by `presence.test.cjs`) | `hive/shared` counts as work. |
 | Learn | Lessons could only be HTML or PDF | Editor-built lessons (slides, documents, sheets, 3D) open in the editors; a per-course "My notes" document the tutor reads; the Office's guide builds lessons with the editors. |
 
 ## Open findings
