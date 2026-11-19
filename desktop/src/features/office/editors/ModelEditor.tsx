@@ -125,7 +125,7 @@ export function ModelEditor({
   // An agent's new version of the open file: in place; the part they changed
   // is selected, with their name on the viewport.
   const followed = React.useContext(EditorFollowContext);
-  const [agentNote, setAgentNote] = React.useState<{ name: string; color: string; what: string } | null>(null);
+  const [agentNote, setAgentNote] = React.useState<{ name: string; color: string; what: string; id?: string } | null>(null);
   React.useEffect(() => {
     const next = followed.file;
     if (!next || next.type !== "model") return;
@@ -133,8 +133,10 @@ export function ModelEditor({
     setModel(next);
     const first = next.objects.find((o) => o.id === changed[0]);
     if (first) setSel(first.id);
-    setAgentNote({ name: followed.by?.name ?? "An agent", color: followed.by?.color ?? "#1c7ed6", what: first ? first.name : "the scene" });
-    const t = setTimeout(() => setAgentNote(null), 6000);
+    setAgentNote({ name: followed.by?.name ?? "An agent", color: followed.by?.color ?? "#1c7ed6", what: first ? first.name : "the scene", id: first?.id });
+    // The cursor stays on the part while the agent works (until their next
+    // change, or a minute of quiet).
+    const t = setTimeout(() => setAgentNote(null), 60000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [followed.version]);
@@ -844,12 +846,9 @@ export function ModelEditor({
               ) : (
                 <Viewport label={`User Perspective  (${frame})${obj ? ` ${obj.name}` : ""}`} register={register} view="perspective" model={modelRef} />
               )}
-              {/* An agent's cursor: who just changed what (the part is selected). */}
-              {agentNote ? (
-                <div className="pointer-events-none absolute right-3 top-2 z-10 flex items-center gap-1.5 rounded px-2 py-0.5 text-[11px] font-semibold text-white shadow" style={{ background: agentNote.color }}>
-                  {agentNote.name} · {agentNote.what}
-                </div>
-              ) : null}
+              {/* An agent's cursor: pinned on the part they just changed (in the
+                  single view), else a flag in the corner. */}
+              {agentNote ? <AgentPointer engine={four ? null : () => engines.current.get("perspective") ?? null} note={agentNote} /> : null}
             </div>
             {/* command line */}
             <div className="shrink-0 border-t border-black/60 bg-[#232323] px-2 py-1 font-mono text-[11px]">
@@ -1771,6 +1770,44 @@ function garmentPreview(s: Record<string, string | number>): SceneObject[] {
 }
 
 /** One 3D view (perspective, or Rhino's flat Top / Front / Right). */
+/** The agent's cursor in the 3D view, like a collaborator's in a shared
+ *  document: an arrow and their name, following the changed part on screen
+ *  as the camera moves. */
+function AgentPointer({ note, engine }: { note: { name: string; color: string; what: string; id?: string }; engine: (() => ModelScene | null) | null }) {
+  const [at, setAt] = React.useState<{ x: number; y: number } | null>(null);
+  React.useEffect(() => {
+    if (!engine || !note.id) {
+      setAt(null);
+      return;
+    }
+    let raf = 0;
+    const tick = () => {
+      const p = engine()?.screenOf(note.id!) ?? null;
+      setAt((old) => (old && p && Math.abs(old.x - p.x) < 0.5 && Math.abs(old.y - p.y) < 0.5 ? old : p));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [engine, note.id]);
+  if (!at) {
+    return (
+      <div className="pointer-events-none absolute right-3 top-2 z-10 flex items-center gap-1.5 rounded px-2 py-0.5 text-[11px] font-semibold text-white shadow" data-testid="agent-pointer" style={{ background: note.color }}>
+        {note.name} · {note.what}
+      </div>
+    );
+  }
+  return (
+    <div className="pointer-events-none absolute z-10" data-testid="agent-pointer" style={{ left: at.x, top: at.y, transition: "left 120ms linear, top 120ms linear" }}>
+      <svg className="drop-shadow" height="18" viewBox="0 0 16 18" width="16">
+        <path d="M1 1 L1 15 L5 11 L8 17 L10.5 16 L7.6 10.2 L13 10.2 Z" fill={note.color} stroke="white" strokeWidth="1.2" />
+      </svg>
+      <div className="ml-3 -mt-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-semibold text-white shadow" style={{ background: note.color }}>
+        {note.name} · {note.what}
+      </div>
+    </div>
+  );
+}
+
 function Viewport({
   view,
   label,

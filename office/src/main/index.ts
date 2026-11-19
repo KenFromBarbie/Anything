@@ -5454,7 +5454,49 @@ function runWorkerWakeBeat(): void {
  *  Guarded (clear-then-set) so a re-bootstrap (changeHome recovery) OR a
  *  powerMonitor resume can't stack duplicate timers — these are setInterval
  *  handles that freeze during true system sleep and must be re-armed on wake. */
+/** Executives plan and review; floor workers do the work. A board task left
+ *  assigned to an executive (or the CEO) can never be done (the harness
+ *  refuses their edits to work files), so it would sit at "doing" forever with
+ *  one worker or none on it. Tell them once per task to hand it to floor
+ *  workers, split by component. The mail also wakes a resting executive. */
+const managerTaskNudged = new Set<string>();
+function runManagerTaskBeat(): void {
+  const reg = hive.registry();
+  const managers = Object.values(reg.agents ?? {}).filter((a) => (a.isStaff || a.isGod) && !a.archived && a.status !== 'gone');
+  if (!managers.length) return;
+  const byKey = new Map<string, (typeof managers)[number]>();
+  for (const m of managers) {
+    byKey.set(String(m.id).toLowerCase(), m);
+    if (m.name) byKey.set(String(m.name).toLowerCase(), m);
+  }
+  const list = ((hive.tasks() as { tasks?: Array<Record<string, unknown>> })?.tasks ?? []);
+  for (const t of list) {
+    const status = String(t.status ?? '').toLowerCase();
+    if (!['todo', 'doing', 'open', 'in_progress', 'in-progress'].includes(status)) continue;
+    const who = String(t.assignee ?? t.owner ?? '').toLowerCase();
+    const m = byKey.get(who);
+    if (!m) continue;
+    const key = `${m.id}:${String(t.id)}`;
+    if (managerTaskNudged.has(key)) continue;
+    managerTaskNudged.add(key);
+    try {
+      hive.send({
+        to: m.id,
+        act: 'request',
+        subject: `Task ${String(t.id)} is assigned to you: hand it to floor workers`,
+        body: `Board task ${String(t.id)} ("${String(t.title ?? '').slice(0, 160)}") is "${status}" and assigned to you, but you plan and review: the harness refuses your edits to work files, so it can't get done this way. Split it into parts now and hire one floor worker per part, all at once (a 3D model: one worker per component, each with its own .model.json, plus one who assembles them), via spawn-requests as your instructions describe. Set each sub-task's "assignee" to its worker, then review what they make.`,
+        requires_reply: false,
+      }, 'harness');
+    } catch (e) {
+      console.error('[manager-task beat]', e);
+    }
+  }
+}
+let managerTaskTimer: ReturnType<typeof setInterval> | null = null;
+
 function armAlwaysOnBeats(): void {
+  if (managerTaskTimer) clearInterval(managerTaskTimer);
+  managerTaskTimer = setInterval(() => { try { runManagerTaskBeat(); } catch (e) { console.error('[manager-task beat]', e); } }, 120_000);
   if (fleetTimer) clearInterval(fleetTimer);
   writeFleetSnapshot();
   fleetTimer = setInterval(writeFleetSnapshot, 8_000);

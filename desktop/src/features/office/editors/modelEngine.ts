@@ -555,6 +555,22 @@ export class ModelScene {
     this.gizmo.setMode(m);
   }
 
+  /** Where an object sits on screen (px within the viewport, at the top of
+   *  its bounds), or null when it's missing or behind the camera. Used to pin
+   *  an agent's cursor on the part they changed. */
+  screenOf(id: string): { x: number; y: number } | null {
+    const n = this.nodes.get(id);
+    if (!n || !n.visible) return null;
+    const box = new THREE.Box3().setFromObject(n);
+    if (box.isEmpty()) return null;
+    const c = box.getCenter(new THREE.Vector3());
+    c.y = box.max.y;
+    const v = c.project(this.camera);
+    if (v.z > 1 || v.z < -1) return null;
+    const r = this.host.getBoundingClientRect();
+    return { x: ((v.x + 1) / 2) * r.width, y: ((1 - v.y) / 2) * r.height };
+  }
+
   /** Frame the camera on an object or on everything. */
   focus(id?: string | null) {
     const box = new THREE.Box3();

@@ -4,6 +4,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { Box, Clapperboard, FileText, Globe, ImageIcon, Radio, X } from "lucide-react";
 
 import { EditorFileView, LiveFileEditor } from "@/features/office/editors/EditorFiles";
+import { ModelScene } from "@/features/office/editors/modelEngine";
 import { blankModel, type ModelFile, parseModel } from "@/features/office/editors/modelFormat";
 import { useOpenAgentDm } from "@/features/office/lib/agentDm";
 import { type AgentPresence, callOffice, type OfficeAgent, useOfficeAgents } from "@/features/office/lib/officeLink";
@@ -185,7 +186,9 @@ function LiveCard({ agents, onWatch, onMessage }: { agents: LiveAgent[]; onWatch
   const p = agent.presence;
   const names = agents.map((a) => a.name).join(", ");
   const now = useNow(1000);
-  const kind = p.latest?.kind;
+  const rawKind = p.latest?.kind;
+  // An editor file shows as its own app: havik.model.json is 3D, not "Editor".
+  const kind = rawKind === "editor" && /\.model\.json$/i.test(p.latest?.path ?? "") ? "model" : rawKind;
   const Icon = kind ? KIND_ICON[kind] : Radio;
   const app = kind ? KIND_APP[kind] : { name: "Terminal", color: "#5865F2" };
   const file = p.latest ? p.latest.path.replace(/\\/g, "/").split("/").pop() : null;
@@ -254,6 +257,7 @@ function LiveThumb({ latest, fallback }: { latest: Presence["latest"] | null; fa
   if (k === "site" || k === "pdf") {
     return <iframe className="pointer-events-none h-[400%] w-[400%] origin-top-left border-0 bg-white" key={src} sandbox="" src={src} style={{ transform: "scale(0.25)" }} tabIndex={-1} title="Live" />;
   }
+  if (k === "editor" && /\.model\.json$/i.test(latest.path)) return <LiveModelThumb mtime={f.mtime} path={latest.path} />;
   if (k === "editor") {
     return (
       <div className="pointer-events-none relative h-full w-full overflow-hidden bg-white" key={src}>
@@ -269,6 +273,48 @@ function LiveThumb({ latest, fallback }: { latest: Presence["latest"] | null; fa
     );
   }
   return <TextThumb src={src} />;
+}
+
+/** A 3D scene an agent is building, rendered live and slowly turning (an
+ *  agent's file has no saved preview picture). Reloads on each new version. */
+function LiveModelThumb({ path, mtime }: { path: string; mtime: number }) {
+  const host = React.useRef<HTMLDivElement>(null);
+  const engine = React.useRef<ModelScene | null>(null);
+  const [scene, setScene] = React.useState<ModelFile | null>(null);
+  React.useEffect(() => {
+    let alive = true;
+    fetch(`${convertFileSrc(path)}?v=${mtime}`)
+      .then((r) => r.json())
+      .then((j) => alive && setScene(parseModel(j)))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [path, mtime]);
+  React.useEffect(() => {
+    if (!host.current) return;
+    const e = new ModelScene(host.current, blankModel());
+    e.gizmo.getHelper().visible = false;
+    e.gizmo.enabled = false;
+    e.orbit.autoRotate = true;
+    e.orbit.autoRotateSpeed = 1.2;
+    engine.current = e;
+    return () => {
+      engine.current = null;
+      e.dispose();
+    };
+  }, []);
+  const framed = React.useRef(false);
+  React.useEffect(() => {
+    const e = engine.current;
+    if (!e || !scene) return;
+    e.sync(scene);
+    if (!framed.current) {
+      framed.current = true;
+      requestAnimationFrame(() => e.focus());
+    }
+  }, [scene]);
+  return <div className="pointer-events-none h-full w-full" ref={host} />;
 }
 
 /** The end of a text/code file, like a terminal. */
