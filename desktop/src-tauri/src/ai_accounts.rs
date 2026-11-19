@@ -569,8 +569,9 @@ fn open_login_terminal(engine: Engine, home: Option<&Path>, label: &str) -> Resu
         use std::os::windows::process::CommandExt;
         let title = format!("Sign in to {} ({label})", engine.label());
         let mut cmd = Command::new("cmd");
-        // The command goes in raw: it carries its own quotes for cmd.
-        cmd.args(["/C", "start", &title, "cmd", "/K"]).raw_arg(command)
+        // The command goes in raw, wrapped in one more pair of quotes: with more
+        // than two quotes on the line, cmd /K strips the first and the last.
+        cmd.args(["/C", "start", &title, "cmd", "/K"]).raw_arg(format!("\"{command}\""))
             .creation_flags(0x0800_0000);
         if let Some(home) = home {
             cmd.env(engine.home_var(), home);
