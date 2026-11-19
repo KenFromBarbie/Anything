@@ -686,6 +686,18 @@ pub fn learn_progress_read(app: AppHandle, id: String) -> Result<serde_json::Val
         .unwrap_or(serde_json::Value::Null))
 }
 
+/// A course's plan (syllabus.md in its folder, written by the Office), as
+/// text; empty when there is none yet. Capped so a runaway file can't stall
+/// the page.
+#[tauri::command]
+pub fn learn_syllabus_read(app: AppHandle, id: String) -> Result<String, String> {
+    let mut registry = load(&app);
+    let project = find(&mut registry, &id)?;
+    let path = PathBuf::from(&project.path).join("syllabus.md");
+    let text = std::fs::read_to_string(path).unwrap_or_default();
+    Ok(text.chars().take(200_000).collect())
+}
+
 /// Save a course's progress and mark the course touched.
 #[tauri::command]
 pub fn learn_progress_write(

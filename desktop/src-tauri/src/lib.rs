@@ -622,6 +622,7 @@ pub fn run() {
             research::research_pick_root,
             research::research_save_file,
             research::learn_progress_read,
+            research::learn_syllabus_read,
             research::learn_progress_write,
             lesson_voice::lesson_voices,
             lesson_voice::lesson_voice_install,

@@ -33,6 +33,8 @@ export const learnApi = {
     EMPTY_PROGRESS,
   saveProgress: (id: string, progress: CourseProgress) =>
     invokeTauri<void>("learn_progress_write", { id, progress }),
+  /** The course's plan (syllabus.md), "" until the Office writes one. */
+  syllabus: (id: string) => invokeTauri<string>("learn_syllabus_read", { id }),
 };
 
 export function useCourseProgress(id: string | null) {

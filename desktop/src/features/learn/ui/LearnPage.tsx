@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
   ArrowLeft,
@@ -9,6 +9,7 @@ import {
   Circle,
   FolderOpen,
   GraduationCap,
+  ListChecks,
   Loader2,
   MessageSquare,
   NotebookPen,
@@ -65,6 +66,7 @@ import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { PageHeader, SubsectionLabel } from "@/shared/ui/PageHeader";
 import { Textarea } from "@/shared/ui/textarea";
+import { Markdown } from "@/shared/ui/markdown";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -370,7 +372,7 @@ function CourseView({
   const [picked, setPicked] = React.useState<string | null>(null);
   const current = lessons.find((l) => l.key === picked) ?? firstOpen ?? null;
   const [request, setRequest] = React.useState("");
-  const [pane, setPane] = React.useState<"lesson" | "notes">("lesson");
+  const [pane, setPane] = React.useState<"lesson" | "plan" | "notes">("lesson");
 
   const ask = useMutation({
     mutationFn: (text: string) => askForLesson(course, text),
@@ -554,6 +556,7 @@ function CourseView({
             {(
               [
                 ["lesson", "Lesson", Presentation],
+                ["plan", "Plan", ListChecks],
                 ["notes", "My notes", NotebookPen],
               ] as const
             ).map(([id, label, Icon]) => (
@@ -576,6 +579,8 @@ function CourseView({
           </div>
           {pane === "notes" ? (
             <CourseNotes course={course} />
+          ) : pane === "plan" ? (
+            <CoursePlan course={course} />
           ) : current ? (
             <LessonPlayer
               key={current.lesson.id}
@@ -763,6 +768,34 @@ function CourseNotes({ course }: { course: Course }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The course's plan, as the Office wrote it (syllabus.md): the lessons in
+ *  order and what the learner can do after each. Re-read every minute. */
+function CoursePlan({ course }: { course: Course }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["learn", "syllabus", course.id],
+    queryFn: () => learnApi.syllabus(course.id),
+    refetchInterval: 60_000,
+  });
+  return (
+    <div className="min-h-0 flex-1 overflow-auto px-6 py-5" data-testid="learn-plan">
+      {isLoading ? (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading the plan…
+        </p>
+      ) : error ? (
+        <p className="text-sm text-muted-foreground">{errorText(error)}</p>
+      ) : data?.trim() ? (
+        <div className="prose prose-sm max-w-3xl dark:prose-invert">
+          <Markdown content={data} />
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">The Office hasn't written the plan yet. It appears here as soon as it has.</p>
+      )}
     </div>
   );
 }
