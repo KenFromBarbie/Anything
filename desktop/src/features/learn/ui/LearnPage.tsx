@@ -11,6 +11,8 @@ import {
   GraduationCap,
   Loader2,
   MessageSquare,
+  NotebookPen,
+  Presentation,
   Send,
   Sparkles,
 } from "lucide-react";
@@ -54,6 +56,10 @@ import {
   useAttachments,
 } from "@/features/research/ui/Attachments";
 import { ThemedFrame } from "@/features/office/ui/ThemedFrame";
+import { EditorFileView } from "@/features/office/editors/EditorFiles";
+import { docExtensions } from "@/features/office/editors/docExtensions";
+import { editorKindOf } from "@/features/office/editors/formats";
+import { EditorContent, useEditor } from "@tiptap/react";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
@@ -364,6 +370,7 @@ function CourseView({
   const [picked, setPicked] = React.useState<string | null>(null);
   const current = lessons.find((l) => l.key === picked) ?? firstOpen ?? null;
   const [request, setRequest] = React.useState("");
+  const [pane, setPane] = React.useState<"lesson" | "notes">("lesson");
 
   const ask = useMutation({
     mutationFn: (text: string) => askForLesson(course, text),
@@ -543,7 +550,33 @@ function CourseView({
         </aside>
 
         <section className="flex min-h-[24rem] flex-col overflow-hidden rounded-2xl border border-border/70 bg-card">
-          {current ? (
+          <div className="flex items-center gap-1 border-b border-border/60 px-2 pt-2" role="tablist">
+            {(
+              [
+                ["lesson", "Lesson", Presentation],
+                ["notes", "My notes", NotebookPen],
+              ] as const
+            ).map(([id, label, Icon]) => (
+              <button
+                aria-selected={pane === id}
+                className={cn(
+                  "-mb-px flex items-center gap-1.5 rounded-t-lg border border-transparent px-3 py-1.5 text-sm",
+                  pane === id ? "border-border/60 border-b-card bg-card font-medium" : "text-muted-foreground hover:text-foreground",
+                )}
+                data-testid={`learn-pane-${id}`}
+                key={id}
+                onClick={() => setPane(id)}
+                role="tab"
+                type="button"
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+          {pane === "notes" ? (
+            <CourseNotes course={course} />
+          ) : current ? (
             <LessonPlayer
               key={current.lesson.id}
               lesson={current.lesson}
@@ -625,7 +658,13 @@ function LessonPlayer({
           </Button>
         )}
       </div>
-      {src && lesson.kind === "html" ? (
+      {lesson.path && editorKindOf(lesson.path) ? (
+        // Built in the app's editors (a deck, a reading, a practice sheet, a
+        // 3D model): shown as it is, with "Edit in …" to work in it.
+        <div className="min-h-0 flex-1 overflow-hidden" data-testid="learn-editor-lesson">
+          <EditorFileView item={{ id: lesson.id, title: lesson.title, path: lesson.path, series: lesson.series }} />
+        </div>
+      ) : src && lesson.kind === "html" ? (
         <ThemedFrame
           className="min-h-0 w-full flex-1"
           ref={frame}
@@ -644,5 +683,60 @@ function LessonPlayer({
         </p>
       )}
     </>
+  );
+}
+
+/** The learner's notes for a course, written in the app's document editor.
+ *  Saved (as they type) into the course's progress.json, which the tutor
+ *  reads when planning the next lesson. */
+function CourseNotes({ course }: { course: Course }) {
+  const client = useQueryClient();
+  const { data: progress = EMPTY_PROGRESS, isLoading } = useCourseProgress(course.id);
+  const [state, setState] = React.useState<"saved" | "saving" | "error">("saved");
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latest = React.useRef(progress);
+  latest.current = progress;
+  const save = React.useCallback(
+    (html: string) => {
+      if (timer.current) clearTimeout(timer.current);
+      setState("saving");
+      timer.current = setTimeout(() => {
+        const next: CourseProgress = { ...latest.current, notes: { html, updatedAt: Date.now() } };
+        client.setQueryData(progressKey(course.id), next);
+        learnApi
+          .saveProgress(course.id, next)
+          .then(() => setState("saved"))
+          .catch(() => setState("error"));
+      }, 800);
+    },
+    [client, course.id],
+  );
+  React.useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  const editor = useEditor(
+    {
+      extensions: docExtensions(),
+      content: progress.notes?.html ?? "<h2>My notes</h2><p></p>",
+      onUpdate: ({ editor: e }) => save(e.getHTML()),
+    },
+    // Load once the progress is in; after that the editor owns the text.
+    [isLoading],
+  );
+  return (
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="learn-notes">
+      <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2 text-xs text-muted-foreground">
+        <NotebookPen className="h-3.5 w-3.5" />
+        <span className="flex-1">Your notes for this course. The tutor reads them when planning your next lesson.</span>
+        <span className="tabular-nums">{state === "saving" ? "Saving…" : state === "error" ? "Couldn't save" : "Saved"}</span>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto bg-[#f3f3f3] py-6 dark:bg-[#1f1f1f]">
+        <div className="mx-auto max-w-[21cm] bg-white px-12 py-10 text-[#1f1f1f] shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.12)]">
+          <div className="office-page min-h-[20rem] text-[11pt] leading-[1.45] [font-family:Calibri,Aptos,'Segoe_UI',sans-serif]">
+            {isLoading ? null : <EditorContent editor={editor} />}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

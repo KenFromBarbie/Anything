@@ -25,6 +25,9 @@ export type LessonProgress = {
 export type CourseProgress = {
   lessons: Record<string, LessonProgress>;
   updatedAt: number;
+  /** The learner's own notes for the course (a document, as HTML), kept in
+   *  progress.json so the tutor reads them too. */
+  notes?: { html: string; updatedAt: number };
 };
 
 export type LearnReport = {
@@ -102,6 +105,7 @@ export function addReport(
     updatedAt: now,
   };
   return {
+    ...progress,
     lessons: { ...progress.lessons, [lesson.id]: next },
     updatedAt: now,
   };
