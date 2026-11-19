@@ -579,14 +579,6 @@ fn open_login_terminal(engine: Engine, home: Option<&Path>, label: &str) -> Resu
         if engine == Engine::Codex {
             cmd.env("RUST_LOG", "debug");
         }
-        // Claude's sign-in must reach Anthropic directly: through the local
-        // relay (which re-signs Anthropic hosts) the code exchange is refused
-        // and the CLI reports "OAuth error: aborted". The agents keep it.
-        if engine == Engine::Claude {
-            for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "NODE_EXTRA_CA_CERTS"] {
-                cmd.env_remove(key);
-            }
-        }
         cmd.spawn()
             .map_err(|e| format!("Couldn't open a terminal: {e}"))?;
         Ok(())
