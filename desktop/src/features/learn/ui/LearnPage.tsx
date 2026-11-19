@@ -730,6 +730,32 @@ function CourseNotes({ course }: { course: Course }) {
         <span className="flex-1">Your notes for this course. The tutor reads them when planning your next lesson.</span>
         <span className="tabular-nums">{state === "saving" ? "Saving…" : state === "error" ? "Couldn't save" : "Saved"}</span>
       </div>
+      {editor ? (
+        <div className="flex flex-wrap items-center gap-0.5 border-b border-border/60 px-3 py-1" data-testid="learn-notes-toolbar">
+          {(
+            [
+              ["Heading", "H", () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive("heading", { level: 2 })],
+              ["Bold", "B", () => editor.chain().focus().toggleBold().run(), editor.isActive("bold")],
+              ["Italic", "I", () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic")],
+              ["Bulleted list", "•", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList")],
+              ["Numbered list", "1.", () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList")],
+            ] as const
+          ).map(([label, glyph, run, on]) => (
+            <button
+              aria-label={label}
+              aria-pressed={on}
+              className={cn("h-7 min-w-7 rounded px-2 text-sm font-semibold", on ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60")}
+              key={label}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={run}
+              title={label}
+              type="button"
+            >
+              {glyph}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1 overflow-auto bg-[#f3f3f3] py-6 dark:bg-[#1f1f1f]">
         <div className="mx-auto max-w-[21cm] bg-white px-12 py-10 text-[#1f1f1f] shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_2px_8px_rgba(0,0,0,0.12)]">
           <div className="office-page min-h-[20rem] text-[11pt] leading-[1.45] [font-family:Calibri,Aptos,'Segoe_UI',sans-serif]">
