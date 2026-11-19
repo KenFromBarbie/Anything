@@ -131,15 +131,41 @@ type Stream = { key: string; agents: LiveAgent[] };
 /** Live agents by the file they're on (the most recently active first). */
 function groupByFile(live: LiveAgent[]): Stream[] {
   const norm = (x: string) => x.split(String.fromCharCode(92)).join("/").toLowerCase();
+  const dirOf = (x: string) => norm(x).replace(/\/[^/]*$/, "");
+  const is3d = (l: AgentPresence["latest"] | undefined) => !!l && (l.kind === "model" || (l.kind === "editor" && /\.model\.json$/i.test(l.path)));
+  // 3D work is one stream per model, like one shared editor: the main
+  // .model.json someone is building, and every agent working on a 3D file in
+  // its folder (a part, a reference .glb, a review render) joins it.
+  const mains = live
+    .map((a) => a.presence.latest)
+    .filter((l): l is NonNullable<AgentPresence["latest"]> => !!l && /\.model\.json$/i.test(l.path))
+    .map((l) => norm(l.path));
+  const mainFor = (path: string): string | null => {
+    const d = dirOf(path);
+    // The closest main model whose folder holds this file (deepest first).
+    let best: string | null = null;
+    for (const m of mains) {
+      const md = dirOf(m);
+      if ((d === md || d.startsWith(`${md}/`)) && (!best || md.length > dirOf(best).length)) best = m;
+    }
+    return best;
+  };
   const by = new Map<string, LiveAgent[]>();
   for (const a of live) {
-    const key = a.presence.latest ? `file:${norm(a.presence.latest.path)}` : `agent:${a.id}`;
+    const l = a.presence.latest;
+    const main = l && is3d(l) ? mainFor(l.path) : null;
+    const key = l ? `file:${main ?? norm(l.path)}` : `agent:${a.id}`;
     by.set(key, [...(by.get(key) ?? []), a]);
   }
-  return [...by.entries()].map(([key, list]) => ({
-    key,
-    agents: [...list].sort((x, y) => y.presence.lastAt - x.presence.lastAt),
-  }));
+  return [...by.entries()].map(([key, list]) => {
+    const file = key.slice(5);
+    // The agent on the stream's own file leads it (its editor is what shows).
+    const onFile = (a: LiveAgent) => (a.presence.latest && norm(a.presence.latest.path) === file ? 1 : 0);
+    return {
+      key,
+      agents: [...list].sort((x, y) => onFile(y) - onFile(x) || y.presence.lastAt - x.presence.lastAt),
+    };
+  });
 }
 
 /** Overlapping initials, like the people in a shared document. */
@@ -411,10 +437,22 @@ function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => vo
           <div className="relative min-h-0 flex-1">
             {view === "changes" ? <ChangesFeed changes={p.changes ?? null} roots={p.dirs} /> : view === "terminal" ? <TerminalStage agentId={agent.id} /> : stage}
             {/* Who's at work and on what, like a cursor in a shared document. */}
-            <div className="pointer-events-none absolute bottom-3 left-3 z-20 flex max-w-[70%] items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold text-white shadow-lg" style={{ background: agent.accent?.startsWith("#") ? agent.accent : "#5865f2" }}>
-              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full bg-white", working && "animate-pulse")} />
-              <span className="shrink-0">{agent.name}</span>
-              <span className="truncate font-normal opacity-90">· {p.steps.at(-1)?.text ?? p.activity}</span>
+            {/* Everyone in this stream (a model's parts and reviewers too), each
+                with what they are on now. */}
+            <div className="pointer-events-none absolute bottom-3 left-3 z-20 flex max-w-[70%] flex-col items-start gap-1">
+              {agents.map((a) => {
+                const ap = a.presence;
+                const onOther = ap.latest && p.latest && ap.latest.path !== p.latest.path ? ap.latest.path.split(String.fromCharCode(92)).join("/").split("/").pop() : null;
+                return (
+                  <div className="flex max-w-full items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold text-white shadow-lg" key={a.id} style={{ background: a.accent?.startsWith("#") ? a.accent : "#5865f2" }}>
+                    <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full bg-white", isLive(a, now) && "animate-pulse")} />
+                    <span className="shrink-0">{a.name}</span>
+                    <span className="truncate font-normal opacity-90">
+                      {onOther ? `· on ${onOther} ` : ""}· {ap.steps.at(-1)?.text ?? ap.activity}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
