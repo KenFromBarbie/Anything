@@ -89,7 +89,22 @@ export function LiveNow() {
   const groups = groupByFile(live);
   const streams = groups.filter((g) => g.key.startsWith("file:"));
   const busy = groups.filter((g) => !g.key.startsWith("file:")).flatMap((g) => g.agents);
-  const watched = streams.find((g) => g.key === watching) ?? null;
+  // Once you're watching, it stays open until you close it: when the agents
+  // finish a step (idle) the stream leaves "Live now", but the view keeps
+  // showing their file and last steps instead of vanishing mid-look.
+  const lastWatched = React.useRef<Stream | null>(null);
+  const liveWatched = streams.find((g) => g.key === watching) ?? null;
+  if (!watching) lastWatched.current = null;
+  else if (liveWatched) lastWatched.current = liveWatched;
+  const watched =
+    liveWatched ??
+    (watching && lastWatched.current
+      ? {
+          ...lastWatched.current,
+          // Fresh presence for the same agents, live or not.
+          agents: lastWatched.current.agents.map((a) => (agents as LiveAgent[]).find((x) => x.id === a.id && x.presence) ?? a),
+        }
+      : null);
   return (
     <>
       <ToolFeedback />
