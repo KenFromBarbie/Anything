@@ -11,6 +11,7 @@ import {
   GraduationCap,
   Box,
   FileText,
+  FilePlus2,
   ListChecks,
   Sheet,
   Loader2,
@@ -51,6 +52,7 @@ import {
 import {
   RESEARCH_KEY,
   researchApi,
+  saveAttachment,
   sortProjects,
   useResearch,
 } from "@/features/research/lib/research";
@@ -394,7 +396,7 @@ function CourseView({
   const [partPicked, setPartPicked] = React.useState<string | null>(null);
   const part = current ? (current.parts.find((p) => p.key === partPicked) ?? current.parts[0]) : null;
   const [request, setRequest] = React.useState("");
-  const [pane, setPane] = React.useState<"lesson" | "plan" | "notes">("lesson");
+  const [pane, setPane] = React.useState<"lesson" | "plan" | "material" | "notes">("lesson");
 
   const ask = useMutation({
     mutationFn: (text: string) => askForLesson(course, text),
@@ -591,6 +593,7 @@ function CourseView({
               [
                 ["lesson", "Lesson", Presentation],
                 ["plan", "Plan", ListChecks],
+                ["material", "Material", FolderOpen],
                 ["notes", "My notes", NotebookPen],
               ] as const
             ).map(([id, label, Icon]) => (
@@ -615,6 +618,8 @@ function CourseView({
             <CourseNotes course={course} />
           ) : pane === "plan" ? (
             <CoursePlan course={course} />
+          ) : pane === "material" ? (
+            <CourseMaterial course={course} />
           ) : current && part ? (
             <>
             {current.parts.length > 1 ? (
@@ -845,6 +850,82 @@ function CoursePlan({ course }: { course: Course }) {
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">The Office hasn't written the plan yet. It appears here as soon as it has.</p>
+      )}
+    </div>
+  );
+}
+
+/** What the course is built from: the files the learner attached (not the
+ *  Office's own lesson folders, plan and progress). Open one, or add more;
+ *  the tutor is told, so the next lessons use it. */
+const COURSE_OWN = /^(progress\.json|syllabus\.md|readme\.md)$/i;
+function CourseMaterial({ course }: { course: Course }) {
+  const client = useQueryClient();
+  const input = React.useRef<HTMLInputElement>(null);
+  const { data: files = [], isLoading } = useQuery({
+    queryKey: ["learn", "material", course.id],
+    queryFn: () => researchApi.files(course.id),
+  });
+  const material = files.filter((f) => !f.isDir && !COURSE_OWN.test(f.name));
+  const add = useMutation({
+    mutationFn: async (picked: File[]) => {
+      const saved: string[] = [];
+      for (const f of picked) saved.push(await saveAttachment(course.id, f));
+      await askForLesson(
+        course,
+        ["I added material to this course:", ...saved.map((p) => `- \`${p}\``), "Use it in the next lessons."].join("\n"),
+      );
+      return saved.length;
+    },
+    onSuccess: (n) => {
+      toast.success(`Added ${n} file${n === 1 ? "" : "s"}. The tutor will use ${n === 1 ? "it" : "them"} in the next lessons.`);
+      void client.invalidateQueries({ queryKey: ["learn", "material", course.id] });
+    },
+    onError: (e) => toast.error(errorText(e)),
+  });
+  return (
+    <div className="min-h-0 flex-1 overflow-auto px-6 py-5" data-testid="learn-material">
+      <input
+        className="hidden"
+        multiple
+        onChange={(e) => {
+          const picked = [...(e.target.files ?? [])];
+          e.target.value = "";
+          if (picked.length) add.mutate(picked);
+        }}
+        ref={input}
+        type="file"
+      />
+      <div className="mb-4 flex items-center gap-2">
+        <p className="flex-1 text-sm text-muted-foreground">Notes, slides, chapters, papers: the lessons are built from what's here.</p>
+        <Button disabled={add.isPending || !course.channelId} onClick={() => input.current?.click()} size="sm" variant="outline">
+          {add.isPending ? <Loader2 className="animate-spin" /> : <FilePlus2 />}
+          Add material
+        </Button>
+      </div>
+      {isLoading ? (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading…
+        </p>
+      ) : material.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No material yet. Add your notes or a chapter and the next lessons are built from it.</p>
+      ) : (
+        <ul className="grid gap-1">
+          {material.map((f) => (
+            <li key={f.name}>
+              <button
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
+                onClick={() => void researchApi.open(course.id, f.name).catch((e) => toast.error(errorText(e)))}
+                type="button"
+              >
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{f.size > 1e6 ? `${(f.size / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(f.size / 1e3))} KB`}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
