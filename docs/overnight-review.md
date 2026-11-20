@@ -13,6 +13,7 @@ A running log from an unattended night of testing, fixing and reviewing. Newest 
 | Two accounts | Restarted workers failed with "No conversation found" | Their conversation is copied into the account folder they actually run on. |
 | Orchestration | One worker per revision round redid the whole 3D model alone | Rules and a harness check: split by component, all hired at once; the CEO never caps an executive's hires. Executives with a board task assigned to themselves are told to hand it to workers. |
 | Live view | Two streams for one model; office bookkeeping (tasks.json, hire requests) shown as streams and "simulations" | 3D work in one model's folder is one stream with every agent listed; office files aren't streams. |
+| Live view | Watching a stream: the view closed by itself whenever the agent finished a step and went idle | It stays open on the agent's file and last steps until you close it. |
 | Live view | 3D stream preview showed a grey "3D scene" box | The model renders live, slowly turning. |
 | 3D editor | The agent's "cursor" was a corner tag for 6 s | An arrow and name pinned on the changed part, following the camera. |
 | Performance | 15–16 s freezes | Boolean (Cut/Join/Intersect) results are cached by shape instead of recomputed for every view and version. |
