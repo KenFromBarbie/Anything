@@ -36,6 +36,7 @@ import {
   courseLessons,
   courseSummary,
   EMPTY_PROGRESS,
+  groupLessonParts,
   type LessonProgress,
   proposeCourseName,
   readLearnMessage,
@@ -67,6 +68,13 @@ import { Input } from "@/shared/ui/input";
 import { PageHeader, SubsectionLabel } from "@/shared/ui/PageHeader";
 import { Textarea } from "@/shared/ui/textarea";
 import { Markdown } from "@/shared/ui/markdown";
+
+const isEditorFile = (path: string | undefined) => !!editorKindOf(path);
+
+/** A course's lessons, each with its parts (interactive page, slides…). */
+function lessonGroups(artifacts: Artifact[], courseId: string) {
+  return groupLessonParts(courseLessons(artifacts, courseId), isEditorFile);
+}
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -306,7 +314,7 @@ function CourseCard({
   onOpen: () => void;
 }) {
   const { data: progress = EMPTY_PROGRESS } = useCourseProgress(course.id);
-  const lessons = courseLessons(artifacts, course.id);
+  const lessons = lessonGroups(artifacts, course.id);
   const summary = courseSummary(
     lessons.map((l) => l.key),
     progress,
@@ -360,7 +368,7 @@ function CourseView({
 }) {
   const client = useQueryClient();
   const { data: progress = EMPTY_PROGRESS } = useCourseProgress(course.id);
-  const lessons = courseLessons(artifacts, course.id);
+  const lessons = lessonGroups(artifacts, course.id);
   const summary = courseSummary(
     lessons.map((l) => l.key),
     progress,
@@ -371,6 +379,8 @@ function CourseView({
     lessons[lessons.length - 1];
   const [picked, setPicked] = React.useState<string | null>(null);
   const current = lessons.find((l) => l.key === picked) ?? firstOpen ?? null;
+  const [partPicked, setPartPicked] = React.useState<string | null>(null);
+  const part = current ? (current.parts.find((p) => p.key === partPicked) ?? current.parts[0]) : null;
   const [request, setRequest] = React.useState("");
   const [pane, setPane] = React.useState<"lesson" | "plan" | "notes">("lesson");
 
@@ -478,7 +488,7 @@ function CourseView({
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[18rem_1fr]">
         <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
           <ol className="grid gap-1">
-            {lessons.map(({ lesson, key }, index) => {
+            {lessons.map(({ title, key, parts }, index) => {
               const p = progress.lessons[key];
               const on = current?.key === key;
               return (
@@ -489,7 +499,10 @@ function CourseView({
                       on ? "bg-muted" : "hover:bg-muted/60",
                     )}
                     data-testid="learn-lesson"
-                    onClick={() => setPicked(key)}
+                    onClick={() => {
+                      setPicked(key);
+                      setPartPicked(null);
+                    }}
                     type="button"
                   >
                     {p?.status === "done" ? (
@@ -501,7 +514,8 @@ function CourseView({
                     )}
                     <span className="grid min-w-0 gap-0.5">
                       <span className="line-clamp-2 text-sm font-medium">
-                        {lesson.title || `Lesson ${index + 1}`}
+                        {title || `Lesson ${index + 1}`}
+                        {parts.length > 1 ? <span className="ml-1 text-xs font-normal text-muted-foreground">· {parts.length} parts</span> : null}
                       </span>
                       <span className="text-xs tabular-nums text-muted-foreground">
                         {p?.total
@@ -581,14 +595,30 @@ function CourseView({
             <CourseNotes course={course} />
           ) : pane === "plan" ? (
             <CoursePlan course={course} />
-          ) : current ? (
+          ) : current && part ? (
+            <>
+            {current.parts.length > 1 ? (
+              <div className="flex flex-wrap gap-1 border-b border-border/60 px-3 py-1.5" data-testid="learn-lesson-parts">
+                {current.parts.map((p) => (
+                  <button
+                    className={cn("rounded-full px-2.5 py-0.5 text-xs capitalize", p.key === part.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground")}
+                    key={p.key}
+                    onClick={() => setPartPicked(p.key)}
+                    type="button"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <LessonPlayer
-              key={current.lesson.id}
-              lesson={current.lesson}
+              key={part.lesson.id}
+              lesson={part.lesson}
               lessonKey={current.key}
               onReport={record}
               status={progress.lessons[current.key]?.status ?? null}
             />
+            </>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted-foreground">
               <GraduationCap className="h-8 w-8 opacity-50" />

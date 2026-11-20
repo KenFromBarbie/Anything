@@ -122,6 +122,32 @@ export function courseLessons<T extends Lesson>(
     .map((group) => ({ lesson: group.latest, key: group.versions[0].id }));
 }
 
+/** A lesson's parts, published separately but taught together: the
+ *  interactive page plus, say, "Lesson 2: Pronunciation (slides)" made in the
+ *  editors. Grouped by the title without its "(…)" suffix, in course order;
+ *  the part that isn't an editor file leads (it reports progress). */
+export function groupLessonParts<T extends Lesson & { path?: string }>(
+  lessons: { lesson: T; key: string }[],
+  isEditorFile: (path: string | undefined) => boolean,
+): { key: string; title: string; parts: { lesson: T; key: string; label: string }[] }[] {
+  const groups = new Map<string, { key: string; title: string; parts: { lesson: T; key: string; label: string }[] }>();
+  for (const item of lessons) {
+    const raw = (item.lesson.title || "").trim();
+    const m = /^(.*?)\s*\(([^()]+)\)\s*$/.exec(raw);
+    const base = (m ? m[1] : raw) || item.key;
+    const id = base.toLowerCase();
+    const label = m ? m[2] : isEditorFile(item.lesson.path) ? "Editor" : "Lesson";
+    const g = groups.get(id) ?? { key: item.key, title: base, parts: [] };
+    g.parts.push({ ...item, label });
+    groups.set(id, g);
+  }
+  for (const g of groups.values()) {
+    g.parts.sort((a, b) => Number(isEditorFile(a.lesson.path)) - Number(isEditorFile(b.lesson.path)));
+    g.key = g.parts[0].key;
+  }
+  return [...groups.values()];
+}
+
 /** How far through a course: lessons done of those made, and the average
  *  score of the finished ones that kept one. */
 export function courseSummary(

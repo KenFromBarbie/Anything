@@ -109,3 +109,22 @@ test("a course's lessons come in the order they were made, latest version each",
     average: 0.75,
   });
 });
+
+test("a lesson's parts are grouped, the interactive page first", async () => {
+  const { groupLessonParts } = await import("./learnModel.ts");
+  const mk = (id, title, path) => ({ lesson: { id, title, kind: "html", createdAt: 0, path }, key: id });
+  const isEd = (p) => !!p && /\.(slides|doc|sheet|model)\.json$/.test(p);
+  const groups = groupLessonParts(
+    [
+      mk("a", "Lesson 1: Greetings", "/c/l1/index.html"),
+      mk("b", "Lesson 2: Sounds (slides)", "/c/l2.slides.json"),
+      mk("c", "Lesson 2: Sounds", "/c/l2/index.html"),
+      mk("d", "Lesson 1: Greetings (reading)", "/c/l1.doc.json"),
+    ],
+    isEd,
+  );
+  assert.deepEqual(groups.map((g) => [g.title, g.key, g.parts.map((p) => p.label)]), [
+    ["Lesson 1: Greetings", "a", ["Lesson", "reading"]],
+    ["Lesson 2: Sounds", "c", ["Lesson", "slides"]],
+  ]);
+});
