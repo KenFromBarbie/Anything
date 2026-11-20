@@ -458,7 +458,15 @@ function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => vo
             {/* Who's at work and on what, like a cursor in a shared document. */}
             {/* Everyone in this stream (a model's parts and reviewers too), each
                 with what they are on now. */}
-            <div className="pointer-events-none absolute bottom-3 left-3 z-20 flex max-w-[70%] flex-col items-start gap-1">
+            <div
+              className={cn(
+                "pointer-events-none absolute z-20 flex max-w-[70%] flex-col items-start gap-1",
+                // In an editor, inside its viewport under the view label, so the
+                // flags don't cover the timeline and command line at the bottom.
+                view === "live" && (p.latest?.kind === "model" || p.latest?.kind === "editor") ? "left-14 top-[8.25rem]" : "bottom-3 left-3",
+              )}
+              data-testid="live-agent-flags"
+            >
               {agents.map((a) => {
                 const ap = a.presence;
                 const onOther = ap.latest && p.latest && ap.latest.path !== p.latest.path ? ap.latest.path.split(String.fromCharCode(92)).join("/").split("/").pop() : null;
