@@ -14,6 +14,7 @@ import {
   FilePlus2,
   ListChecks,
   Sheet,
+  Trash2,
   Loader2,
   MessageSquare,
   NotebookPen,
@@ -516,6 +517,7 @@ function CourseView({
           <MessageSquare />
           Ask the tutor
         </Button>
+        <RemoveCourse course={course} onRemoved={onBack} />
       </div>
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[18rem_1fr]">
@@ -947,5 +949,40 @@ function CourseMaterial({ course }: { course: Course }) {
         </ul>
       )}
     </div>
+  );
+}
+
+/** Take a course off the Learn list. Its folder (lessons, plan, progress,
+ *  material) stays on disk; this only forgets it here. Two clicks, so a stray
+ *  one does nothing. */
+function RemoveCourse({ course, onRemoved }: { course: Course; onRemoved: () => void }) {
+  const client = useQueryClient();
+  const [armed, setArmed] = React.useState(false);
+  React.useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 4000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  const remove = useMutation({
+    mutationFn: () => researchApi.remove(course.id),
+    onSuccess: () => {
+      toast.success(`Removed ${course.name} from Learn. Its folder is still on disk.`);
+      void client.invalidateQueries({ queryKey: RESEARCH_KEY });
+      onRemoved();
+    },
+    onError: (e) => toast.error(errorText(e)),
+  });
+  return (
+    <Button
+      data-testid="learn-remove-course"
+      disabled={remove.isPending}
+      onClick={() => (armed ? remove.mutate() : setArmed(true))}
+      size="sm"
+      title="Take this course off the list. Its folder stays on disk."
+      variant={armed ? "destructive" : "ghost"}
+    >
+      <Trash2 />
+      {armed ? "Click again to remove" : "Remove"}
+    </Button>
   );
 }
