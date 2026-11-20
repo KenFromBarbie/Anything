@@ -604,7 +604,20 @@ pub async fn office_live_file(app: AppHandle, path: String) -> Result<Value, Str
             }
         }
     }
-    if !file.is_file() || !roots.iter().any(|root| file.starts_with(root)) {
+    // An agent's Claude Code scratch folder (%TEMP%\claude\<…>\<session>    // scratchpad): where agents keep test renders and evaluation models. Only
+    // folders named "scratchpad" under it, never the rest of temp.
+    let in_scratchpad = std::env::temp_dir()
+        .join("claude")
+        .canonicalize()
+        .ok()
+        .is_some_and(|claude_tmp| {
+            file.starts_with(&claude_tmp)
+                && file
+                    .strip_prefix(&claude_tmp)
+                    .map(|rest| rest.components().any(|c| c.as_os_str() == "scratchpad"))
+                    .unwrap_or(false)
+        });
+    if !file.is_file() || !(in_scratchpad || roots.iter().any(|root| file.starts_with(root))) {
         return Err("only the Office's own work can be shown live".into());
     }
     // Both spellings (the canonical one starts with \?\ on Windows).
