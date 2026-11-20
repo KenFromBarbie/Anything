@@ -28,7 +28,8 @@ A running log from an unattended night of testing, fixing and reviewing. Newest 
 
 ## Open findings
 
-- Renderer memory grows over a long session (1.9 GB after a restart, 2.5 GB renderer about four hours later), while the JS heap stays near 0.4 GB, so most of it is native (graphics and image buffers). The 3D editor engine now releases its WebGL context on close; if growth continues, the next suspects are the background floor's textures and live-file previews.
+- Renderer memory grows over a long session (1.9 GB after a restart, 2.5 GB renderer about four hours later), while the JS heap stays near 0.4 GB, so most of it is native (graphics and image buffers). The 3D editor engine now releases its WebGL context on close; if growth continues, the next suspects are the background floor's textures and live-file previews. Later data: 1.4 GB → 3.6 GB in about 1.5 h with the app sitting on the Learn page while 3–4 builders worked, so the growth follows agent activity, not page use. The floor's bubbles and characters are destroyed correctly (checked). Next step: a heap snapshot diff across an hour of activity, and checking the presence and live-file polling for retained buffers.
+- Builders' check scripts can keep running after the agent goes idle (one Python process at 1.2 GB after its agent finished). The office could track and end a worker's background processes when it goes dormant.
 - The app exited by itself twice during the day (probably memory pressure: about 1 GB free at the time, the webview at 5 GB).
 - Learn shows two Dutch courses: one with 2 lessons and a stale duplicate still "Planning the first lesson" from 16 days ago. Worth a way to archive a course.
 - Learn courses are global, not per server; the Dutch course shows in Boat Bike as well as Wittenborg.
