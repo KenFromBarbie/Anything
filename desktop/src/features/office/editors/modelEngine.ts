@@ -9,7 +9,8 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { booleanGeometry, roundedBox, smoothGeometry } from "./modelOps";
+import { BOOLEAN_DEPTH, booleanGeometry, roundedBox, smoothGeometry } from "./modelOps";
+import { booleanInBackground } from "./csgClient";
 import { parseModel } from "./modelFormat";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
@@ -80,6 +81,18 @@ function partGroup(file: ModelFile, loadImport?: (src: string) => Promise<Loaded
     node.visible = o.visible;
     if (o.kind !== "curve" && o.kind !== "import" && o.kind !== "empty") {
       const g = o.kind === "boolean" && o.boolean ? booleanGeometry(o.boolean, file, (x) => shapeOf(x, file)) : shapeOf(o, file);
+      if (!g && o.kind === "boolean" && o.boolean) {
+        // Too deep a chain to compute here without freezing the page: the
+        // background worker makes it, and it appears when ready.
+        void booleanInBackground(o, file).then((bg) => {
+          if (!bg) return;
+          const mesh = new THREE.Mesh(smoothGeometry(bg, o.params?.smooth ?? 0), materialOf(o, "material"));
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          node.add(mesh);
+          onLoaded?.();
+        });
+      }
       if (g) {
         const mat = materialOf(o, "material") as THREE.MeshStandardMaterial;
         if (o.kind === "surface") mat.side = THREE.DoubleSide;
@@ -111,11 +124,11 @@ const D2R_ENGINE = Math.PI / 180;
 
 /** A part's shape in its own space (primitives, hulls, surfaces, booleans),
  *  smoothed, for use inside a boolean. */
-function shapeOf(o: SceneObject, file: ModelFile, depth = 0): THREE.BufferGeometry | null {
+export function shapeOf(o: SceneObject, file: ModelFile, depth = 0): THREE.BufferGeometry | null {
   let g: THREE.BufferGeometry | null = null;
   if (o.kind === "surface" && o.surface) g = surfaceGeometry(o.surface, file);
   else if (o.kind === "boolean" && o.boolean) {
-    if (depth > 6) return null;
+    if (depth > BOOLEAN_DEPTH) return null;
     g = booleanGeometry(o.boolean, file, (x) => shapeOf(x, file, depth + 1), depth + 1);
   } else g = geometryOf(o);
   return g ? smoothGeometry(g, o.params?.smooth ?? 0) : null;
@@ -123,7 +136,7 @@ function shapeOf(o: SceneObject, file: ModelFile, depth = 0): THREE.BufferGeomet
 
 /** What a boolean's result depends on: both parts (and theirs), for rebuilds. */
 function booleanRefs(o: SceneObject, file: ModelFile, depth = 0): unknown {
-  if (!o.boolean || depth > 6) return null;
+  if (!o.boolean || depth > BOOLEAN_DEPTH) return null;
   return [o.boolean.a, o.boolean.b].map((id) => {
     const x = file.objects.find((y) => y.id === id);
     return x ? [x.kind, x.params, x.hull, x.surface, x.position, x.rotation, x.scale, booleanRefs(x, file, depth + 1)] : null;
@@ -480,7 +493,19 @@ export class ModelScene {
       }
       if (o.kind === "boolean" && o.boolean) {
         const bg = booleanGeometry(o.boolean, this.file, (x) => shapeOf(x, this.file));
-        if (!bg) return null;
+        if (!bg) {
+          // A deep chain of cuts: made in the background, added when ready.
+          const file = this.file;
+          void booleanInBackground(o, file).then((g2) => {
+            if (!g2 || this.file !== file) return;
+            const mesh = new THREE.Mesh(smoothGeometry(g2, o.params?.smooth ?? 0), materialOf(o, this.shading));
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            holder.add(mesh);
+            this.poke();
+          });
+          return null;
+        }
         const mesh = new THREE.Mesh(smoothGeometry(bg, o.params?.smooth ?? 0), materialOf(o, this.shading));
         mesh.castShadow = true;
         mesh.receiveShadow = true;

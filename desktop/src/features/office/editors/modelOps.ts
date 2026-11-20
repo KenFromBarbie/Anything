@@ -110,6 +110,14 @@ function poseMatrix(o: SceneObject): THREE.Matrix4 {
 
 const OPS = { subtract: SUBTRACTION, union: ADDITION, intersect: INTERSECTION } as const;
 
+/** How deep a chain of booleans the page computes itself. Deeper chains (a
+ *  hull with dozens of cut-outs, each cut on the one before) take a minute;
+ *  they go to the background worker (csgWorker), which raises this. */
+export let BOOLEAN_DEPTH = 6;
+export function setBooleanDepthLimit(n: number) {
+  BOOLEAN_DEPTH = n;
+}
+
 /**
  * The shape of a cut / join / intersect, in the scene's space: part A with
  * part B taken away, added, or kept only where they overlap. Parts are drawn
@@ -121,7 +129,7 @@ export function booleanGeometry(
   shapeOf: (o: SceneObject) => THREE.BufferGeometry | null,
   depth = 0,
 ): THREE.BufferGeometry | null {
-  if (depth > 6) return null;
+  if (depth > BOOLEAN_DEPTH) return null;
   // Cut / join / intersect is heavy (seconds on a detailed part) and ran on
   // every redraw source: each new version of a file an agent writes, each
   // open view of it (editor, live stream, preview). The result only depends
@@ -156,7 +164,7 @@ function booleanKey(def: BooleanDef, file: ModelFile, depth: number): string | n
   const seen = new Set<string>();
   const sig = (id: string, d: number): string => {
     const o = byId.get(id);
-    if (!o || d > 8 || seen.has(id)) return `?${id}`;
+    if (!o || d > BOOLEAN_DEPTH + 2 || seen.has(id)) return `?${id}`;
     seen.add(id);
     const own = JSON.stringify(o);
     const sub = o.kind === "boolean" && o.boolean ? `[${sig(o.boolean.a, d + 1)}|${sig(o.boolean.b, d + 1)}]` : "";
