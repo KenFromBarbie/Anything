@@ -9,7 +9,10 @@ import {
   Circle,
   FolderOpen,
   GraduationCap,
+  Box,
+  FileText,
   ListChecks,
+  Sheet,
   Loader2,
   MessageSquare,
   NotebookPen,
@@ -70,6 +73,15 @@ import { Textarea } from "@/shared/ui/textarea";
 import { Markdown } from "@/shared/ui/markdown";
 
 const isEditorFile = (path: string | undefined) => !!editorKindOf(path);
+
+/** The editor a lesson part was made in, as a small icon (none for the
+ *  interactive page). */
+const PART_ICON: Partial<Record<string, typeof FileText>> = {
+  slides: Presentation,
+  doc: FileText,
+  sheet: Sheet,
+  model: Box,
+};
 
 /** A course's lessons, each with its parts (interactive page, slides…). */
 function lessonGroups(artifacts: Artifact[], courseId: string) {
@@ -516,6 +528,14 @@ function CourseView({
                       <span className="line-clamp-2 text-sm font-medium">
                         {title || `Lesson ${index + 1}`}
                         {parts.length > 1 ? <span className="ml-1 text-xs font-normal text-muted-foreground">· {parts.length} parts</span> : null}
+                        {parts.some((pt) => PART_ICON[editorKindOf(pt.lesson.path) ?? ""]) ? (
+                          <span className="ml-1.5 inline-flex gap-1 align-middle text-muted-foreground">
+                            {parts.map((pt) => {
+                              const Icon = PART_ICON[editorKindOf(pt.lesson.path) ?? ""];
+                              return Icon ? <Icon aria-label={pt.label} className="h-3 w-3" key={pt.key} /> : null;
+                            })}
+                          </span>
+                        ) : null}
                       </span>
                       <span className="text-xs tabular-nums text-muted-foreground">
                         {p?.total
