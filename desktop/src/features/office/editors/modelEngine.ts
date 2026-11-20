@@ -69,7 +69,7 @@ export function geometryOf(o: SceneObject): THREE.BufferGeometry | null {
 
 /** Another 3D editor file as one group (its shapes with their poses and
  *  colours; imports inside it are left out, one level of parts). */
-function partGroup(file: ModelFile): THREE.Group {
+function partGroup(file: ModelFile, loadImport?: (src: string) => Promise<Loaded>, onLoaded?: () => void): THREE.Group {
   const group = new THREE.Group();
   const nodes = new Map<string, THREE.Object3D>();
   for (const o of file.objects) {
@@ -88,6 +88,14 @@ function partGroup(file: ModelFile): THREE.Group {
         mesh.receiveShadow = true;
         node.add(mesh);
       }
+    }
+    // A part can import files of its own (the riders' GLB bodies): load them
+    // into the part, so an assembly shows them too.
+    if (o.kind === "import" && o.src && loadImport) {
+      void loadImport(o.src).then((l) => {
+        node.add(l.root.clone(true));
+        onLoaded?.();
+      });
     }
     nodes.set(o.id, node);
   }
@@ -543,7 +551,7 @@ export class ModelScene {
         // drawn as one group, so an assembly shows each worker's part live.
         fetch(url)
           .then((r) => r.json())
-          .then((j) => resolve({ root: partGroup(parseModel(j)), clips: [] }))
+          .then((j) => resolve({ root: partGroup(parseModel(j), (s) => this.load(s), () => this.poke()), clips: [] }))
           .catch(fail);
       } else if (ext === "stl") {
         new STLLoader().load(url, (g) => resolve({ root: new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: "#c8c8c8" })), clips: [] }), undefined, fail);

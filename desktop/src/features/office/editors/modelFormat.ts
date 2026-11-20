@@ -205,6 +205,11 @@ export function parseModel(value: unknown): ModelFile {
     for (const [k, d] of Object.entries(defaultParams(kind))) {
       (params as Record<string, number>)[k] = num(p[k], d as number, 0, 10000);
     }
+    // A cylinder without a top radius is straight: the top matches its
+    // radius (as the agents' evaluator and the format guide read it). The
+    // fixed 0.5 m default turned every thin tube and spoke into a cone half
+    // a metre wide at one end.
+    if (kind === "cylinder" && p.radiusTop === undefined) params.radiusTop = params.radius;
     // Modifiers on any shape.
     if (p.bevel !== undefined) params.bevel = num(p.bevel, 0, 0, 100);
     if (p.smooth !== undefined) params.smooth = Math.round(num(p.smooth, 0, 0, 3));

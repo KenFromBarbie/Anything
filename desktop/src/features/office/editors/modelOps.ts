@@ -57,25 +57,37 @@ export function smoothGeometry(src: THREE.BufferGeometry, rounds: number): THREE
       const ab = midOf(a, b), bc = midOf(b, c), ca = midOf(c, a);
       next.push(a, ab, ca, ab, b, bc, ca, bc, c, ab, bc, ca);
     }
-    // Relax: each point halfway towards the average of its neighbours.
+    // Relax with Taubin smoothing (a shrink step, then an inflate step, six
+    // times), each point against its UNIQUE neighbours. Counting a neighbour
+    // once per shared triangle weighted rim edges unevenly and creased
+    // smoothed discs and cylinders into spikes; this matches the agents'
+    // own evaluator (subdivide + Taubin), so the app and their renders agree.
     const count = points.length / 3;
-    const sum = new Float64Array(count * 3);
-    const deg = new Uint32Array(count);
+    const nbr: Set<number>[] = Array.from({ length: count }, () => new Set<number>());
     for (let t = 0; t < next.length; t += 3) {
-      const tri = [next[t], next[t + 1], next[t + 2]];
-      for (let k = 0; k < 3; k++) {
-        const p = tri[k], q = tri[(k + 1) % 3];
-        for (let j = 0; j < 3; j++) {
-          sum[p * 3 + j] += points[q * 3 + j];
-          sum[q * 3 + j] += points[p * 3 + j];
-        }
-        deg[p]++;
-        deg[q]++;
-      }
+      const a = next[t], b = next[t + 1], c = next[t + 2];
+      nbr[a].add(b).add(c);
+      nbr[b].add(a).add(c);
+      nbr[c].add(a).add(b);
     }
-    for (let i = 0; i < count; i++) {
-      if (!deg[i]) continue;
-      for (let j = 0; j < 3; j++) points[i * 3 + j] = points[i * 3 + j] * 0.5 + (sum[i * 3 + j] / deg[i]) * 0.5;
+    const lists = nbr.map((set) => [...set]);
+    const step = (factor: number) => {
+      const moved = points.slice();
+      for (let i = 0; i < count; i++) {
+        const ns = lists[i];
+        if (!ns.length) continue;
+        for (let j = 0; j < 3; j++) {
+          let avg = 0;
+          for (const q of ns) avg += points[q * 3 + j];
+          avg /= ns.length;
+          moved[i * 3 + j] = points[i * 3 + j] + factor * (avg - points[i * 3 + j]);
+        }
+      }
+      for (let i = 0; i < moved.length; i++) points[i] = moved[i];
+    };
+    for (let it = 0; it < 6; it++) {
+      step(0.5);
+      step(-0.53);
     }
     const out = new THREE.BufferGeometry();
     out.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
