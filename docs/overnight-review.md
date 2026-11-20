@@ -30,4 +30,37 @@ A running log from an unattended night of testing, fixing and reviewing. Newest 
 
 ## Vision review (head of product, Claude team view)
 
-_In progress._
+### What Anything is
+
+A workspace where you run a company of AI agents the way you'd run a small firm. A CEO takes your request, executives split it by area, floor workers do the work, and you watch it happen. Two ideas make it different from other agent tools:
+
+1. **Agents work in your tools, not in a chat box.** The editors (documents, slides, sheets, images, video, sites, 3D) are shared with the agents, so their output is something you can open, change and keep, not a transcript.
+2. **You can see the work.** The office floor, live streams and cursors in the editors make a team of agents watchable and steerable, like colleagues in a shared document.
+
+That combination is the product's moat. Most agent products stop at "the agent did it, here's a summary". Anything's bet is that people trust and direct agents better when they can watch them work in familiar tools.
+
+### What's working
+
+- **The chain of command fits real work.** CEO → executives → floor workers gives a natural place for review: executives don't build, they check. Tonight, a multi-part 3D build ran with 6–8 workers in parallel on separate parts once the rules were enforced.
+- **Editors as the shared medium** is the right primitive. Live follow, pinned cursors and "Edit in …" turn agent output into a collaborative artifact.
+- **Learn** shows how the platform generalises: the same office plans a course, builds lessons and adapts to progress.
+
+### What holds it back (in priority order)
+
+1. **Reliability before features.** Most of tonight's problems were plumbing: sign-ins failing through the relay, a second account missing folder trust, resumed agents losing their conversation, the app freezing or closing under memory pressure. A user who hits two of these in a session stops trusting the agents, however good their work is. A short "boring" list should gate releases: sign-in, account switching, restart/resume, memory ceiling.
+2. **Orchestration needs enforcement, not only instructions.** Executives repeatedly fell back to one worker doing everything. Prompt rules plus harness nudges helped. The durable fix is structural: the harness should plan parallel work (component split, assembler, checker) as a first-class object, with the executive filling it in.
+3. **Make the agents' tools first-class.** Workers still often build 3D parts with Python scripts that write GLB files, which the editors can only show, not follow. The more of the work goes through editor formats (`.model.json` operations), the better the live view, cursors and undo get. Give agents a proper editor API (operations, not whole-file rewrites), and the "shared document" promise becomes literal.
+4. **Resource budget per machine.** Each builder costs about 1.2 GB. The app should know the machine's ceiling and schedule workers (queue, pause, resume) instead of letting the OS swap or the app close.
+5. **Multi-account as a product concept.** Separate accounts for managers and workers is a smart way to spread limits. Make it visible: which agent runs on which account, live usage per account, and an automatic switch when one nears its limit.
+
+### Where it could go
+
+- **From "office" to "studio for physical products".** Boat Bike shows the strongest use: research, 3D, simulation, pricing and suppliers in one place, with agents doing the legwork. A focused vertical (product design with 3D, simulation and costing) would sharpen the pitch.
+- **Learn as a second pillar.** Adaptive courses built from your own material, with the tutor reading your notes and progress, is a product people will pay for on its own.
+- **Replayable work.** Each stream could become a timeline you scrub after the fact (who changed what, when), which turns oversight into review and makes trust cheap.
+
+### Three bets for the next month
+
+1. A release gate of reliability checks (sign-in, resume, memory, account switch), run before every build.
+2. Structured parallel plans in the harness (parts, assembler, checker), not only prompt rules.
+3. An operations API for the editors, so agents edit like a person does and every change is followable.
