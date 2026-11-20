@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 
+import modelEvalPy from "@/features/office/tools/model_eval.py?raw";
+import modelevalPy from "@/features/office/tools/modeleval.py?raw";
+
 import {
   APP,
   EXT,
@@ -32,6 +35,18 @@ export function editorGuide(): string {
   for (const k of KINDS) {
     lines.push(`## ${APP[k].name} (\`${EXT[k]}\`)`, "", FORMAT_SPEC[k], "");
   }
+  lines.push(
+    "## Checking a 3D model: use the shared evaluator (modeleval)",
+    "",
+    "Never load a whole .model.json assembly in your own script: each copy costs about 2 GB, and several builders doing it at once run the machine out of memory. Use the Office's shared evaluation service next to this file (it keeps the evaluated model in one process and reloads only what changed):",
+    "",
+    "- `python <tools>/modeleval.py eval <file.model.json>`: parts, triangles, watertight, volume, bounds, mass.",
+    "- `python <tools>/modeleval.py glb <file.model.json> <out.glb>`: export the evaluated model.",
+    "- `python <tools>/modeleval.py run <your_check.py> [args]`: run your float / clearance / render script INSIDE the service. In it, `import model_eval` (or `import havik_eval`) and `model_eval.evaluate(path)` return the cached model; change the copy you get freely.",
+    "",
+    "It starts on first use and stops itself when idle; checks queue and run one at a time. `model_eval.py` (same folder) is the evaluator itself: the same reading of the format as the app's 3D editor.",
+    "",
+  );
   return lines.join("\n");
 }
 
@@ -43,4 +58,7 @@ export async function writeEditorGuide(): Promise<void> {
   const sep = vault.path.includes(String.fromCharCode(92)) ? String.fromCharCode(92) : "/";
   const hive = vault.path.slice(0, vault.path.lastIndexOf(sep));
   await invoke("office_export_file", { path: `${hive}${sep}tools${sep}EDITORS.md`, text: editorGuide() });
+  // The shared 3D evaluation service (see the guide's last section).
+  await invoke("office_install_tool", { name: "model_eval.py", text: modelEvalPy });
+  await invoke("office_install_tool", { name: "modeleval.py", text: modelevalPy });
 }

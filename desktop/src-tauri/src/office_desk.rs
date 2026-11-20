@@ -693,6 +693,27 @@ pub async fn office_media_import(app: AppHandle, path: String) -> Result<Value, 
     }))
 }
 
+/// Install one of the Office's own agent tools (the shared 3D evaluator) into
+/// <hive>/tools. Only these named files, only there: no other path, no other
+/// script.
+#[tauri::command]
+pub async fn office_install_tool(app: AppHandle, name: String, text: String) -> Result<(), String> {
+    const TOOLS: &[&str] = &["model_eval.py", "modeleval.py"];
+    if !TOOLS.contains(&name.as_str()) {
+        return Err(format!("{name} isn't one of the Office's tools"));
+    }
+    let shared = hive_shared_dir(&app).ok_or("the Office is not set up")?;
+    let hive = shared.parent().ok_or("the Office is not set up")?;
+    let dir = hive.join("tools");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join(&name);
+    // Unchanged: leave it (and its timestamp) alone.
+    if std::fs::read_to_string(&path).ok().as_deref() == Some(text.as_str()) {
+        return Ok(());
+    }
+    std::fs::write(&path, text).map_err(|e| format!("couldn't install {name}: {e}"))
+}
+
 /// Write an editor's export where the owner chose in the save dialog: text
 /// (.doc, .html, .csv, .md, .txt, .svg) or, with `base64`, a binary file
 /// (.pptx, .png, .jpg, .webp, .webm, .mp4, .glb, .stl, .zip).
