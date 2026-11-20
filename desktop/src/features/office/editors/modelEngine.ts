@@ -808,6 +808,9 @@ export class ModelScene {
     this.gizmo.dispose();
     this.orbit.dispose();
     this.renderer.dispose();
+    // Free the GPU context now, not whenever garbage collection gets to it:
+    // open/close a few 3D views and the old contexts pile up in memory.
+    this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
   }
 }
