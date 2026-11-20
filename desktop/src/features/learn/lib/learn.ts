@@ -57,12 +57,24 @@ function channelName(name: string): string {
 /** The owner's words, and what the Office needs to find the course. How to
  *  run a course (the chain, the lessons, how progress is reported) is in the
  *  agents' own guide, not in the chat. */
-function courseBrief(course: Course, goal: string, attached: string[]): string {
+/** How the learner likes to learn; tells the Office which editors to build
+ *  lessons with (the interactive practice page is always there). */
+export type LessonStyle = "mixed" | "practice" | "slides" | "reading";
+export const LESSON_STYLES: { id: LessonStyle; label: string; brief: string }[] = [
+  { id: "mixed", label: "A mix", brief: "Mix it up: an interactive practice page for each lesson, with slides or a reading where they help." },
+  { id: "practice", label: "Hands-on practice", brief: "Mostly hands-on: interactive practice pages, short explanations." },
+  { id: "slides", label: "Slides", brief: "Explain each lesson with a slide deck (made in the app's Slides editor), then a short practice page." },
+  { id: "reading", label: "Reading", brief: "Give each lesson a reading (a document made in the app's Document editor) I can annotate, then a short practice page." },
+];
+
+function courseBrief(course: Course, goal: string, attached: string[], style: LessonStyle = "mixed"): string {
+  const how = LESSON_STYLES.find((s) => s.id === style)?.brief;
   return [
     `New course: **${course.name}**`,
     "",
     goal.trim(),
     "",
+    ...(how ? [`How I like to learn: ${how}`, ""] : []),
     ...(attached.length > 0
       ? ["My material:", ...attached.map((path) => `- \`${path}\``), ""]
       : []),
@@ -82,6 +94,7 @@ export async function startCourse(
   name: string,
   goal: string,
   files: File[] = [],
+  style: LessonStyle = "mixed",
 ): Promise<StartedCourse> {
   const created = await researchApi.create(name, goal.trim(), "course");
   const attached: string[] = [];
@@ -102,7 +115,7 @@ export async function startCourse(
   }
   await sendChannelMessage(
     channel.id,
-    courseBrief(course, goal, attached),
+    courseBrief(course, goal, attached, style),
     null,
     undefined,
     michael ? [michael] : undefined,

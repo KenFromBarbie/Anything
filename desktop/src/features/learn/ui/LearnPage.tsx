@@ -28,6 +28,8 @@ import {
   askForLesson,
   type Course,
   isCourse,
+  LESSON_STYLES,
+  type LessonStyle,
   learnApi,
   progressKey,
   reportLesson,
@@ -181,6 +183,7 @@ function StartCourseCard({
   const [goal, setGoal] = React.useState(draftGoal);
   const [name, setName] = React.useState("");
   const [nameTouched, setNameTouched] = React.useState(false);
+  const [style, setStyle] = React.useState<LessonStyle>("mixed");
   const nameId = React.useId();
   const attachments = useAttachments((names) =>
     toast.error(`Over 200 MB, so not attached: ${names.join(", ")}`),
@@ -189,7 +192,7 @@ function StartCourseCard({
   const finalName = (nameTouched ? name : suggested).trim();
   const ready = goal.trim().length > 0 && finalName.length > 0;
   const start = useMutation({
-    mutationFn: () => startCourse(finalName, goal, attachments.files),
+    mutationFn: () => startCourse(finalName, goal, attachments.files, style),
     onSuccess: ({ course, michaelAdded }) => {
       draftGoal = "";
       attachments.clear();
@@ -257,6 +260,22 @@ function StartCourseCard({
         files={attachments.files}
         onRemove={attachments.remove}
       />
+      <div className="flex flex-wrap items-center gap-1.5" data-testid="learn-style" role="radiogroup">
+        <span className="mr-1 text-xs text-muted-foreground">How do you like to learn?</span>
+        {LESSON_STYLES.map((opt) => (
+          <button
+            aria-checked={style === opt.id}
+            className={cn("rounded-full border px-2.5 py-0.5 text-xs", style === opt.id ? "border-primary bg-primary text-primary-foreground" : "border-border/70 text-muted-foreground hover:text-foreground")}
+            key={opt.id}
+            onClick={() => setStyle(opt.id)}
+            role="radio"
+            title={opt.brief}
+            type="button"
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <AttachButton disabled={start.isPending} onClick={attachments.open} />
         <label className="text-xs text-muted-foreground" htmlFor={nameId}>
