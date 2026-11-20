@@ -25,6 +25,7 @@ A running log from an unattended night of testing, fixing and reviewing. Newest 
 
 ## Open findings
 
+- Renderer memory grows over a long session (1.9 GB after a restart, 2.5 GB renderer about four hours later), while the JS heap stays near 0.4 GB, so most of it is native (graphics and image buffers). The 3D editor engine now releases its WebGL context on close; if growth continues, the next suspects are the background floor's textures and live-file previews.
 - The app exited by itself twice during the day (probably memory pressure: about 1 GB free at the time, the webview at 5 GB).
 - Learn courses are global, not per server; the Dutch course shows in Boat Bike as well as Wittenborg.
 - The office test suite has 17 environmental failures (path containment under the packaged-app file layout).
