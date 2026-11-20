@@ -36,6 +36,11 @@ A running log from an unattended night of testing, fixing and reviewing. Newest 
 - Learn courses are global, not per server; the Dutch course shows in Boat Bike as well as Wittenborg.
 - The office test suite has 17 environmental failures (path containment under the packaged-app file layout).
 
+## Verified live
+
+- The watch view stayed open after its agent finished, and moved on to the next workers on the same model: one stream with two agents, the faceted hull rendered in the 3D editor, an "In this file" list with both of them, and their name flags.
+- Small: the agents' name flags sit over the 3D editor's timeline strip. Move them above it, or into the viewport corner.
+
 ## Page sweep
 
 Every main page opened, with errors captured (Inbox, Tasks, Agents, Automations, Research, Create, Learn, Office, Settings): no error overlay, no error boundary and no console errors. The Office page is the floor canvas, so it has little text by design.
