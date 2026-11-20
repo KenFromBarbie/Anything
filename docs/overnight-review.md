@@ -21,6 +21,7 @@ A running log from an unattended night of testing, fixing and reviewing. Newest 
 | Live view | My bookkeeping filter also hid real work in the hive's shared folder (caught by `presence.test.cjs`) | `hive/shared` counts as work. |
 | Learn | A lesson's slides or reading would show as a separate lesson | Parts titled "Lesson n: Topic (slides)" group under one lesson with part tabs; the interactive page leads and keeps the progress. |
 | Orchestration | The circuit breaker steered a worker running a 10-minute float simulation, and another that had already finished, as "stuck" (the next step up stops the agent) | A shell command still running, or an agent that finished and went idle, counts as progressing (loads at the next restart). |
+| Learn | Nothing told the Office how the learner likes to learn | The new-course card offers A mix / Hands-on practice / Slides / Reading; the choice goes into the brief and picks the editors. |
 | Learn | Material could only be attached when a course started, and only opened as a folder | A Material tab lists the course's files, opens them, and adds more (the tutor is told to use them). Not exercised end to end: adding messages the tutor. |
 | Learn | The course plan (syllabus.md) was only visible in the folder | A Plan tab renders it in the course, refreshed every minute. |
 | Learn | Lessons could only be HTML or PDF | Editor-built lessons (slides, documents, sheets, 3D) open in the editors; a per-course "My notes" document the tutor reads; the Office's guide builds lessons with the editors. |
@@ -29,6 +30,7 @@ A running log from an unattended night of testing, fixing and reviewing. Newest 
 
 - Renderer memory grows over a long session (1.9 GB after a restart, 2.5 GB renderer about four hours later), while the JS heap stays near 0.4 GB, so most of it is native (graphics and image buffers). The 3D editor engine now releases its WebGL context on close; if growth continues, the next suspects are the background floor's textures and live-file previews.
 - The app exited by itself twice during the day (probably memory pressure: about 1 GB free at the time, the webview at 5 GB).
+- Learn shows two Dutch courses: one with 2 lessons and a stale duplicate still "Planning the first lesson" from 16 days ago. Worth a way to archive a course.
 - Learn courses are global, not per server; the Dutch course shows in Boat Bike as well as Wittenborg.
 - The office test suite has 17 environmental failures (path containment under the packaged-app file layout).
 
