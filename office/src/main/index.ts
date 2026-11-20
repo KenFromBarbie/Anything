@@ -1417,7 +1417,14 @@ function runBreakerBeat(progressWindowMs: number): void {
     inputs.push({
       agentId: id,
       sample,
-      progressing: now - lastCoordinationAt(id) < progressWindowMs || now - lastSpanAt < progressWindowMs,
+      progressing:
+        now - lastCoordinationAt(id) < progressWindowMs ||
+        now - lastSpanAt < progressWindowMs ||
+        // A shell command still running (a 10-minute simulation, a build) is
+        // work in progress, not a wedged agent; nor is one that finished and
+        // went idle. Both were steered as "stuck" overnight.
+        (commandStart.has(id) && now - (commandStart.get(id)?.at ?? 0) < 45 * 60_000) ||
+        !!presence.get(id)?.idleSince,
       // Work, as distinct from coordination. The breaker decides what to do
       // with it; the beat only reports it.
       lastWorkAt: lastWorkAt(id)
