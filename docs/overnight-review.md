@@ -33,6 +33,11 @@ A running log from an unattended night of testing, fixing and reviewing. Newest 
 - **Dev build:** the app runs as a development build (Vite dev server, React development mode). A production copy builds in a separate `target-prod` folder (screens in `dist`, Tauri `custom-protocol`); speed comparison pending.
 - **Learn:** courses take the title of the Office's plan instead of the learner's request.
 
+- **Learn:** a Continue banner for the course you were last in, with its next lesson.
+- **Memory:** no leak. After a forced cleanup the page holds about 100 MB of JS and ~60 MB of buffers, stable across two full sweeps of every page. The 3D cut caches were reduced (48 -> 16 shapes, 24 -> 8 background results); they had held about 0.6 GB.
+- **Tests:** `desktop/scripts/ts-ext-hook.mjs` lets the editor tests that import extensionless TS files run (cad 3, cadsim 5, site 6, formats 3: all pass), plus a regression test for the cylinder top-radius bug.
+- **Not verified:** the live 3D pointers and the 'updated N s ago' badge, because no agent worked overnight. The production build (`target-prod`) compiled but hasn't been speed-compared.
+
 ## Open findings
 
 - Renderer memory grows over a long session (1.9 GB after a restart, 2.5 GB renderer about four hours later), while the JS heap stays near 0.4 GB, so most of it is native (graphics and image buffers). The 3D editor engine now releases its WebGL context on close; if growth continues, the next suspects are the background floor's textures and live-file previews. Later data: 1.4 GB → 3.6 GB in about 1.5 h with the app sitting on the Learn page while 3–4 builders worked, so the growth follows agent activity, not page use. The floor's bubbles and characters are destroyed correctly (checked). Update: an hour later it was back at 1.6 GB without a restart, so this is memory the engine frees in its own time, not a steady leak. Keep an eye on peaks under heavy activity.
