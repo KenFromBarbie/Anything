@@ -50,7 +50,7 @@ export const EMPTY_PROGRESS: CourseProgress = { lessons: {}, updatedAt: 0 };
 
 /** A course's name from what the owner wants to learn. */
 export function proposeCourseName(goal: string): string {
-  const first = goal.trim().split(/\n|[.?!](\s|$)/)[0] ?? "";
+  const first = goal.trim().split(/\n|[.?!,;](\s|$)/)[0] ?? "";
   const cleaned = first
     .replace(
       /^(please\s+)?(i\s+(want|need|would like)\s+to\s+|teach me\s+|help me\s+|can you teach me\s+)?(learn|understand|get better at|master|study)?\s*(about|how to)?\s*/i,
@@ -62,6 +62,29 @@ export function proposeCourseName(goal: string): string {
   const words = cleaned.split(" ").slice(0, 7).join(" ");
   if (!words) return "New course";
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** The course's real title, from the plan the Office writes (syllabus.md's
+ *  first heading, without "syllabus" and level notes): "# Dutch for a
+ *  newcomer in the Netherlands: syllabus (A0 to A2)" -> "Dutch for a newcomer
+ *  in the Netherlands". Null when there's no usable heading yet. */
+export function courseTitleFromSyllabus(md: string): string | null {
+  const h = /^\s*#\s+(.+)$/m.exec(md ?? "")?.[1]?.trim();
+  if (!h) return null;
+  const t = h
+    .replace(/\s*[:–—-]\s*(course\s+)?(syllabus|plan|course plan|outline)\b.*$/i, "")
+    .replace(/\s*\((?:[^()]*)\)\s*$/, "")
+    .replace(/^(syllabus|course plan|plan)\s*[:–—-]\s*/i, "")
+    .trim();
+  if (!t || t.length > 80) return null;
+  return t;
+}
+
+/** Whether a course still has the name the app guessed from the request
+ *  (so the Office's own title may replace it), not one the learner typed. */
+export function isGuessedCourseName(name: string, goal: string): boolean {
+  const n = name.trim().toLowerCase();
+  return n === proposeCourseName(goal).trim().toLowerCase() || n === goal.trim().toLowerCase() || n === "new course";
 }
 
 /** A lesson's report, or null when the message isn't one. */

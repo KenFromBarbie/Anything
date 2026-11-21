@@ -42,8 +42,10 @@ import {
   type CourseProgress,
   courseLessons,
   courseSummary,
+  courseTitleFromSyllabus,
   EMPTY_PROGRESS,
   groupLessonParts,
+  isGuessedCourseName,
   type LessonProgress,
   proposeCourseName,
   readLearnMessage,
@@ -338,6 +340,32 @@ function ProgressBar({
   );
 }
 
+/** A course named after the request until the Office writes its plan: then
+ *  it takes the plan's title ("Dutch for a newcomer in the Netherlands"),
+ *  unless the learner named it themselves. */
+function useCourseTitle(course: Course) {
+  const client = useQueryClient();
+  const guessed = isGuessedCourseName(course.name, course.description ?? "");
+  const { data: plan } = useQuery({
+    queryKey: ["learn", "syllabus", course.id],
+    queryFn: () => learnApi.syllabus(course.id),
+    enabled: guessed,
+    refetchInterval: guessed ? 60_000 : false,
+  });
+  const title = plan ? courseTitleFromSyllabus(plan) : null;
+  const done = React.useRef(false);
+  React.useEffect(() => {
+    if (!guessed || !title || done.current || title === course.name) return;
+    done.current = true;
+    void researchApi
+      .update(course.id, { name: title })
+      .then(() => client.invalidateQueries({ queryKey: RESEARCH_KEY }))
+      .catch(() => {
+        done.current = false;
+      });
+  }, [guessed, title, course.id, course.name, client]);
+}
+
 function CourseCard({
   artifacts,
   course,
@@ -348,6 +376,7 @@ function CourseCard({
   onOpen: () => void;
 }) {
   const { data: progress = EMPTY_PROGRESS } = useCourseProgress(course.id);
+  useCourseTitle(course);
   const lessons = lessonGroups(artifacts, course.id);
   const summary = courseSummary(
     lessons.map((l) => l.key),

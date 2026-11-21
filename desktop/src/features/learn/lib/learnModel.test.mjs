@@ -128,3 +128,15 @@ test("a lesson's parts are grouped, the interactive page first", async () => {
     ["Lesson 2: Sounds", "c", ["Lesson", "slides"]],
   ]);
 });
+
+test("a course takes its title from the Office's plan", async () => {
+  const { courseTitleFromSyllabus, isGuessedCourseName } = await import("./learnModel.ts");
+  assert.equal(courseTitleFromSyllabus("# Dutch for a newcomer in the Netherlands: syllabus (A0 to A2)\n\nx"), "Dutch for a newcomer in the Netherlands");
+  assert.equal(courseTitleFromSyllabus("intro\n# Contract law basics\n"), "Contract law basics");
+  assert.equal(courseTitleFromSyllabus("# Syllabus: Music theory for beginners"), "Music theory for beginners");
+  assert.equal(courseTitleFromSyllabus("no heading"), null);
+  const goal = "I want to learn dutch, i just started living in netherland, i honestly just wanna learn to speak";
+  assert.equal(isGuessedCourseName("Dutch i just started living in netherland", "Dutch i just started living in netherland"), true);
+  assert.equal(isGuessedCourseName(goal, goal), true);
+  assert.equal(isGuessedCourseName("My Dutch", goal), false);
+});
