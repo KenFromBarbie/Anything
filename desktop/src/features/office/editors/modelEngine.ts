@@ -70,7 +70,7 @@ export function geometryOf(o: SceneObject): THREE.BufferGeometry | null {
 
 /** Another 3D editor file as one group (its shapes with their poses and
  *  colours; imports inside it are left out, one level of parts). */
-function partGroup(file: ModelFile, loadImport?: (src: string) => Promise<Loaded>, onLoaded?: () => void): THREE.Group {
+function partGroup(file: ModelFile, loadImport?: (src: string) => Promise<Loaded>, onLoaded?: () => void, deepCuts = false): THREE.Group {
   const group = new THREE.Group();
   const nodes = new Map<string, THREE.Object3D>();
   for (const o of file.objects) {
@@ -81,7 +81,7 @@ function partGroup(file: ModelFile, loadImport?: (src: string) => Promise<Loaded
     node.visible = o.visible;
     if (o.kind !== "curve" && o.kind !== "import" && o.kind !== "empty") {
       const g = o.kind === "boolean" && o.boolean ? booleanGeometry(o.boolean, file, (x) => shapeOf(x, file)) : shapeOf(o, file);
-      if (!g && o.kind === "boolean" && o.boolean) {
+      if (!g && o.kind === "boolean" && o.boolean && deepCuts) {
         // Too deep a chain to compute here without freezing the page: the
         // background worker makes it, and it appears when ready.
         void booleanInBackground(o, file).then((bg) => {
@@ -202,7 +202,14 @@ export class ModelScene {
   onTransform: (id: string, pose: { position: Vec3; rotation: Vec3; scale: Vec3 }, done: boolean) => void = () => {};
   onPick: (id: string | null) => void = () => {};
 
-  constructor(host: HTMLElement, file: ModelFile, view: View = "perspective") {
+  /** Deep chains of cuts (a hull with dozens of cut-outs) are computed in
+   *  the background only in the full 3D editor: the job can take a lot of
+   *  memory, and building it for every chat or Create preview crashed the
+   *  window. Previews skip such a chain. */
+  readonly deepCuts: boolean;
+
+  constructor(host: HTMLElement, file: ModelFile, view: View = "perspective", opts: { deepCuts?: boolean } = {}) {
+    this.deepCuts = !!opts.deepCuts;
     this.host = host;
     this.file = file;
     this.viewKind = view;
@@ -494,6 +501,7 @@ export class ModelScene {
       if (o.kind === "boolean" && o.boolean) {
         const bg = booleanGeometry(o.boolean, this.file, (x) => shapeOf(x, this.file));
         if (!bg) {
+          if (!this.deepCuts) return null;
           // A deep chain of cuts: made in the background, added when ready.
           const file = this.file;
           void booleanInBackground(o, file).then((g2) => {
@@ -576,7 +584,7 @@ export class ModelScene {
         // drawn as one group, so an assembly shows each worker's part live.
         fetch(url)
           .then((r) => r.json())
-          .then((j) => resolve({ root: partGroup(parseModel(j), (s) => this.load(s), () => this.poke()), clips: [] }))
+          .then((j) => resolve({ root: partGroup(parseModel(j), (s) => this.load(s), () => this.poke(), this.deepCuts), clips: [] }))
           .catch(fail);
       } else if (ext === "stl") {
         new STLLoader().load(url, (g) => resolve({ root: new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: "#c8c8c8" })), clips: [] }), undefined, fail);

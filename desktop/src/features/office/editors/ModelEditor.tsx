@@ -1843,7 +1843,7 @@ function Viewport({
   const host = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (!host.current) return;
-    const e = new ModelScene(host.current, model.current, view);
+    const e = new ModelScene(host.current, model.current, view, { deepCuts: true });
     register(view, e);
     return () => {
       register(view, null);
