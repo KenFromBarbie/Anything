@@ -271,15 +271,30 @@ function ModelPreview({ scene, thumb }: { scene: ModelFile; thumb: boolean }) {
   const host = React.useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = React.useState(false);
   const engine = React.useRef<ModelScene | null>(null);
+  // Build the 3D scene only once it scrolls into view: a chat with several
+  // model versions built every one of them (cuts and all) on opening, which
+  // froze the Inbox for ~20 seconds.
+  const [seen, setSeen] = React.useState(false);
   React.useEffect(() => {
-    if (thumb || !host.current) return;
+    if (thumb || seen || !host.current) return;
+    const io = new IntersectionObserver(([e]) => {
+      if (e?.isIntersecting) {
+        setSeen(true);
+        io.disconnect();
+      }
+    }, { rootMargin: "200px" });
+    io.observe(host.current);
+    return () => io.disconnect();
+  }, [thumb, seen]);
+  React.useEffect(() => {
+    if (thumb || !seen || !host.current) return;
     const e = new ModelScene(host.current, scene);
     e.gizmo.getHelper().visible = false;
     e.gizmo.enabled = false;
     engine.current = e;
     requestAnimationFrame(() => e.focus());
     return () => e.dispose();
-  }, [scene, thumb]);
+  }, [scene, thumb, seen]);
   React.useEffect(() => {
     if (!playing) return;
     let raf = 0;
