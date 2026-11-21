@@ -27,6 +27,12 @@ A running log from an unattended night of testing, fixing and reviewing. Newest 
 | Learn | The course plan (syllabus.md) was only visible in the folder | A Plan tab renders it in the course, refreshed every minute. |
 | Learn | Lessons could only be HTML or PDF | Editor-built lessons (slides, documents, sheets, 3D) open in the editors; a per-course "My notes" document the tutor reads; the Office's guide builds lessons with the editors. |
 
+## Night 2
+
+- **Inbox lag:** opening the Inbox froze the app for about 20 s. The CEO chat embeds several 3D model versions, and each preview was built on open, cuts included, even off screen. Previews now build when scrolled into view: about 2.5 s of total blocking, worst single stall 0.8 s.
+- **Dev build:** the app runs as a development build (Vite dev server, React development mode). A production copy builds in a separate `target-prod` folder (screens in `dist`, Tauri `custom-protocol`); speed comparison pending.
+- **Learn:** courses take the title of the Office's plan instead of the learner's request.
+
 ## Open findings
 
 - Renderer memory grows over a long session (1.9 GB after a restart, 2.5 GB renderer about four hours later), while the JS heap stays near 0.4 GB, so most of it is native (graphics and image buffers). The 3D editor engine now releases its WebGL context on close; if growth continues, the next suspects are the background floor's textures and live-file previews. Later data: 1.4 GB → 3.6 GB in about 1.5 h with the app sitting on the Learn page while 3–4 builders worked, so the growth follows agent activity, not page use. The floor's bubbles and characters are destroyed correctly (checked). Update: an hour later it was back at 1.6 GB without a restart, so this is memory the engine frees in its own time, not a steady leak. Keep an eye on peaks under heavy activity.
