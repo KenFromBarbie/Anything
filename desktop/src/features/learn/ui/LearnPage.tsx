@@ -148,6 +148,7 @@ export function LearnPage({ courseId }: { courseId: string | null }) {
         description="Say what you want to learn and add any material. The Office plans a course, builds interactive lessons, and shapes each one around how you did on the last."
         title="Learn"
       />
+      {courses[0] ? <ContinueCard artifacts={artifacts} course={courses[0]} onOpen={() => void goLearn(courses[0].id)} /> : null}
       <StartCourseCard onStarted={(course) => void goLearn(course.id)} />
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -174,6 +175,35 @@ export function LearnPage({ courseId }: { courseId: string | null }) {
         </section>
       )}
     </div>
+  );
+}
+
+/** Where you left off: the course you touched last and its next lesson. */
+function ContinueCard({ artifacts, course, onOpen }: { artifacts: Artifact[]; course: Course; onOpen: () => void }) {
+  const { data: progress = EMPTY_PROGRESS } = useCourseProgress(course.id);
+  const lessons = lessonGroups(artifacts, course.id);
+  const next = lessons.find((l) => progress.lessons[l.key]?.status !== "done") ?? null;
+  const summary = courseSummary(lessons.map((l) => l.key), progress);
+  if (!lessons.length) return null;
+  return (
+    <button
+      className="flex items-center gap-4 rounded-2xl border border-primary/30 bg-primary/5 p-4 text-left transition-colors hover:bg-primary/10"
+      data-testid="learn-continue"
+      onClick={onOpen}
+      type="button"
+    >
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+        <BookOpen className="h-5 w-5" />
+      </span>
+      <span className="grid min-w-0 flex-1 gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-primary">Continue learning</span>
+        <span className="truncate font-semibold">{course.name}</span>
+        <span className="truncate text-sm text-muted-foreground">
+          {next ? `Next: ${next.title}` : "All lessons done. Ask for the next one."} · {summary.done}/{summary.total} done
+        </span>
+      </span>
+      <ProgressBar className="hidden w-40 sm:block" value={summary.total ? summary.done / summary.total : 0} />
+    </button>
   );
 }
 
