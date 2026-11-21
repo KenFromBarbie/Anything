@@ -19,6 +19,7 @@ import {
   setFloorChannel,
 } from "@/features/office/lib/officeFloorEvents";
 import { setMirrorTarget } from "@/features/office/lib/officeMirror";
+import { PausedAgentsBanner } from "@/features/office/ui/PausedAgentsBanner";
 import { startOffice } from "@/features/office/ui/OfficeHost";
 import { hostTheme } from "@/features/office/ui/OfficeScreen";
 
@@ -182,6 +183,7 @@ export function OfficeBackdrop({ community }: { community?: string }) {
   const hash = firstHash.current;
   return (
     <>
+      <PausedAgentsBanner />
       <div
         aria-hidden
         className="office-backdrop-layer pointer-events-none fixed inset-0 z-0 overflow-hidden"
