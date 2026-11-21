@@ -614,6 +614,19 @@ function teardownPty(id: string): void {
   // (workers card via the hive:agentSpawned broadcast in processSpawnRequest).
   // pty id == worker id == agent id for workers.
   const wasWorker = liveWorkers.has(id);
+  // A worker that leaves without a word (no result, no "done", nothing in its
+  // outbox since it started) stalls its task: nobody knows to pick it up.
+  // Tell the CEO, so the work is re-tasked instead of sitting forever.
+  const rec = liveWorkers.get(id);
+  if (rec && !workerSentAnythingSince(id, rec.spawnedAt)) {
+    try {
+      informGod(
+        `[worker left without reporting] ${rec.name ?? id}`,
+        `Worker ${rec.name ?? id} (${id}) stopped and left the floor after ${Math.round((Date.now() - rec.spawnedAt) / 60000)} min without sending a result or a done message. Its task is NOT finished as far as anyone knows: check what it left in its work folder and re-task it, or hire another worker.`,
+        rec.slack,
+      );
+    } catch (e) { console.error('[worker] silent-exit notice failed:', e); }
+  }
   // 0) Revoke this id's broker capability (if any). Idempotent + harmless for a
   //    non-worker PTY; ensures a dead worker's token can never reach an integration.
   try { integrationBroker.revoke(id); } catch { /* best-effort */ }
@@ -4903,6 +4916,24 @@ function archiveRequest(filePath: string, sub: '.done' | '.failed'): void {
  *  own timestamp), falling back to the file's mtime when `created_at` is missing
  *  or unparseable. When neither yields a usable timestamp we DON'T count it
  *  (fail toward keeping the worker alive — the idle reaper is the backstop). */
+/** Whether a worker sent anything at all (a result, a question, done) since it
+ *  started: any message file in its outbox, sent or pending, newer than that. */
+function workerSentAnythingSince(workerId: string, since: number): boolean {
+  const root = hive.root();
+  if (!root) return true; // can't tell: don't raise a false alarm
+  const base = join(root, 'agents', workerId, 'outbox');
+  for (const dir of [base, join(base, '.sent')]) {
+    if (!existsSync(dir)) continue;
+    try {
+      for (const f of readdirSync(dir)) {
+        if (!f.endsWith('.json')) continue;
+        try { if (statSync(join(dir, f)).mtimeMs >= since - 1000) return true; } catch { /* gone */ }
+      }
+    } catch { /* unreadable */ }
+  }
+  return false;
+}
+
 function workerSignaledDone(workerId: string, spawnedAt: number): boolean {
   const root = hive.root();
   if (!root) return false;
