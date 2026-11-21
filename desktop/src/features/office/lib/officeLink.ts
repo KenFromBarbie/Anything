@@ -168,7 +168,7 @@ export type AgentPresence = {
   since: number;
   lastAt: number;
   idleSince: number | null;
-  steps: { ts: number; text: string }[];
+  steps: { ts: number; text: string; tool?: string }[];
   latest: { path: string; kind: "model" | "image" | "video" | "site" | "pdf" | "editor" | "text"; mtime: number } | null;
   dirs: string[];
   /** What it changed so far: its change log file (JSON lines) and totals. */

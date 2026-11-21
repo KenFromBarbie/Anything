@@ -85,7 +85,7 @@ export function useFileFollow(path: string | undefined, kind: EditorKind | null)
       }
     };
     void tick();
-    const t = setInterval(tick, 1500);
+    const t = setInterval(tick, 600);
     return () => {
       alive = false;
       clearInterval(t);

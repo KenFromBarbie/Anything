@@ -62,7 +62,7 @@ function useLiveFile(path: string | undefined) {
         .then((r) => alive && setState((s) => (s?.mtime === r.mtime ? s : { mtime: r.mtime })))
         .catch((e) => alive && setState({ mtime: 0, error: String(e) }));
     void check();
-    const t = setInterval(check, 2000);
+    const t = setInterval(check, 600);
     return () => {
       alive = false;
       clearInterval(t);
@@ -383,7 +383,7 @@ function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => vo
   const [view, setView] = React.useState<"live" | "terminal" | "changes">(
     p.activity === "Running a simulation" || !p.latest ? "terminal" : "live",
   );
-  const now = useNow(15_000);
+  const now = useNow(1000);
   const file = useLiveFile(p.latest?.path);
   const working = isLive(agent, now);
   React.useEffect(() => {
@@ -399,14 +399,24 @@ function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => vo
       {p.latest ? (file?.error ?? "Loading…") : "Nothing to show yet: the picture appears as soon as they write a model, image, video, page or document."}
     </div>
   );
+  // Everyone in this stream, as pointers on the 3D model.
+  const watchers = agents.map((a) => {
+    const last = a.presence.steps.at(-1);
+    const step = last ? `${last.tool ? `${last.tool} · ` : ""}${last.text}` : a.presence.activity;
+    return {
+      name: a.name,
+      color: a.accent?.startsWith("#") ? a.accent : "#5865f2",
+      what: step.length > 60 ? `${step.slice(0, 57)}…` : step,
+    };
+  });
   if (src && p.latest) {
     const k = p.latest.kind;
     if (k === "model") {
       // In the 3D editor itself (menus, scene tree, workspaces), reopened on
       // every new version the agent writes, so the changes show as they land.
-      stage = <LiveModelEditor mtime={file?.mtime ?? 0} path={p.latest.path} />;
+      stage = <LiveModelEditor mtime={file?.mtime ?? 0} path={p.latest.path} watchers={watchers} />;
     } else if (k === "editor" && /\.model\.json$/i.test(p.latest.path)) {
-      stage = <LiveModelEditor mtime={file?.mtime ?? 0} path={p.latest.path} />;
+      stage = <LiveModelEditor mtime={file?.mtime ?? 0} path={p.latest.path} watchers={watchers} />;
     } else if (k === "image") stage = <img alt="" className="h-full w-full object-contain" src={src} />;
     // biome-ignore lint/a11y/useMediaCaption: an agent's work in progress
     else if (k === "video") stage = <video autoPlay className="h-full w-full" controls key={src} loop muted src={src} />;
@@ -448,6 +458,7 @@ function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => vo
                 Changes{p.changes?.count ? ` (${p.changes.count})` : ""}
               </button>
             </div>
+            <UpdatedBadge mtime={file?.mtime ?? 0} now={now} />
             <span className="ml-auto truncate text-xs text-white/50">{name}</span>
             <button aria-label="Stop watching" className="rounded p-1 text-white/70 hover:bg-white/10 hover:text-white" onClick={onClose} type="button">
               <X className="h-4 w-4" />
@@ -463,7 +474,11 @@ function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => vo
                 "pointer-events-none absolute z-20 flex max-w-[70%] flex-col items-start gap-1",
                 // In an editor, inside its viewport under the view label, so the
                 // flags don't cover the timeline and command line at the bottom.
-                view === "live" && (p.latest?.kind === "model" || p.latest?.kind === "editor") ? "left-14 top-[8.25rem]" : "bottom-3 left-3",
+                view === "live" && (p.latest?.kind === "model" || (p.latest?.kind === "editor" && /\.model\.json$/i.test(p.latest.path)))
+                  ? "hidden" // pointers on the model instead
+                  : view === "live" && p.latest?.kind === "editor"
+                    ? "left-14 top-[8.25rem]"
+                    : "bottom-3 left-3",
               )}
               data-testid="live-agent-flags"
             >
@@ -514,6 +529,11 @@ function LiveWatch({ agents, onClose }: { agents: LiveAgent[]; onClose: () => vo
                   <span className="w-12 shrink-0 tabular-nums text-white/40">{ago(st.ts, now)}</span>
                   <span className="min-w-0 break-words">
                     {agents.length > 1 ? <span className="font-semibold text-white/80">{st.who.name}: </span> : null}
+                    {st.tool ? (
+                      <span className="mr-1 inline-block rounded bg-white/10 px-1 py-px align-[1px] font-mono text-[10px] text-white/80" title="The tool they used">
+                        {st.tool}
+                      </span>
+                    ) : null}
                     {st.text}
                   </span>
                 </li>
@@ -646,7 +666,7 @@ function TextStage({ src }: { src: string }) {
 
 /** The agent's model open in the app's 3D editor: a .model.json as itself, a
  *  .glb/.obj/.stl as an imported object. A new version reopens it. */
-function LiveModelEditor({ path, mtime }: { path: string; mtime: number }) {
+function LiveModelEditor({ path, mtime, watchers }: { path: string; mtime: number; watchers?: { name: string; color: string; what: string }[] }) {
   const [file, setFile] = React.useState<ModelFile | null>(null);
   const firstPath = React.useRef<string | null>(null);
   React.useEffect(() => {
@@ -691,9 +711,35 @@ function LiveModelEditor({ path, mtime }: { path: string; mtime: number }) {
   return (
     <div className="h-full overflow-hidden [&>div]:!h-full [&>div]:!min-h-0 [&>div]:!rounded-none [&>div]:!border-0">
       <React.Suspense fallback={null}>
-        <ModelEditor file={first.current} follow={file} key={path} title={title} />
+        <ModelEditor file={first.current} follow={file} key={path} title={title} watchers={watchers} />
       </React.Suspense>
     </div>
+  );
+}
+
+/** When the file on screen last changed, ticking, flashing as a new version
+ *  lands: the view stays put while agents read and run checks, and this says
+ *  it is live and how fresh it is. */
+function UpdatedBadge({ mtime, now }: { mtime: number; now: number }) {
+  const [flash, setFlash] = React.useState(false);
+  const first = React.useRef(mtime);
+  React.useEffect(() => {
+    if (!mtime || mtime === first.current) return;
+    setFlash(true);
+    const t = setTimeout(() => setFlash(false), 1500);
+    return () => clearTimeout(t);
+  }, [mtime]);
+  if (!mtime) return null;
+  const s = Math.max(0, Math.round((now - mtime) / 1000));
+  const label = s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h`;
+  return (
+    <span
+      className={cn("rounded px-1.5 py-0.5 text-[11px] tabular-nums transition-colors duration-700", flash ? "bg-[#3ba55d] text-white" : "bg-white/10 text-white/60")}
+      data-testid="live-updated"
+      title="When the file last changed"
+    >
+      {flash ? "updated now" : `updated ${label} ago`}
+    </span>
   );
 }
 

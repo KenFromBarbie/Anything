@@ -642,6 +642,21 @@ export class ModelScene {
     return { x: ((v.x + 1) / 2) * r.width, y: ((1 - v.y) / 2) * r.height };
   }
 
+  /** Where the whole model sits on screen (top centre of everything
+   *  visible): the anchor for an agent's pointer when no single part is
+   *  theirs (an imported mesh, a file they're checking). */
+  screenOfAll(): { x: number; y: number } | null {
+    const box = new THREE.Box3();
+    for (const n of this.nodes.values()) if (n.visible) box.expandByObject(n);
+    if (box.isEmpty()) return null;
+    const c = box.getCenter(new THREE.Vector3());
+    c.y = box.max.y;
+    const v = c.project(this.camera);
+    if (v.z > 1 || v.z < -1) return null;
+    const r = this.host.getBoundingClientRect();
+    return { x: ((v.x + 1) / 2) * r.width, y: ((1 - v.y) / 2) * r.height };
+  }
+
   /** Frame the camera on an object or on everything. */
   focus(id?: string | null) {
     const box = new THREE.Box3();

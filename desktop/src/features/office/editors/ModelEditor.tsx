@@ -98,9 +98,13 @@ export function ModelEditor({
   path,
   artifactId,
   follow,
+  watchers,
 }: {
   title: string;
   file: ModelFile;
+  /** The agents working on this file right now (the live view): each gets a
+   *  pointer on the model, like collaborators in a shared document. */
+  watchers?: { name: string; color: string; what: string }[];
   series?: string;
   path?: string;
   artifactId?: string;
@@ -849,6 +853,16 @@ export function ModelEditor({
               {/* An agent's cursor: pinned on the part they just changed (in the
                   single view), else a flag in the corner. */}
               {agentNote ? <AgentPointer engine={four ? null : () => engines.current.get("perspective") ?? null} note={agentNote} /> : null}
+              {(watchers ?? [])
+                .filter((w) => w.name !== agentNote?.name)
+                .map((w, i) => (
+                  <AgentPointer
+                    engine={four ? null : () => engines.current.get("perspective") ?? null}
+                    key={w.name}
+                    note={w}
+                    slot={i + (agentNote ? 1 : 0)}
+                  />
+                ))}
             </div>
             {/* command line */}
             <div className="shrink-0 border-t border-black/60 bg-[#232323] px-2 py-1 font-mono text-[11px]">
@@ -1773,25 +1787,30 @@ function garmentPreview(s: Record<string, string | number>): SceneObject[] {
 /** The agent's cursor in the 3D view, like a collaborator's in a shared
  *  document: an arrow and their name, following the changed part on screen
  *  as the camera moves. */
-function AgentPointer({ note, engine }: { note: { name: string; color: string; what: string; id?: string }; engine: (() => ModelScene | null) | null }) {
+function AgentPointer({ note, engine, slot = 0 }: { note: { name: string; color: string; what: string; id?: string }; engine: (() => ModelScene | null) | null; slot?: number }) {
   const [at, setAt] = React.useState<{ x: number; y: number } | null>(null);
   React.useEffect(() => {
-    if (!engine || !note.id) {
+    if (!engine) {
       setAt(null);
       return;
     }
     let raf = 0;
     const tick = () => {
-      const p = engine()?.screenOf(note.id!) ?? null;
+      // On the part they changed, else on the model itself; several agents
+      // fan out so their names don't stack on one spot.
+      const e = engine();
+      const base = (note.id ? e?.screenOf(note.id) : null) ?? e?.screenOfAll() ?? null;
+      const p = base ? { x: base.x + slot * 26, y: base.y + slot * 30 } : null;
       setAt((old) => (old && p && Math.abs(old.x - p.x) < 0.5 && Math.abs(old.y - p.y) < 0.5 ? old : p));
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [engine, note.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note.id, slot, !!engine]);
   if (!at) {
     return (
-      <div className="pointer-events-none absolute right-3 top-2 z-10 flex items-center gap-1.5 rounded px-2 py-0.5 text-[11px] font-semibold text-white shadow" data-testid="agent-pointer" style={{ background: note.color }}>
+      <div className="pointer-events-none absolute right-3 z-10 flex max-w-[40%] items-center gap-1.5 truncate rounded px-2 py-0.5 text-[11px] font-semibold text-white shadow" data-testid="agent-pointer" style={{ background: note.color, top: 8 + slot * 24 }}>
         {note.name} · {note.what}
       </div>
     );
@@ -1801,8 +1820,10 @@ function AgentPointer({ note, engine }: { note: { name: string; color: string; w
       <svg className="drop-shadow" height="18" viewBox="0 0 16 18" width="16">
         <path d="M1 1 L1 15 L5 11 L8 17 L10.5 16 L7.6 10.2 L13 10.2 Z" fill={note.color} stroke="white" strokeWidth="1.2" />
       </svg>
-      <div className="ml-3 -mt-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-semibold text-white shadow" style={{ background: note.color }}>
-        {note.name} · {note.what}
+      <div className="ml-3 -mt-1 flex max-w-[28rem] items-center gap-1.5 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-semibold text-white shadow" style={{ background: note.color }}>
+        <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-white" />
+        <span className="shrink-0">{note.name}</span>
+        <span className="truncate font-normal opacity-90">· {note.what}</span>
       </div>
     </div>
   );

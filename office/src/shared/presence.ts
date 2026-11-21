@@ -45,7 +45,7 @@ export function liveKindOf(path: string): LiveKind | null {
   return LIVE_EXT[ext] ?? null;
 }
 
-export interface PresenceStep { ts: number; text: string }
+export interface PresenceStep { ts: number; text: string; /** The tool it used (Bash, Read, Edit, …). */ tool?: string }
 export interface PresenceFile { path: string; kind: LiveKind; mtime: number; /** Only read, not made. */ fromRead?: boolean; /** The lines a read showed (sed -n 190,302p, head -n 40). */ lines?: [number, number] }
 
 export interface Presence {
@@ -173,7 +173,7 @@ export function classify(tool: string, input: unknown): ToolCall {
       return { activity: 'Working', step: `Published ${t ? `“${t}”` : 'a result'}` };
     }
     const act = byContent(cmd) ?? (/\b(python|node|npx|npm|pip|cargo|pytest|bun)\b/.test(cmd) ? 'Writing code' : 'Working');
-    const short = cmd.replace(/\s+/g, ' ').trim().slice(0, 80);
+    const short = commandGist(cmd).slice(0, 80);
     const target = /([\w./\\:-]+\.(py|js|ts|mjs|cjs|sh))\b/.exec(cmd)?.[1];
     // Only a path with a folder names the project (not a bare "run.py").
     return {
@@ -190,6 +190,34 @@ export function classify(tool: string, input: unknown): ToolCall {
   if (name === 'grep' || name === 'glob') return { activity: 'Reading', step: `Searched the files for ${String(i.pattern ?? '').slice(0, 40)}` };
   if (name === 'task' || name === 'agent') return { activity: 'Working', step: 'Started a helper' };
   return { activity: 'Working', step: `Used ${tool}` };
+}
+
+/** What a shell command does, without the boilerplate in front of it: the
+ *  leading `cd "<folder>" &&` and `S="..."; W=...;` assignments every agent
+ *  writes, which hid the real command ("Ran cd "C:/Users/…" && python …"). */
+export function commandGist(cmd: string): string {
+  let c = cmd.replace(/\s+/g, ' ').trim();
+  for (let i = 0; i < 6; i++) {
+    const next = c
+      .replace(/^cd\s+("[^"]*"|'[^']*'|\S+)\s*(&&|;)\s*/i, '')
+      .replace(/^(\$)?[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'[^']*'|\S+)\s*(;|&&)\s*/, '');
+    if (next === c) break;
+    c = next;
+  }
+  // An inline script reads better as what it is.
+  if (/^(python3?|py)\s+(-I\s+)?-c\s/.test(c)) return 'python (inline script)';
+  if (/^(python3?|py)\s+-\s*<</.test(c)) return 'python (inline script)';
+  return c;
+}
+
+/** A tool's name as people read it: Bash, Read, Edit, a web search, an MCP
+ *  server's tool by its own name. */
+export function toolLabel(tool: string): string {
+  const t = String(tool || '');
+  const mcp = /^mcp__([^_]+(?:_[^_]+)*)__(.+)$/.exec(t);
+  if (mcp) return `${mcp[2].replace(/_/g, ' ')} (${mcp[1].replace(/_/g, ' ')})`.slice(0, 40);
+  const known: Record<string, string> = { bash: 'Bash', powershell: 'PowerShell', read: 'Read', edit: 'Edit', multiedit: 'Edit', write: 'Write', grep: 'Grep', glob: 'Glob', websearch: 'Web search', webfetch: 'Web page', task: 'Helper agent', agent: 'Helper agent', todowrite: 'To-do list', notebookedit: 'Notebook', monitor: 'Monitor', schedulewakeup: 'Wake-up timer' };
+  return known[t.toLowerCase()] ?? t.slice(0, 40);
 }
 
 /** The project a file belongs to: its folder (or the file's own name). */
@@ -245,7 +273,7 @@ export class PresenceTracker {
         p = { ...p, detail: c.detail };
       }
     }
-    p = { ...p, lastAt: now, idleSince: null, steps: [...p.steps, { ts: now, text: c.step }].slice(-STEPS) };
+    p = { ...p, lastAt: now, idleSince: null, steps: [...p.steps, { ts: now, text: c.step, tool: toolLabel(tool) }].slice(-STEPS) };
     // Nothing made yet: show what it's reading (a project file, not the
     // office's own mail in the hive).
     if (c.read && !c.wrote && (!p.latest || p.latest.fromRead) && !/[\\/]hive[\\/]/i.test(c.read)) {
