@@ -37,7 +37,7 @@ A running log from an unattended night of testing, fixing and reviewing. Newest 
 - **Memory:** no leak. After a forced cleanup the page holds about 100 MB of JS and ~60 MB of buffers, stable across two full sweeps of every page. The 3D cut caches were reduced (48 -> 16 shapes, 24 -> 8 background results); they had held about 0.6 GB.
 - **Tests:** `desktop/scripts/ts-ext-hook.mjs` lets the editor tests that import extensionless TS files run (cad 3, cadsim 5, site 6, formats 3: all pass), plus a regression test for the cylinder top-radius bug.
 - **Not verified:** the live 3D pointers and the 'updated N s ago' badge, because no agent worked overnight. The production build (`target-prod`) compiled and was speed-compared.
-- **Production vs dev build:** the same 7 page switches block the main thread for 0.57 s in production (worst 90 ms) against 3.46 s in the dev build (worst 416 ms, the Inbox ~2 s): about 6x less. Caveat: the production copy showed 4 server buttons instead of 7 within its first minute, so check it fully (servers, office, agents) before switching to it; frontend changes then need a `vite build` instead of hot reload.
+- **Production vs dev build:** the same 7 page switches block the main thread for 0.57 s in production (worst 90 ms) against 3.46 s in the dev build (worst 416 ms, the Inbox ~2 s): about 6x less. (The 4-vs-7 server-button count seen at first was not the build: the dev copy shows 4 too after a restart.) Still check it fully (servers, office, agents) before switching to it; frontend changes then need a `vite build` instead of hot reload.
 
 ## Open findings
 
