@@ -145,7 +145,7 @@ export function booleanGeometry(
   const made = computeBoolean(def, file, shapeOf);
   if (key && made) {
     CSG_CACHE.set(key, made);
-    while (CSG_CACHE.size > 48) {
+    while (CSG_CACHE.size > 16) {
       const old = CSG_CACHE.keys().next().value as string;
       CSG_CACHE.get(old)?.dispose();
       CSG_CACHE.delete(old);

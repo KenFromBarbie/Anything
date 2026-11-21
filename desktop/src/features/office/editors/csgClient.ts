@@ -51,6 +51,6 @@ export function booleanInBackground(o: SceneObject, file: ModelFile): Promise<TH
     }
   });
   done.set(key, p);
-  while (done.size > 24) done.delete(done.keys().next().value as string);
+  while (done.size > 8) done.delete(done.keys().next().value as string);
   return p.then((g) => g?.clone() ?? null);
 }
